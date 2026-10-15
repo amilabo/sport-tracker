@@ -170,7 +170,7 @@ export default function BodyPage() {
                     role="radio"
                     aria-checked={pct === p}
                     onClick={() => setPct(p)}
-                    className={`h-9 min-w-11 rounded-[9px] border-[1.5px] border-line-inverse px-2.5 text-[13px] font-semibold ${
+                    className={`h-11 min-w-11 rounded-[9px] border-[1.5px] border-line-inverse px-2.5 text-[13px] font-semibold ${
                       pct === p ? "bg-on-inverse text-surface-inverse" : "text-on-inverse-muted"
                     }`}
                   >

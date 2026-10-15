@@ -132,7 +132,7 @@ function WorkoutScreen({ id }: { id: Id }) {
             </svg>
           </Link>
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <div className="line-clamp-2 font-display text-[17px] leading-tight font-bold">{title}</div>
+            <h1 className="line-clamp-2 font-display text-[17px] leading-tight font-bold">{title}</h1>
             <div className="font-mono text-[13px] text-on-inverse-muted">идёт {elapsed(workout.started_at)}</div>
             <div className="font-mono text-[13px] text-on-inverse-muted">начало {formatTime(workout.started_at)}</div>
             <div role="status" className={`flex items-center gap-1.5 text-xs ${saveFailed ? "text-accent" : "text-positive-on-inverse"}`}>

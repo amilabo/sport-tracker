@@ -11,8 +11,9 @@ import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { planChanges, type PlanChange } from "@/domain/plan-diff";
-import { durationMinutes, formatDuration, formatKg, summarize } from "@/domain/summary";
+import { durationMinutes, formatDuration, formatDurationLong, formatKg, summarize } from "@/domain/summary";
 import { DomainError, type Id } from "@/domain/types";
+import { rememberSaved } from "@/components/home/SavedWorkout";
 import { PlanUpdateList } from "./PlanUpdateList";
 
 export function FinishRoute() {
@@ -104,6 +105,12 @@ function FinishForm({ full }: { full: WorkoutFull }) {
         energy_after: afterHidden ? null : energy,
         mood_after: afterHidden ? null : mood,
         note: note.trim() || null,
+      });
+      rememberSaved({
+        title: plan?.name ?? "Без плана",
+        percent: summary.percent,
+        volumeKg: summary.volumeKg,
+        duration: minutes !== null ? formatDurationLong(minutes) : null,
       });
       router.push("/");
     } catch (err) {

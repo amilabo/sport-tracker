@@ -119,7 +119,7 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
                 type="button"
                 onClick={() => onEditSet(i)}
                 aria-label={`Подход ${i + 1}: ${formatSet(logType, s)}. Изменить`}
-                className="min-h-9 rounded-[9px] border-[1.5px] border-line bg-surface-raised px-2.5 font-mono text-[13px] font-bold"
+                className="min-h-11 rounded-[9px] border-[1.5px] border-line bg-surface-raised px-2.5 font-mono text-[13px] font-bold"
               >
                 {formatSet(logType, s)}
               </button>
@@ -129,7 +129,7 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
                 type="button"
                 onClick={onAddSet}
                 aria-label="Добавить подход"
-                className="min-h-9 rounded-[9px] border-[1.5px] border-dashed border-line-strong px-2.5 text-[13px] font-semibold text-ink-muted"
+                className="min-h-11 rounded-[9px] border-[1.5px] border-dashed border-line-strong px-2.5 text-[13px] font-semibold text-ink-muted"
               >
                 + подход
               </button>

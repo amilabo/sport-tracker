@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BackupReminder } from "@/components/home/BackupReminder";
 import { InstallHint } from "@/components/home/InstallHint";
+import { SavedWorkout } from "@/components/home/SavedWorkout";
 import { TodayLabel } from "@/components/TodayLabel";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -197,6 +198,7 @@ export default function HomePage() {
         <PageHeader title="Тренировки" eyebrow={<TodayLabel />} />
       </div>
 
+      <SavedWorkout />
       <InstallHint />
 
       {data?.active && <ActiveCard active={data.active} />}

@@ -92,7 +92,7 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
                 role="radio"
                 aria-checked={on}
                 onClick={() => setPeriod(p)}
-                className={`h-9 rounded-[9px] border-[1.5px] border-line-inverse text-[13px] font-semibold ${
+                className={`h-11 rounded-[9px] border-[1.5px] border-line-inverse text-[13px] font-semibold ${
                   on ? "bg-on-inverse text-surface-inverse" : "text-on-inverse-muted"
                 }`}
               >
