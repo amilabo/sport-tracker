@@ -24,6 +24,7 @@ export default function MorePage() {
         archive: archivedEx.length + archivedPlans.length,
         lastExport: settings.last_export_at,
         progressions: chains.length,
+        height: settings.height_cm,
       };
     },
     [],
@@ -33,6 +34,7 @@ export default function MorePage() {
   const links = [
     { href: "/exercises/", label: "Каталог упражнений", hint: data ? String(data.catalog) : "" },
     { href: "/more/progressions/", label: "Прогрессии", hint: data ? String(data.progressions) : "" },
+    { href: "/more/measurement-types/", label: "Замеры и рост", hint: data?.height ? `${data.height} см` : "" },
     { href: "/more/archive/", label: "Архив", hint: data ? String(data.archive) : "" },
     { href: "/more/appearance/", label: "Оформление", hint: "Тема и режим" },
     {
