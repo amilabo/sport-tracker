@@ -5,30 +5,34 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { useLive } from "@/db/hooks";
 import { exercisesRepo } from "@/db/repos/exercises";
 import { plansRepo } from "@/db/repos/plans";
+import { progressionsRepo } from "@/db/repos/progressions";
 import { settingsRepo } from "@/db/repos/settings";
 import { formatShortDate } from "@/domain/format";
 
 export default function MorePage() {
   const { data } = useLive(
     async () => {
-      const [exercises, archivedEx, archivedPlans, settings] = await Promise.all([
+      const [exercises, archivedEx, archivedPlans, settings, chains] = await Promise.all([
         exercisesRepo.list(),
         exercisesRepo.listArchived(),
         plansRepo.listArchived(),
         settingsRepo.get(),
+        progressionsRepo.list(),
       ]);
       return {
         catalog: exercises.length,
         archive: archivedEx.length + archivedPlans.length,
         lastExport: settings.last_export_at,
+        progressions: chains.length,
       };
     },
     [],
-    ["exercises", "plans", "settings"],
+    ["exercises", "plans", "settings", "progressions"],
   );
 
   const links = [
     { href: "/exercises/", label: "Каталог упражнений", hint: data ? String(data.catalog) : "" },
+    { href: "/more/progressions/", label: "Прогрессии", hint: data ? String(data.progressions) : "" },
     { href: "/more/archive/", label: "Архив", hint: data ? String(data.archive) : "" },
     { href: "/more/appearance/", label: "Оформление", hint: "Тема и режим" },
     {

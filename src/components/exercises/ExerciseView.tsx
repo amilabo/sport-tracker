@@ -8,29 +8,36 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
 import { useLive } from "@/db/hooks";
 import { exercisesRepo } from "@/db/repos/exercises";
+import { progressionsRepo } from "@/db/repos/progressions";
 import { EQUIPMENT_LABELS, LOG_TYPE_LABELS, MUSCLE_GROUP_LABELS } from "@/domain/labels";
 import { DomainError } from "@/domain/types";
 import { ExerciseForm } from "./ExerciseForm";
 import { ExerciseProgress } from "./ExerciseProgress";
+import { LinkVariant } from "./LinkVariant";
+import { ProgressionPanel } from "./ProgressionPanel";
 
 /** Exercise card: details, best result, progress chart, set history; edit and archive. */
 export function ExerciseView() {
-  const id = useSearchParams().get("id") ?? "";
+  const params = useSearchParams();
+  const id = params.get("id") ?? "";
+  const [tab, setTab] = useState<"own" | "chain">(params.get("tab") === "chain" ? "chain" : "own");
+  const [linking, setLinking] = useState(false);
   const [editing, setEditing] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data, loading } = useLive(
     async () => {
-      const [exercise, hasHistory, plans] = await Promise.all([
+      const [exercise, hasHistory, plans, chain] = await Promise.all([
         exercisesRepo.get(id),
         exercisesRepo.hasHistory(id),
         exercisesRepo.usedInPlans(id),
+        progressionsRepo.chainOf(id),
       ]);
-      return { exercise, hasHistory, plans };
+      return { exercise, hasHistory, plans, chain };
     },
     [id],
-    ["exercises", "plans", "plan_exercises", "workout_exercises"],
+    ["exercises", "plans", "plan_exercises", "workout_exercises", "progressions"],
   );
 
   const exercise = data?.exercise;
@@ -70,6 +77,10 @@ export function ExerciseView() {
         <p className="text-sm text-ink-muted">
           {MUSCLE_GROUP_LABELS[exercise.muscle_group]} · {EQUIPMENT_LABELS[exercise.equipment]} · запись: {LOG_TYPE_LABELS[exercise.log_type]}
         </p>
+        <p className="text-sm">
+          <span className="text-ink-muted">В планах: </span>
+          {data.plans.length > 0 ? data.plans.map((p) => p.name).join(", ") : <span className="text-ink-muted">нет</span>}
+        </p>
         {exercise.archived_at && (
           <div className="mt-2 flex items-center gap-3 rounded-2xl border-[1.5px] border-dashed border-line-strong bg-surface p-3">
             <span className="flex-1 text-sm">В архиве: не видно в каталоге и при выборе упражнения. История сохранена.</span>
@@ -81,14 +92,42 @@ export function ExerciseView() {
         <FormError message={error} />
       </div>
 
-      <ExerciseProgress exercise={exercise} />
-
-      {data.plans.length > 0 && (
-        <section className="mt-6 flex flex-col gap-2 px-4">
-          <h2 className="font-display text-xs font-bold tracking-[0.04em] uppercase">В планах</h2>
-          <p className="text-[15px]">{data.plans.map((p) => p.name).join(", ")}</p>
-        </section>
+      {data.chain && (
+        <div role="tablist" aria-label="Вид" className="mx-4 mt-5 grid grid-cols-2 gap-1 rounded-[14px] bg-surface-done p-1">
+          {(
+            [
+              ["own", "Это упражнение"],
+              ["chain", "Вся прогрессия"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={`h-11 rounded-[10px] text-sm font-semibold ${tab === key ? "bg-surface-inverse text-on-inverse" : ""}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       )}
+
+      {data.chain && tab === "chain" ? <ProgressionPanel chain={data.chain} current={exercise} /> : <ExerciseProgress exercise={exercise} />}
+
+      <div className="mt-6 px-4">
+        <Button variant="outline" className="w-full" onClick={() => setLinking(true)}>
+          {data.chain ? "Добавить вариант в прогрессию" : "Связать с вариантом"}
+        </Button>
+        {!data.chain && (
+          <p className="mt-2 text-[13px] leading-snug text-ink-muted">
+            Чтобы видеть прогресс, когда упражнение усложняется: «Гравитрон → Подтягивания с резинкой → Подтягивания».
+          </p>
+        )}
+      </div>
+      <LinkVariant key={exercise.id} exercise={exercise} inChain={!!data.chain} open={linking} onClose={() => setLinking(false)} />
+
 
       {!exercise.archived_at && (
         <div className="mt-auto px-4 pt-8">

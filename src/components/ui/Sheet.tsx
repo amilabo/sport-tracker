@@ -14,18 +14,27 @@ interface SheetProps {
 /** Bottom sheet on a native <dialog>: focus trap, Esc and the back gesture come for free. */
 export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  // The native "close" event also fires when we close the dialog because `open` became false;
+  // that is not the user dismissing it, so onClose must not run (it could undo the parent's next step).
+  const closingFromProp = useRef(false);
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
     if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      closingFromProp.current = true;
+      dialog.close();
+    }
   }, [open]);
 
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      onClose={() => {
+        if (closingFromProp.current) closingFromProp.current = false;
+        else onClose();
+      }}
       onClick={(e) => {
         // A tap on the backdrop (the dialog box itself, outside the panel) closes the sheet.
         if (e.target === e.currentTarget) onClose();

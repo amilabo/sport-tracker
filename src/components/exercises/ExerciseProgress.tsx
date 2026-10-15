@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LineChart } from "@/components/charts/LineChart";
+import { Button } from "@/components/ui/Button";
 import { useLive } from "@/db/hooks";
 import { workoutsRepo } from "@/db/repos/workouts";
 import { bestResult, chartSeries, formatAxis, formatDelta, formatValue, inPeriod, PERIOD_LABELS, type Period } from "@/domain/chart-series";
@@ -11,6 +12,8 @@ import { formatSetsSummary } from "@/domain/sets";
 import type { Exercise } from "@/domain/types";
 
 const PERIODS: Period[] = ["1m", "3m", "all"];
+/** The history can be long: the latest few, the rest on demand. */
+const HISTORY_PREVIEW = 5;
 const DELTA_SUFFIX: Record<Period, string> = { "1m": "за месяц", "3m": "за 3 мес", all: "за всё время" };
 
 function dayMonth(iso: string) {
@@ -27,6 +30,7 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
     ["workouts", "workout_exercises", "workout_sets"],
   );
   const [period, setPeriod] = useState<Period>("all");
+  const [showAll, setShowAll] = useState(false);
 
   if (!sessions) return null;
   const sectionTitle = "font-display text-xs font-bold tracking-[0.04em] uppercase";
@@ -101,7 +105,7 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
 
       <section className="mt-5 flex flex-col gap-2 px-4">
         <h2 className={sectionTitle}>История подходов</h2>
-        {sessions.map((s) => {
+        {(showAll ? sessions : sessions.slice(0, HISTORY_PREVIEW)).map((s) => {
           const done = s.sets.filter((x) => x.done_at);
           return (
             <Link
@@ -116,6 +120,11 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
             </Link>
           );
         })}
+        {sessions.length > HISTORY_PREVIEW && (
+          <Button variant="quiet" className="w-full" onClick={() => setShowAll(!showAll)}>
+            {showAll ? "Свернуть" : `Показать все (${sessions.length})`}
+          </Button>
+        )}
       </section>
     </>
   );
