@@ -1,0 +1,35 @@
+{
+  "name": "sport-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "check:colors": "node scripts/check-colors.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "check": "npm run check:colors && npm run check:contrast",
+    "prebuild": "npm run check",
+    "build": "next build && node scripts/build-pwa.mjs",
+    "start": "npx --yes serve@14 out",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "idb": "^8.0.4",
+    "next": "16.4.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.1",
+    "fake-indexeddb": "^6.2.5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  }
+}

@@ -1,0 +1,57 @@
+/*
+ * Theme "card" — training card: paper, ink, signal orange.
+ * A theme is one block of semantic tokens per mode. Values must be hex:
+ * scripts/check-contrast.mjs parses this file and checks WCAG AA.
+ */
+
+[data-theme="card"][data-mode="light"] {
+  --bg: #F2EDE4;
+  --surface: #FBF8F2;
+  --surface-raised: #FFFFFF;
+  --surface-done: #E8E1D3;
+  --surface-inverse: #17140F;
+  --ink: #17140F;
+  --ink-muted: #5F584D;
+  --ink-faint: #6E665A;
+  --on-inverse: #F2EDE4;
+  --on-inverse-muted: #CFC6B6;
+  --line: #DCD3C4;
+  --line-strong: #B8AD9A;
+  --line-inverse: #4A443B;
+  --accent: #FF5A1F;
+  --on-accent: #17140F;
+  --accent-text: #B23A0B;
+  --positive-on-inverse: #9FD6A8;
+  --focus: #1F5FCC;
+  --chart-line: #FF5A1F;
+  --chart-grid: #3A352D;
+  --chart-label: #8A8274;
+  color-scheme: light;
+}
+
+/* Dark mode keeps the same structure: "inverse" areas become raised dark panels,
+   not light ones, so nothing flips contrast abruptly. */
+[data-theme="card"][data-mode="dark"] {
+  --bg: #12100D;
+  --surface: #1C1915;
+  --surface-raised: #26221C;
+  --surface-done: #2A251E;
+  --surface-inverse: #2B2620;
+  --ink: #F2EDE4;
+  --ink-muted: #B5AC9C;
+  --ink-faint: #9C9384;
+  --on-inverse: #F2EDE4;
+  --on-inverse-muted: #CFC6B6;
+  --line: #36302A;
+  --line-strong: #5A5246;
+  --line-inverse: #4A443B;
+  --accent: #FF5A1F;
+  --on-accent: #17140F;
+  --accent-text: #FF8A5C;
+  --positive-on-inverse: #9FD6A8;
+  --focus: #7FB0FF;
+  --chart-line: #FF5A1F;
+  --chart-grid: #433C33;
+  --chart-label: #A79E8F;
+  color-scheme: dark;
+}

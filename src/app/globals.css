@@ -1,0 +1,133 @@
+@import "tailwindcss";
+@import "../styles/themes/card.css";
+
+/* Only semantic tokens exist as colors: the default Tailwind palette is removed. */
+@theme {
+  --color-*: initial;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-done: var(--surface-done);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-on-inverse: var(--on-inverse);
+  --color-on-inverse-muted: var(--on-inverse-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-inverse: var(--line-inverse);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-text: var(--accent-text);
+  --color-positive-on-inverse: var(--positive-on-inverse);
+  --color-focus: var(--focus);
+  --color-chart-line: var(--chart-line);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-label: var(--chart-label);
+
+  --font-display: var(--font-unbounded);
+  --font-sans: var(--font-onest);
+  --font-mono: var(--font-jetbrains);
+}
+
+/* Base styles must stay inside @layer base: unlayered CSS outranks Tailwind utilities
+   and would override classes like text-on-inverse on buttons. */
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-onest), system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2.5px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+.pb-safe {
+  padding-bottom: max(22px, env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Bottom sheet (components/ui/Sheet.tsx) */
+.sheet::backdrop {
+  background: color-mix(in srgb, black 45%, transparent);
+  animation: fade-in 0.2s ease-out;
+}
+.sheet[open] {
+  animation: sheet-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Exercise ✓: the ring pops and the check draws itself (components/workout/ExerciseCard.tsx) */
+.check-ring[data-done] {
+  animation: check-pop 0.32s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.check-draw path {
+  stroke-dasharray: 24;
+  animation: check-draw 0.28s ease-out 0.05s both;
+}
+@keyframes check-pop {
+  0% {
+    transform: scale(0.82);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

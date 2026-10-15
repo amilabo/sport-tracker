@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Source of the app icons (public/icons/*.png, rendered by scripts/icons/render.mjs).
+       Colors mirror the "card" theme tokens: --surface-inverse, --accent, --on-inverse. -->
+  <rect width="512" height="512" fill="#17140F"/>
+  <rect x="96" y="132" width="132" height="22" rx="11" fill="#F2EDE4" opacity="0.9"/>
+  <rect x="96" y="178" width="92" height="22" rx="11" fill="#F2EDE4" opacity="0.45"/>
+  <circle cx="300" cy="300" r="118" fill="#FF5A1F"/>
+  <path d="M244 302 L284 342 L360 260" fill="none" stroke="#17140F" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
