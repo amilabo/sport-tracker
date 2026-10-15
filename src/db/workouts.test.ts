@@ -188,3 +188,32 @@ describe("finishing", () => {
     expect(after.map((s) => [s.weight, s.reps])).toEqual([[15, 10], [17.5, 10], [17.5, 8], [15, 10]]);
   });
 });
+
+describe("history", () => {
+  it("lists only finished workouts with plan name and summary", async () => {
+    const done = await startFull();
+    await finishAllDone(done, "2026-10-05T07:24:00.000Z");
+    const r = await workoutsRepo.start(null);
+    expect(r.status).toBe("started");
+
+    const list = await workoutsRepo.listHistory();
+    expect(list).toHaveLength(1);
+    expect(list[0].planName).toBe("Ноги / грудь / руки");
+    expect(list[0].summary.percent).toBe(100);
+    expect(list[0].summary.volumeKg).toBe(4899);
+  });
+
+  it("remove deletes the workout with its exercises and sets; the plan rotation forgets it", async () => {
+    const full = await startFull();
+    await finishAllDone(full, "2026-10-05T07:24:00.000Z");
+    expect((await workoutsRepo.lastStartedByPlan()).has(LEGS)).toBe(true);
+
+    await workoutsRepo.remove(full.workout.id);
+    expect(await workoutsRepo.getFull(full.workout.id)).toBeUndefined();
+    const { getDb } = await import("./client");
+    const db = await getDb();
+    expect(await db.count("workout_exercises")).toBe(0);
+    expect(await db.count("workout_sets")).toBe(0);
+    expect((await workoutsRepo.lastStartedByPlan()).has(LEGS)).toBe(false);
+  });
+});

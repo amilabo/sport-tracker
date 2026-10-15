@@ -1,4 +1,6 @@
 import { touch } from "@/domain/entity";
+import type { HistoryEntry } from "@/domain/history";
+import { summarize } from "@/domain/summary";
 import { nowIso } from "@/domain/time";
 import type { Exercise, Id, IsoDateTime, Plan, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
 import { DomainError } from "@/domain/types";
@@ -233,6 +235,56 @@ export const workoutsRepo = {
       }
     });
     return stale.map((w) => w.id);
+  },
+
+  /** Finished workouts (in-progress ones are on the home screen) with their summary, for the history feed. */
+  async listHistory(): Promise<HistoryEntry[]> {
+    return withTx([...WORKOUT_STORES, "plans", "exercises"], "readonly", async (tx) => {
+      const [workouts, wes, sets, exercises, plans] = await Promise.all([
+        tx.objectStore("workouts").getAll(),
+        tx.objectStore("workout_exercises").getAll(),
+        tx.objectStore("workout_sets").getAll(),
+        tx.objectStore("exercises").getAll(),
+        tx.objectStore("plans").getAll(),
+      ]);
+      const exById = new Map(exercises.map((e) => [e.id, e]));
+      const planById = new Map(plans.map((p) => [p.id, p]));
+      const setsByWe = new Map<Id, WorkoutSet[]>();
+      for (const set of sets) setsByWe.set(set.workout_exercise_id, [...(setsByWe.get(set.workout_exercise_id) ?? []), set]);
+      const wesByWorkout = new Map<Id, WorkoutExercise[]>();
+      for (const we of wes) wesByWorkout.set(we.workout_id, [...(wesByWorkout.get(we.workout_id) ?? []), we]);
+
+      return workouts
+        .filter((w) => COMPLETED.has(w.status))
+        .map((workout) => {
+          const items = (wesByWorkout.get(workout.id) ?? [])
+            .sort((a, b) => a.position - b.position)
+            .flatMap((we) => {
+              const exercise = exById.get(we.exercise_id);
+              if (!exercise) return [];
+              const replaced = we.replaced_exercise_id ? (exById.get(we.replaced_exercise_id) ?? null) : null;
+              return [{ we, exercise, replaced, sets: setsByWe.get(we.id) ?? [] }];
+            });
+          return {
+            workout,
+            planName: workout.plan_id ? (planById.get(workout.plan_id)?.name ?? null) : null,
+            summary: summarize(items),
+          };
+        });
+    });
+  },
+
+  /** Deletes a workout with all its exercises and sets, in one transaction. */
+  async remove(id: Id): Promise<void> {
+    await withTx([...WORKOUT_STORES], "readwrite", async (tx) => {
+      const wes = await tx.objectStore("workout_exercises").index("workout_id").getAll(id);
+      for (const we of wes) {
+        const setIds = await tx.objectStore("workout_sets").index("workout_exercise_id").getAllKeys(we.id);
+        for (const setId of setIds) await tx.objectStore("workout_sets").delete(setId);
+        await tx.objectStore("workout_exercises").delete(we.id);
+      }
+      await tx.objectStore("workouts").delete(id);
+    });
   },
 
   /** Start time of the latest completed workout per plan (in-progress ones do not count). */
