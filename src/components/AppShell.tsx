@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { BottomNav, TAB_ROOTS } from "./BottomNav";
 import { DbBoot } from "./DbBoot";
+import { DemoBanner } from "./DemoBanner";
 import { PwaBoot } from "./PwaBoot";
 
 function normalize(path: string) {
@@ -17,6 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col bg-bg">
       <DbBoot />
+      <DemoBanner />
       <PwaBoot />
       <main className="flex flex-1 flex-col">{children}</main>
       {tab && <BottomNav active={tab} />}

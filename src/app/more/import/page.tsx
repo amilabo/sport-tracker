@@ -5,6 +5,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
+import { useLive } from "@/db/hooks";
 import { backupRepo, type ImportMode, type ImportResult } from "@/db/repos/backup";
 import { backupCounts, parseBackup, type BackupFile } from "@/domain/backup";
 import { formatShortDate, formatTime, plural } from "@/domain/format";
@@ -20,6 +21,7 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [done, setDone] = useState<{ mode: ImportMode; result: ImportResult } | null>(null);
+  const { data: phone } = useLive(async () => backupCounts(await backupRepo.exportAll()), []);
 
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -79,13 +81,33 @@ export default function ImportPage() {
                 </span>
               )}
             </div>
-            <ul className="flex flex-col gap-1 text-[15px]">
-              {counts.workouts > 0 && <li>{count(counts.workouts, ["тренировка", "тренировки", "тренировок"])}</li>}
-              {counts.plans > 0 && <li>{count(counts.plans, ["план", "плана", "планов"])}</li>}
-              {counts.exercises > 0 && <li>{count(counts.exercises, ["упражнение", "упражнения", "упражнений"])}</li>}
-              {counts.measurements > 0 && <li>{count(counts.measurements, ["замер", "замера", "замеров"])}</li>}
-              {Object.values(counts).every((n) => n === 0) && <li className="text-ink-muted">Тренировок, планов и упражнений в файле нет</li>}
-            </ul>
+            <table className="w-full text-[15px]">
+              <thead>
+                <tr className="text-left text-xs text-ink-muted">
+                  <th scope="col" className="pb-1 font-medium" />
+                  <th scope="col" className="pb-1 font-medium">Сейчас</th>
+                  <th scope="col" className="pb-1 font-medium">В файле</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono">
+                {(
+                  [
+                    ["Тренировки", "workouts"],
+                    ["Планы", "plans"],
+                    ["Упражнения", "exercises"],
+                    ["Замеры", "measurements"],
+                  ] as const
+                ).map(([label, key]) => (
+                  <tr key={key} className="border-t border-line">
+                    <th scope="row" className="py-1.5 text-left font-sans font-normal text-ink-muted">
+                      {label}
+                    </th>
+                    <td className="py-1.5 font-bold">{phone ? phone[key] : "…"}</td>
+                    <td className="py-1.5 font-bold">{counts[key]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             <div className="flex flex-col gap-2 pt-1">
               <Button variant="primary" size="xl" className="w-full" onClick={() => run("merge")} disabled={busy}>
                 Объединить

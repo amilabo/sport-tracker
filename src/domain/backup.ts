@@ -65,7 +65,9 @@ export function parseBackup(text: string): BackupFile {
 /** What the user sees before importing: «в файле: 2 тренировки…». Demo records are not counted. */
 export function backupCounts(file: BackupFile): BackupCounts {
   const real = (store: StoreName) => (file.data[store] ?? []).filter((r) => !r.is_demo).length;
-  return { workouts: real("workouts"), plans: real("plans"), exercises: real("exercises"), measurements: real("measurements") };
+  // A measurement is a date with values (PRD §3.10), so count dates, not single values.
+  const measurementDates = new Set((file.data.measurements ?? []).filter((m) => !m.is_demo).map((m) => m.date)).size;
+  return { workouts: real("workouts"), plans: real("plans"), exercises: real("exercises"), measurements: measurementDates };
 }
 
 /** References that must point to an existing record after import: [store, field, target store]. */

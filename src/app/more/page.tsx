@@ -1,23 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { FormError } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useLive } from "@/db/hooks";
 import { exercisesRepo } from "@/db/repos/exercises";
+import { demoRepo } from "@/db/repos/demo";
 import { plansRepo } from "@/db/repos/plans";
 import { progressionsRepo } from "@/db/repos/progressions";
 import { settingsRepo } from "@/db/repos/settings";
 import { formatShortDate } from "@/domain/format";
+import { DomainError } from "@/domain/types";
 
 export default function MorePage() {
+  const [demoBusy, setDemoBusy] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
   const { data } = useLive(
     async () => {
-      const [exercises, archivedEx, archivedPlans, settings, chains] = await Promise.all([
+      const [exercises, archivedEx, archivedPlans, settings, chains, demo] = await Promise.all([
         exercisesRepo.list(),
         exercisesRepo.listArchived(),
         plansRepo.listArchived(),
         settingsRepo.get(),
         progressionsRepo.list(),
+        demoRepo.isLoaded(),
       ]);
       return {
         catalog: exercises.length,
@@ -25,10 +33,11 @@ export default function MorePage() {
         lastExport: settings.last_export_at,
         progressions: chains.length,
         height: settings.height_cm,
+        demo,
       };
     },
     [],
-    ["exercises", "plans", "settings", "progressions"],
+    ["exercises", "plans", "settings", "progressions", "workouts", "measurements"],
   );
 
   const links = [
@@ -61,6 +70,35 @@ export default function MorePage() {
             </svg>
           </Link>
         ))}
+      </section>
+
+      <section id="demo" className="mx-5 flex scroll-mt-4 flex-col gap-2.5 rounded-[18px] border-[1.5px] border-dashed border-line-strong bg-surface p-3.5">
+        <div className="flex flex-col gap-1">
+          <span className="text-[15px] font-semibold">Демо-данные</span>
+          <span className="text-[13px] leading-snug text-ink-muted">
+            {data?.demo
+              ? "Загружены примеры: 12 тренировок за 4 недели и 4 замера. Удаление уберёт только их — ваши записи останутся."
+              : "12 тренировок за 4 недели и 4 замера, чтобы посмотреть историю и графики. Ваши записи не затрагиваются."}
+          </span>
+        </div>
+        <Button
+          variant="outline"
+          disabled={!data || demoBusy}
+          onClick={async () => {
+            setDemoBusy(true);
+            setDemoError(null);
+            try {
+              await (data?.demo ? demoRepo.remove() : demoRepo.load());
+            } catch (err) {
+              setDemoError(err instanceof DomainError ? err.message : "Не получилось. Попробуйте ещё раз.");
+            } finally {
+              setDemoBusy(false);
+            }
+          }}
+        >
+          {data?.demo ? "Удалить демо-данные" : "Загрузить демо-данные"}
+        </Button>
+        <FormError message={demoError} />
       </section>
     </div>
   );
