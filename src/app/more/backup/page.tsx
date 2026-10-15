@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Sheet } from "@/components/ui/Sheet";
 import { useLive } from "@/db/hooks";
+import { backupRepo } from "@/db/repos/backup";
 import { settingsRepo } from "@/db/repos/settings";
 import { formatShortDate, formatTime } from "@/domain/format";
 import { deliverBackup, usePreparedBackup, type DeliveryResult } from "@/lib/backup-share";
@@ -18,7 +21,10 @@ const RESULT_TEXT: Record<DeliveryResult, string> = {
 
 /** «Сохранить копию» (PRD §3.11): all data in one JSON file through «Поделиться», or a download. */
 export default function BackupPage() {
+  const router = useRouter();
   const file = usePreparedBackup();
+  const [confirmWipe, setConfirmWipe] = useState(false);
+  const [wiping, setWiping] = useState(false);
   const { data: settings } = useLive(() => settingsRepo.get(), [], ["settings"]);
   const [result, setResult] = useState<DeliveryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +38,27 @@ export default function BackupPage() {
     } catch (err) {
       console.error(err);
       setError("Не получилось сохранить копию. Попробуйте ещё раз.");
+    }
+  }
+
+  async function wipe() {
+    setWiping(true);
+    setError(null);
+    try {
+      await backupRepo.wipe();
+      try {
+        localStorage.removeItem("st-backup-snooze");
+      } catch {
+        // storage unavailable: nothing to clear
+      }
+      setConfirmWipe(false);
+      router.push("/");
+    } catch (err) {
+      console.error(err);
+      setConfirmWipe(false);
+      setError("Не получилось удалить данные. Ничего не изменилось.");
+    } finally {
+      setWiping(false);
     }
   }
 
@@ -74,7 +101,45 @@ export default function BackupPage() {
             <path d="M9 5l7 7-7 7" />
           </svg>
         </Link>
+
+        <section className="mt-4 flex flex-col gap-2 border-t border-line pt-5">
+          <h2 className="font-display text-xs font-bold tracking-[0.04em] uppercase">Начать с нуля</h2>
+          <p className="text-[13px] leading-snug text-ink-muted">
+            Удалит из этого телефона все тренировки, планы, упражнения и замеры. Останутся стартовые упражнения и два плана, как при первом запуске.
+          </p>
+          <Button variant="outline" className="w-full" onClick={() => setConfirmWipe(true)}>
+            Удалить все данные
+          </Button>
+        </section>
       </div>
+
+      <Sheet
+        open={confirmWipe}
+        onClose={() => setConfirmWipe(false)}
+        title="Удалить все данные?"
+        footer={
+          <div className="flex flex-col gap-2">
+            <Button variant="accent" onClick={wipe} disabled={wiping}>
+              Удалить всё
+            </Button>
+            <Button variant="outline" onClick={save} disabled={!file || wiping}>
+              Сначала сохранить копию
+            </Button>
+            <Button variant="outline" onClick={() => setConfirmWipe(false)} disabled={wiping}>
+              Отмена
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-[15px] leading-snug">
+          Тренировки, планы, упражнения и замеры будут удалены из этого телефона. Отменить это нельзя — вернуть данные можно только из файла копии.
+        </p>
+        {result && (
+          <p role="status" className="mt-2 text-[13px] text-ink-muted">
+            {RESULT_TEXT[result]}
+          </p>
+        )}
+      </Sheet>
     </div>
   );
 }

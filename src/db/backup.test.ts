@@ -115,4 +115,20 @@ describe("backupRepo", () => {
     );
     expect([status(older), status(newer)]).toEqual(["auto_finished", "in_progress"]);
   });
+
+  it("«Удалить все данные» leaves only the starter set and keeps the theme", async () => {
+    await finishedWorkout();
+    await exercisesRepo.create({ name: "Берпи", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps" });
+    const { settingsRepo } = await import("./repos/settings");
+    await settingsRepo.update({ theme_mode: "dark", height_cm: 164, last_export_at: "2026-10-10T10:00:00.000Z" });
+
+    await backupRepo.wipe();
+    const db = await getDb();
+    expect(await db.count("workouts")).toBe(0);
+    expect(await db.count("workout_sets")).toBe(0);
+    expect(await db.count("exercises")).toBe(44);
+    expect(await db.count("plans")).toBe(2);
+    const settings = await settingsRepo.get();
+    expect([settings.theme_mode, settings.height_cm, settings.last_export_at]).toEqual(["dark", null, null]);
+  });
 });

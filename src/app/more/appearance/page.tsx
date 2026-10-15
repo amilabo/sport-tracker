@@ -39,7 +39,7 @@ export default function AppearancePage() {
 
       <section className="flex flex-col gap-2.5 px-4">
         <h2 className="font-display text-xs font-bold tracking-[0.04em] uppercase">Режим</h2>
-        <div role="radiogroup" aria-label="Режим" className="grid grid-cols-3 gap-1.5 rounded-2xl border-[1.5px] border-ink p-1">
+        <div role="radiogroup" aria-label="Режим" className="grid grid-cols-[1fr_1fr_1.35fr] gap-1.5 rounded-2xl border-[1.5px] border-ink p-1">
           {MODES.map((m) => {
             const on = m.id === modePref;
             return (
@@ -49,7 +49,7 @@ export default function AppearancePage() {
                 role="radio"
                 aria-checked={on}
                 onClick={() => setModePref(m.id)}
-                className={`min-h-11 rounded-xl px-2 text-sm font-semibold transition-colors ${
+                className={`min-h-11 rounded-xl px-2 text-sm font-semibold whitespace-nowrap transition-colors ${
                   on ? "bg-surface-inverse text-on-inverse" : "text-ink"
                 }`}
               >

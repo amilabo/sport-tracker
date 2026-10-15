@@ -5,6 +5,7 @@ import { DomainError, SETTINGS_ID, STORE_NAMES, type BaseEntity, type Exercise, 
 import { lastActivity } from "@/domain/workout";
 import { withTx } from "../client";
 import { SCHEMA_VERSION } from "../schema";
+import { buildSeedData } from "../seed";
 
 /**
  * «Объединить» adds what is missing and keeps the newer version of a record present in both places.
@@ -41,6 +42,28 @@ export const backupRepo = {
         (data as Record<string, Row[]>)[name] = await (tx.objectStore(name) as unknown as AnyStore).getAll();
       }
       return { app: BACKUP_APP, format: BACKUP_FORMAT, schema_version: SCHEMA_VERSION, exported_at: nowIso(), data };
+    });
+  },
+
+  /**
+   * «Удалить все данные»: the app becomes as on first launch (starter catalog and plans).
+   * Kept: theme and the dismissed install hint — they are settings of this phone, not records.
+   */
+  async wipe(): Promise<void> {
+    await withTx(STORE_NAMES, "readwrite", async (tx) => {
+      const store = (name: StoreName) => tx.objectStore(name) as unknown as AnyStore;
+      const old = await store("settings").get(SETTINGS_ID);
+      for (const name of STORE_NAMES) await store(name).clear();
+      const seed = buildSeedData();
+      const settings = {
+        ...seed.settings,
+        ...(old ? { theme_mode: old.theme_mode, color_theme: old.color_theme, install_hint_dismissed: old.install_hint_dismissed } : {}),
+      };
+      const rows: [StoreName, BaseEntity[]][] = [
+        ["exercises", seed.exercises], ["plans", seed.plans], ["plan_exercises", seed.planExercises],
+        ["plan_sets", seed.planSets], ["measurement_types", seed.measurementTypes], ["settings", [settings]],
+      ];
+      for (const [name, list] of rows) for (const row of list) await store(name).put(row as Row);
     });
   },
 
