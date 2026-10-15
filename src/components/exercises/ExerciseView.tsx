@@ -11,8 +11,9 @@ import { exercisesRepo } from "@/db/repos/exercises";
 import { EQUIPMENT_LABELS, LOG_TYPE_LABELS, MUSCLE_GROUP_LABELS } from "@/domain/labels";
 import { DomainError } from "@/domain/types";
 import { ExerciseForm } from "./ExerciseForm";
+import { ExerciseProgress } from "./ExerciseProgress";
 
-/** Exercise card. Stage 2: details, edit, archive. History and the progress chart come in stage 8. */
+/** Exercise card: details, best result, progress chart, set history; edit and archive. */
 export function ExerciseView() {
   const id = useSearchParams().get("id") ?? "";
   const [editing, setEditing] = useState(false);
@@ -80,10 +81,7 @@ export function ExerciseView() {
         <FormError message={error} />
       </div>
 
-      <section className="mt-6 flex flex-col gap-2 px-4">
-        <h2 className="font-display text-xs font-bold tracking-[0.04em] uppercase">История подходов</h2>
-        {!data.hasHistory && <p className="text-[15px] text-ink-muted">Пока не выполнялось.</p>}
-      </section>
+      <ExerciseProgress exercise={exercise} />
 
       {data.plans.length > 0 && (
         <section className="mt-6 flex flex-col gap-2 px-4">

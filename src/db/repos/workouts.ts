@@ -1,4 +1,5 @@
 import { touch } from "@/domain/entity";
+import type { ExerciseSession } from "@/domain/chart-series";
 import type { HistoryEntry } from "@/domain/history";
 import { summarize } from "@/domain/summary";
 import { nowIso } from "@/domain/time";
@@ -271,6 +272,23 @@ export const workoutsRepo = {
             summary: summarize(items),
           };
         });
+    });
+  },
+
+  /** Every finished workout where these exercises were done (a replacement counts for the exercise done), newest first. */
+  async exerciseSessions(exerciseIds: Id[]): Promise<(ExerciseSession & { exerciseId: Id })[]> {
+    return withTx([...WORKOUT_STORES], "readonly", async (tx) => {
+      const out: (ExerciseSession & { exerciseId: Id })[] = [];
+      for (const exerciseId of exerciseIds) {
+        const wes = await tx.objectStore("workout_exercises").index("exercise_id").getAll(exerciseId);
+        for (const we of wes) {
+          const workout = await tx.objectStore("workouts").get(we.workout_id);
+          if (!workout || !COMPLETED.has(workout.status)) continue;
+          const sets = (await tx.objectStore("workout_sets").index("workout_exercise_id").getAll(we.id)).sort((a, b) => a.position - b.position);
+          out.push({ workoutId: workout.id, startedAt: workout.started_at, sets, exerciseId });
+        }
+      }
+      return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
     });
   },
 
