@@ -120,7 +120,7 @@ export function LineChart({ points, formatY, ariaLabel }: LineChartProps) {
             className={`${i === active ? "fill-chart-line" : "fill-surface-inverse"} stroke-chart-line`}
             strokeWidth={2.5}
           />
-          {dotLabels && p.label && (
+          {dotLabels && p.label && i !== active && (
             <text x={p.cx} y={p.cy - 10} textAnchor="middle" className="fill-on-inverse font-mono" fontSize={10} fontWeight={700}>
               {p.label}
             </text>

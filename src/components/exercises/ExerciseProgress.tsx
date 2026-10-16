@@ -21,6 +21,11 @@ function dayMonth(iso: string) {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** «07.10.2026» for the tap callout. */
+function fullDate(iso: string) {
+  return `${dayMonth(iso)}.${new Date(iso).getFullYear()}`;
+}
+
 /** Best result, progress chart with 1 мес / 3 мес / всё, and the set history (PRD §3.8–3.9). */
 export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
   const logType = exercise.log_type;
@@ -74,7 +79,14 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
 
         {points.length > 0 ? (
           <LineChart
-            points={points.map((p) => ({ t: new Date(p.date).getTime(), y: p.value, label: p.label, xLabel: dayMonth(p.date) }))}
+            key={period}
+            points={points.map((p) => ({
+              t: new Date(p.date).getTime(),
+              y: p.value,
+              label: p.label,
+              xLabel: dayMonth(p.date),
+              detail: `${fullDate(p.date)} · ${formatValue(logType, p.value)}${p.label ? ` ${p.label}` : ""}`,
+            }))}
             formatY={(v) => formatAxis(logType, v)}
             ariaLabel={`График по датам: от ${formatValue(logType, Math.min(...values))} до ${formatValue(logType, Math.max(...values))}`}
           />
