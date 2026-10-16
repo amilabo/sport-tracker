@@ -6,6 +6,9 @@ import { DomainError, STORE_NAMES, type Exercise, type Workout } from "@/domain/
 import { getDb, resetDbForTests } from "./client";
 import { backupRepo } from "./repos/backup";
 import { exercisesRepo } from "./repos/exercises";
+import { measurementsRepo } from "./repos/measurements";
+import { progressionsRepo } from "./repos/progressions";
+import { settingsRepo } from "./repos/settings";
 import { workoutsRepo } from "./repos/workouts";
 import { exerciseSeedId, planSeedId } from "./seed";
 
@@ -58,6 +61,40 @@ describe("backupRepo", () => {
     await backupRepo.import(roundTrip(before), "replace");
     const after = await backupRepo.exportAll();
     for (const name of STORE_NAMES) expect(after.data[name], name).toEqual(before.data[name]);
+  });
+
+  it("a file with every kind of record (.json or .txt) restores all of it, with «Заменить всё» and with «Объединить»", async () => {
+    // Workouts, a measurement with a custom type, a progression, a custom exercise, height.
+    await finishedWorkout();
+    const own = await measurementsRepo.createType({ name: "Плечо", unit: "см" });
+    const types = await measurementsRepo.listTypes();
+    const weight = types.find((t) => t.key === "weight")!;
+    await measurementsRepo.saveSession("2026-10-05", new Map([[weight.id, 69.4], [own.id, 31]]));
+    const variant = await exercisesRepo.create({ name: "Гравитрон узким хватом", muscle_group: "back", equipment: "machine", log_type: "bodyweight_plus" });
+    await progressionsRepo.link(exerciseSeedId("assisted_pull_ups"), variant.id, "harder", "Подтягивания");
+    await settingsRepo.update({ height_cm: 164 });
+    const before = await backupRepo.exportAll();
+    for (const name of STORE_NAMES) expect(before.data[name]?.length, `${name} has records`).toBeGreaterThan(0);
+
+    // The share sheet on Android sends the same text with a .txt name: the content is what is read.
+    const text = JSON.stringify(before);
+    for (const mode of ["replace", "merge"] as const) {
+      await resetDbForTests();
+      await backupRepo.import(parseBackup(text), mode);
+      const after = await backupRepo.exportAll();
+      for (const name of STORE_NAMES) {
+        if (name === "settings") continue;
+        expect(after.data[name], `${mode}: ${name}`).toEqual(before.data[name]);
+      }
+      expect((await settingsRepo.get()).height_cm, `${mode}: height`).toBe(164);
+    }
+  });
+
+  it("«Объединить» keeps the phone's own height", async () => {
+    await settingsRepo.update({ height_cm: 170 });
+    const file = roundTrip({ app: "sport-tracker", format: 1, schema_version: 1, exported_at: "", data: { settings: [{ ...(await settingsRepo.get()), height_cm: 164 }] } });
+    await backupRepo.import(file, "merge");
+    expect((await settingsRepo.get()).height_cm).toBe(170);
   });
 
   it("«Объединить» adds missing workouts and keeps the newer version of shared records", async () => {

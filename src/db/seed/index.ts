@@ -27,6 +27,14 @@ export interface SeedData {
   settings: Settings;
 }
 
+/**
+ * Catalog, starter plans and measurement types are dated as shipped with the app, not the first launch:
+ * otherwise on a new phone they would look newer than the user's changes from a backup, and «Объединить»
+ * would keep the untouched starter version (lost progression links, plan weights). Settings keep the real
+ * first-launch time — the backup reminder counts from it.
+ */
+export const SEED_AT = "2000-01-01T00:00:00.000Z";
+
 export function buildSeedData(at: string = nowIso()): SeedData {
   const exercises: Exercise[] = SEED_EXERCISES.map((e) =>
     newEntity(
@@ -40,7 +48,7 @@ export function buildSeedData(at: string = nowIso()): SeedData {
         progression_id: null,
         progression_level: null,
       },
-      { id: exerciseSeedId(e.key), at },
+      { id: exerciseSeedId(e.key), at: SEED_AT },
     ),
   );
 
@@ -49,13 +57,13 @@ export function buildSeedData(at: string = nowIso()): SeedData {
   const planSets: PlanSet[] = [];
   SEED_PLANS.forEach((p) => {
     const planId = planSeedId(p.key);
-    plans.push(newEntity({ name: p.name, source: "self" as const, archived_at: null }, { id: planId, at }));
+    plans.push(newEntity({ name: p.name, source: "self" as const, archived_at: null }, { id: planId, at: SEED_AT }));
     p.items.forEach((item, position) => {
       const peId = seedId(`plan_exercise:${p.key}:${position}`);
       planExercises.push(
         newEntity(
           { plan_id: planId, exercise_id: exerciseSeedId(item.exercise), position, note: item.note ?? null },
-          { id: peId, at },
+          { id: peId, at: SEED_AT },
         ),
       );
       item.sets.forEach((v, setPos) => {
@@ -69,7 +77,7 @@ export function buildSeedData(at: string = nowIso()): SeedData {
               duration_sec: v.duration_sec ?? null,
               speed_kmh: v.speed_kmh ?? null,
             },
-            { id: seedId(`plan_set:${p.key}:${position}:${setPos}`), at },
+            { id: seedId(`plan_set:${p.key}:${position}:${setPos}`), at: SEED_AT },
           ),
         );
       });
@@ -88,7 +96,7 @@ export function buildSeedData(at: string = nowIso()): SeedData {
         base_type_id: t.base ? measurementTypeSeedId(t.base) : null,
         position,
       },
-      { id: measurementTypeSeedId(t.key), at },
+      { id: measurementTypeSeedId(t.key), at: SEED_AT },
     ),
   );
 

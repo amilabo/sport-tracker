@@ -118,6 +118,16 @@ export const backupRepo = {
       // «Заменить всё» with a file without settings would re-run the first-launch seed: keep this phone's.
       if (!(await store("settings").get(SETTINGS_ID)) && phoneSettings) await store("settings").put(phoneSettings);
 
+      // Height is the user's data, not a phone setting: «Объединить» brings it when the phone has none (BMI needs it).
+      const fileHeight = (file.data.settings ?? []).find((s) => s.id === SETTINGS_ID)?.height_cm ?? null;
+      if (mode === "merge" && fileHeight !== null) {
+        const current = await store("settings").get(SETTINGS_ID);
+        if (current && current.height_cm == null) {
+          await store("settings").put({ ...current, height_cm: fileHeight, updated_at: nowIso() });
+          result.updated++;
+        }
+      }
+
       // Every reference of a written record must lead somewhere, otherwise screens would break.
       for (const [name, field, target] of BACKUP_REFS) {
         for (const id of written.get(name)!) {
