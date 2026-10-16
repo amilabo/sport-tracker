@@ -52,6 +52,30 @@ export async function deliverBackup(file: File): Promise<DeliveryResult> {
   return "downloaded";
 }
 
+/**
+ * The backup in a form the system share sheet accepts, or null if this browser cannot share files.
+ * Chrome on Android does not share .json files but does share plain text: same content, «.txt» name.
+ */
+export function shareableBackup(file: File): File | null {
+  if (typeof navigator === "undefined" || typeof navigator.canShare !== "function") return null;
+  if (navigator.canShare({ files: [file] })) return file;
+  const text = new File([file], file.name.replace(/\.json$/, ".txt"), { type: "text/plain" });
+  return navigator.canShare({ files: [text] }) ? text : null;
+}
+
+/** «Поделиться файлом»: the system share sheet asks where to send it. */
+export async function shareBackup(file: File): Promise<"shared" | "cancelled" | "failed"> {
+  try {
+    await navigator.share({ files: [file] });
+    await markExported();
+    return "shared";
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") return "cancelled";
+    console.error(err);
+    return "failed";
+  }
+}
+
 function markExported() {
   return settingsRepo.update({ last_export_at: nowIso() });
 }

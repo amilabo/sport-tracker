@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -11,7 +11,16 @@ import { useLive } from "@/db/hooks";
 import { backupRepo } from "@/db/repos/backup";
 import { settingsRepo } from "@/db/repos/settings";
 import { formatShortDate, formatTime } from "@/domain/format";
-import { deliverBackup, usePreparedBackup, type DeliveryResult } from "@/lib/backup-share";
+import { deliverBackup, shareableBackup, shareBackup, usePreparedBackup, type DeliveryResult } from "@/lib/backup-share";
+
+function ShareIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 15V3M7 8l5-5 5 5" />
+      <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+    </svg>
+  );
+}
 
 const RESULT_TEXT: Record<DeliveryResult, string> = {
   shared: "Копия отправлена. Проверьте, что файл дошёл туда, куда вы его сохраняли.",
@@ -23,6 +32,7 @@ const RESULT_TEXT: Record<DeliveryResult, string> = {
 export default function BackupPage() {
   const router = useRouter();
   const file = usePreparedBackup();
+  const shareable = useMemo(() => (file ? shareableBackup(file) : null), [file]);
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [wiping, setWiping] = useState(false);
   const { data: settings } = useLive(() => settingsRepo.get(), [], ["settings"]);
@@ -39,6 +49,15 @@ export default function BackupPage() {
       console.error(err);
       setError("Не получилось сохранить копию. Попробуйте ещё раз.");
     }
+  }
+
+  // Called right inside the tap: Safari and Chrome open the share sheet only from a user action.
+  async function share() {
+    if (!shareable) return;
+    setError(null);
+    const r = await shareBackup(shareable);
+    if (r === "shared") setResult("shared");
+    else if (r === "failed") setError("Не получилось открыть «Поделиться». Файл уже сохранён — его можно отправить из «Загрузок» или «Файлов».");
   }
 
   async function wipe() {
@@ -85,6 +104,12 @@ export default function BackupPage() {
             <p role="status" className="text-[15px]">
               {RESULT_TEXT[result]}
             </p>
+          )}
+          {result && result !== "cancelled" && shareable && (
+            <Button variant="outline" size="lg" className="w-full" onClick={share}>
+              <ShareIcon />
+              Поделиться файлом
+            </Button>
           )}
           <FormError message={error} />
         </section>

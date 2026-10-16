@@ -50,7 +50,16 @@ function NextCard({ row }: { row: PlanRow }) {
   return (
     <section aria-label="Следующая тренировка" className="flex flex-col gap-3.5 rounded-[22px] bg-surface-inverse px-4 pt-[18px] pb-4 text-on-inverse">
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm text-on-inverse-muted">Следующая по очереди</span>
+        <div className="-mt-1.5 -mr-1.5 flex items-center justify-between gap-3">
+          <span className="text-sm text-on-inverse-muted">Следующая по очереди</span>
+          <Link
+            href={`/plans/edit/?id=${row.plan.id}`}
+            aria-label={`Редактировать план «${row.plan.name}»`}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-[1.5px] border-line-inverse"
+          >
+            <PencilIcon />
+          </Link>
+        </div>
         <span className="font-display text-2xl leading-[1.1] font-extrabold">{row.plan.name}</span>
         <span className="text-[15px] text-on-inverse-muted">
           {row.count} {plural(row.count, EXERCISE_FORMS)}
@@ -109,11 +118,17 @@ function PlanCard({ row }: { row: PlanRow }) {
         aria-label={`Редактировать план «${row.plan.name}»`}
         className="flex w-13 shrink-0 items-center justify-center border-l-[1.5px] border-line"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M4 20h4L19 9l-4-4L4 16z" />
-        </svg>
+        <PencilIcon />
       </Link>
     </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20h4L19 9l-4-4L4 16z" />
+    </svg>
   );
 }
 
@@ -246,12 +261,6 @@ export default function HomePage() {
             Без плана
           </Button>
         </div>
-      )}
-
-      {data?.next && !data.active && (
-        <Link href={`/plans/edit/?id=${data.next.plan.id}`} className="-mt-2 self-start py-2 text-[13px] text-ink-muted underline underline-offset-2">
-          Изменить «{data.next.plan.name}»
-        </Link>
       )}
 
       <BackupReminder />

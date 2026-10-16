@@ -66,7 +66,7 @@ export default function ImportPage() {
           Файл копии — тот, что приложение сохраняет через «Поделиться». Он переносит тренировки, планы и упражнения на этот телефон.
         </p>
 
-        <input ref={input} type="file" accept=".json,application/json" onChange={pick} className="hidden" />
+        <input ref={input} type="file" accept=".json,.txt,application/json,text/plain" onChange={pick} className="hidden" />
         <Button variant={file ? "outline" : "primary"} size="xl" className="w-full" onClick={() => input.current?.click()} disabled={busy}>
           {file ? "Выбрать другой файл" : "Выбрать файл"}
         </Button>
