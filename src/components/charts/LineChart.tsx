@@ -1,3 +1,7 @@
+"use client";
+
+import { useState, type MouseEvent } from "react";
+
 export interface LinePoint {
   /** Time in ms: points are placed by date, not evenly. */
   t: number;
@@ -6,6 +10,8 @@ export interface LinePoint {
   label?: string | null;
   /** Date under the dot ("07.10"). */
   xLabel: string;
+  /** Shown in a callout when the dot is tapped ("16.10.2026 · 68,5 кг"). */
+  detail?: string;
 }
 
 interface LineChartProps {
@@ -21,9 +27,14 @@ const LEFT = 36;
 const RIGHT = 14;
 const TOP = 26;
 const BOTTOM = 118;
+// Callout: monospace 11px, so its width follows the number of characters.
+const CALLOUT_CHAR = 6.7;
+const CALLOUT_PAD = 9;
+const CALLOUT_H = 24;
 
 /** Line with dots on a dark card (mockup «Упражнение»). Colors only from chart tokens. */
 export function LineChart({ points, formatY, ariaLabel }: LineChartProps) {
+  const [active, setActive] = useState<number | null>(null);
   if (!points.length) return null;
   const ys = points.map((p) => p.y);
   let min = Math.min(...ys);
@@ -50,9 +61,35 @@ export function LineChart({ points, formatY, ariaLabel }: LineChartProps) {
     }
   });
   const dotLabels = xy.length <= 8;
+  const tappable = xy.some((p) => p.detail);
+
+  // A tap picks the nearest dot by X; tapping it again hides the callout.
+  function onTap(e: MouseEvent<SVGSVGElement>) {
+    const box = e.currentTarget.getBoundingClientRect();
+    const vx = ((e.clientX - box.left) / box.width) * W;
+    let best = 0;
+    xy.forEach((p, i) => {
+      if (Math.abs(p.cx - vx) < Math.abs(xy[best].cx - vx)) best = i;
+    });
+    setActive((cur) => (cur === best ? null : best));
+  }
+
+  const callout = active !== null ? xy[active] : null;
+  const calloutText = callout?.detail ?? "";
+  const cw = calloutText.length * CALLOUT_CHAR + CALLOUT_PAD * 2;
+  const calloutX = callout ? Math.min(Math.max(callout.cx - cw / 2, 0), W - cw) : 0;
+  const above = callout ? callout.cy - 12 - CALLOUT_H : 0;
+  const calloutY = callout ? (above >= -4 ? above : callout.cy + 12) : 0;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={ariaLabel} className="block overflow-visible">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width="100%"
+      role="img"
+      aria-label={ariaLabel}
+      onClick={tappable ? onTap : undefined}
+      className={`block overflow-visible ${tappable ? "cursor-pointer touch-manipulation select-none" : ""}`}
+    >
       {[max, (max + min) / 2, min].map((v, i) => (
         <g key={i}>
           <line x1={LEFT - 6} x2={W} y1={y(v)} y2={y(v)} className="stroke-chart-grid" strokeWidth={1} />
@@ -75,7 +112,14 @@ export function LineChart({ points, formatY, ariaLabel }: LineChartProps) {
       )}
       {xy.map((p, i) => (
         <g key={`${p.t}-${i}`}>
-          <circle cx={p.cx} cy={p.cy} r={5} className="fill-surface-inverse stroke-chart-line" strokeWidth={2.5} />
+          {i === active && <line x1={p.cx} x2={p.cx} y1={TOP - 8} y2={BOTTOM} className="stroke-chart-label" strokeWidth={1} strokeDasharray="3 3" />}
+          <circle
+            cx={p.cx}
+            cy={p.cy}
+            r={i === active ? 6.5 : 5}
+            className={`${i === active ? "fill-chart-line" : "fill-surface-inverse"} stroke-chart-line`}
+            strokeWidth={2.5}
+          />
           {dotLabels && p.label && (
             <text x={p.cx} y={p.cy - 10} textAnchor="middle" className="fill-on-inverse font-mono" fontSize={10} fontWeight={700}>
               {p.label}
@@ -94,6 +138,14 @@ export function LineChart({ points, formatY, ariaLabel }: LineChartProps) {
           )}
         </g>
       ))}
+      {callout && calloutText && (
+        <g aria-hidden="true">
+          <rect x={calloutX} y={calloutY} width={cw} height={CALLOUT_H} rx={8} className="fill-on-inverse" />
+          <text x={calloutX + cw / 2} y={calloutY + 16} textAnchor="middle" className="fill-surface-inverse font-mono" fontSize={11} fontWeight={700}>
+            {calloutText}
+          </text>
+        </g>
+      )}
     </svg>
   );
 }

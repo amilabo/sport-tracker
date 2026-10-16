@@ -39,9 +39,16 @@ function Delta({ line }: { line: TileLine }) {
   );
 }
 
-function ValueLine({ line, latestDate }: { line: TileLine; latestDate: string | null }) {
+/** «16.10.2026» for the chart callout. */
+function fullDate(date: string): string {
+  const [y, m, d] = date.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+/** `secondary` — the % line under kg in the fat and muscle tiles: same size, quieter color. */
+function ValueLine({ line, latestDate, secondary = false }: { line: TileLine; latestDate: string | null; secondary?: boolean }) {
   return (
-    <span className="flex items-center justify-between gap-1.5">
+    <span className={`flex items-center justify-between gap-1.5 ${secondary ? "text-ink-muted" : ""}`}>
       <span className="font-display text-[22px] leading-none font-extrabold whitespace-nowrap">
         {line.value === null ? "—" : formatNumber(line.value)}
         {line.value !== null && line.type.unit && <span className="ml-0.5 font-sans text-[15px] font-semibold">{line.type.unit}</span>}
@@ -138,7 +145,7 @@ export default function BodyPage() {
                   {isBmi && !height ? (
                     <span className="text-[13px] leading-snug font-semibold underline underline-offset-2">Указать рост для ИМТ</span>
                   ) : (
-                    tileTypes.map((t) => <ValueLine key={t.id} line={line(t)} latestDate={latest} />)
+                    tileTypes.map((t, i) => <ValueLine key={t.id} line={line(t)} latestDate={latest} secondary={i > 0} />)
                   )}
                 </button>
               );
@@ -182,7 +189,13 @@ export default function BodyPage() {
           </div>
           {series.length > 0 ? (
             <LineChart
-              points={series.map((p) => ({ t: new Date(`${p.date}T12:00:00`).getTime(), y: p.value, xLabel: shortDate(p.date) }))}
+              key={chartType.id}
+              points={series.map((p) => ({
+                t: new Date(`${p.date}T12:00:00`).getTime(),
+                y: p.value,
+                xLabel: shortDate(p.date),
+                detail: `${fullDate(p.date)} · ${formatNumber(p.value)}${chartType.unit ? ` ${chartType.unit}` : ""}`,
+              }))}
               formatY={(v) => formatNumber(v)}
               ariaLabel={`График: ${chartType.name} по датам`}
             />

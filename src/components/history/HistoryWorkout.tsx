@@ -317,10 +317,11 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
   }
 
   const sectionTitle = "font-display text-xs font-bold tracking-[0.04em] uppercase";
+  // Two columns filled row by row: «до» on the left, «после» on the right.
   const ratings: [string, number | null][] = [
     ["Самочувствие до", workout.wellbeing_before],
-    ["Настроение до", workout.mood_before],
     ["Силы после", workout.energy_after],
+    ["Настроение до", workout.mood_before],
     ["Настроение после", workout.mood_after],
   ];
   const hasRatings = ratings.some(([, v]) => v !== null);
