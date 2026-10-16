@@ -90,11 +90,12 @@ export function ProgressionPanel({ chain, current }: { chain: Chain; current: Ex
               </span>
               {editing ? (
                 <span className="flex shrink-0 gap-1">
-                  <button type="button" aria-label={`${l.exercise.name}: проще`} disabled={i === 0} onClick={() => run(() => progressionsRepo.move(l.exercise.id, -1))} className="flex h-11 w-9 items-center justify-center rounded-lg border-[1.5px] border-current disabled:opacity-30">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
-                  </button>
-                  <button type="button" aria-label={`${l.exercise.name}: сложнее`} disabled={i === levels.length - 1} onClick={() => run(() => progressionsRepo.move(l.exercise.id, 1))} className="flex h-11 w-9 items-center justify-center rounded-lg border-[1.5px] border-current disabled:opacity-30">
+                  {/* The list goes from easy (top) to hard: ↑ moves the exercise up = easier, ↓ down = harder. */}
+                  <button type="button" aria-label={`${l.exercise.name}: выше — проще`} disabled={i === 0} onClick={() => run(() => progressionsRepo.move(l.exercise.id, -1))} className="flex h-11 w-9 items-center justify-center rounded-lg border-[1.5px] border-current disabled:opacity-30">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+                  </button>
+                  <button type="button" aria-label={`${l.exercise.name}: ниже — сложнее`} disabled={i === levels.length - 1} onClick={() => run(() => progressionsRepo.move(l.exercise.id, 1))} className="flex h-11 w-9 items-center justify-center rounded-lg border-[1.5px] border-current disabled:opacity-30">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
                   </button>
                   <button type="button" aria-label={`Исключить «${l.exercise.name}» из прогрессии`} onClick={() => run(() => progressionsRepo.exclude(l.exercise.id))} className="flex h-11 w-9 items-center justify-center rounded-lg border-[1.5px] border-current">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -110,7 +111,7 @@ export function ProgressionPanel({ chain, current }: { chain: Chain; current: Ex
       {editing && (
         <div className="flex flex-col gap-2">
           <p className="text-[13px] leading-snug text-ink-muted">
-            Наверху — самый простой вариант. Стрелки меняют уровень, × убирает упражнение из прогрессии: его тренировки остаются в истории.
+            Наверху — самый простой вариант. ↑ — выше, проще; ↓ — ниже, сложнее. × убирает упражнение из прогрессии: его тренировки остаются в истории.
           </p>
           <Button variant="outline" onClick={() => setRenaming(chain.progression.name)}>
             Переименовать прогрессию

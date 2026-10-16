@@ -82,13 +82,38 @@ function PlayIcon() {
 
 type Picker = { kind: "add" } | { kind: "replace"; index: number } | null;
 
+// «До тренировки» folded: remembered for this workout (the id survives "Начать") while the app is open.
+const BEFORE_KEY = "st-before-collapsed";
+
+function readBeforeCollapsed(): Id | null {
+  try {
+    return sessionStorage.getItem(BEFORE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeBeforeCollapsed(id: Id | null) {
+  try {
+    if (id) sessionStorage.setItem(BEFORE_KEY, id);
+    else sessionStorage.removeItem(BEFORE_KEY);
+  } catch {
+    // Storage unavailable (private mode): folding still works until the screen is closed.
+  }
+}
+
+function beforeSummary(workout: Workout): string {
+  if (workout.wellbeing_before === null && workout.mood_before === null) return "не отмечено";
+  return `самочувствие ${workout.wellbeing_before ?? "—"} · настроение ${workout.mood_before ?? "—"}`;
+}
+
 function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId: Id }) {
   const router = useRouter();
   const { full, last, savedAt, saveFailed, dirty, isDraft, actions } = useWorkoutSession(kind, targetId);
   const [open, setOpen] = useState<Id | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
   const [noteFor, setNoteFor] = useState<number | null>(null);
-  const [beforeHidden, setBeforeHidden] = useState(false);
+  const [collapsedId, setCollapsedId] = useState<Id | null>(readBeforeCollapsed);
   const [starting, setStarting] = useState(false);
   const [conflict, setConflict] = useState<Workout | null>(null);
   /** Leaving a draft with changes: where to, once confirmed. */
@@ -162,7 +187,12 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
 
   const { done, total } = progress(items);
   const title = full.plan?.name ?? "Тренировка без плана";
-  const showBefore = !beforeHidden;
+  const beforeCollapsed = collapsedId === workout.id;
+  const toggleBefore = () => {
+    const next = beforeCollapsed ? null : workout.id;
+    setCollapsedId(next);
+    writeBeforeCollapsed(next);
+  };
   const noteItem = noteFor !== null ? items[noteFor] : null;
 
   return (
@@ -237,18 +267,43 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         )}
       </header>
 
-      {showBefore && (
-        <section className="mx-4 mt-3.5 flex flex-col gap-2.5 rounded-2xl border-[1.5px] border-line bg-surface px-3.5 py-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-xs font-bold tracking-[0.04em] uppercase">До тренировки</h2>
-            <button type="button" onClick={() => setBeforeHidden(true)} className="min-h-11 px-1 text-[13px] text-ink-muted underline">
-              {workout.wellbeing_before !== null || workout.mood_before !== null ? "Скрыть" : "Пропустить"}
-            </button>
+      <section className="mx-4 mt-3.5 flex flex-col rounded-2xl border-[1.5px] border-line bg-surface">
+        <h2>
+          <button
+            type="button"
+            aria-expanded={!beforeCollapsed}
+            aria-controls="before-ratings"
+            onClick={toggleBefore}
+            className="flex min-h-12 w-full items-center gap-3 px-3.5 py-2 text-left"
+          >
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="font-display text-xs font-bold tracking-[0.04em] uppercase">До тренировки</span>
+              {beforeCollapsed && <span className="font-mono text-[13px] text-ink-muted">{beforeSummary(workout)}</span>}
+            </span>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className={`ml-auto shrink-0 text-ink-muted transition-transform ${beforeCollapsed ? "" : "rotate-180"}`}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+            <span className="sr-only">{beforeCollapsed ? "Развернуть" : "Свернуть"}</span>
+          </button>
+        </h2>
+        {!beforeCollapsed && (
+          <div id="before-ratings" className="flex flex-col gap-2.5 px-3.5 pb-3">
+            <Scale5 label="Самочувствие" value={workout.wellbeing_before} onChange={(v) => actions.setWorkout({ wellbeing_before: v })} />
+            <Scale5 label="Настроение" value={workout.mood_before} onChange={(v) => actions.setWorkout({ mood_before: v })} />
           </div>
-          <Scale5 label="Самочувствие" value={workout.wellbeing_before} onChange={(v) => actions.setWorkout({ wellbeing_before: v })} />
-          <Scale5 label="Настроение" value={workout.mood_before} onChange={(v) => actions.setWorkout({ mood_before: v })} />
-        </section>
-      )}
+        )}
+      </section>
 
       <div className="flex flex-col gap-2 px-4 pt-3">
         {isDraft && items.length > 0 && (
