@@ -69,3 +69,24 @@ export const installPrompt = {
 export function initInstallPrompt() {
   listen();
 }
+
+/**
+ * Runs in <head>: if a script of the app fails to load (e.g. a page from an old version after an update),
+ * reload once; if that did not help within a minute and there is a network — drop the service worker and its
+ * caches and reload from the network. Data in IndexedDB is not touched. Without this the screen stays white.
+ */
+export const loadRecoveryScript = `(function(){
+var K="st-recover",busy=false;
+function recover(){
+if(busy)return;busy=true;
+var n=0;try{var s=JSON.parse(sessionStorage.getItem(K)||"null");if(s&&Date.now()-s.t<60000)n=s.n;sessionStorage.setItem(K,JSON.stringify({t:Date.now(),n:n+1}))}catch(e){}
+if(n===0){location.reload();return}
+if(n===1&&navigator.onLine&&navigator.serviceWorker){
+navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))})
+.then(function(){return caches.keys()}).then(function(ks){return Promise.all(ks.filter(function(k){return k.indexOf("st-")===0}).map(function(k){return caches.delete(k)}))})
+.then(function(){location.reload()},function(){location.reload()});
+}
+}
+window.addEventListener("error",function(e){var t=e.target;if(t&&(t.tagName==="SCRIPT"||t.tagName==="LINK")&&/\\/_next\\//.test(t.src||t.href||""))recover()},true);
+window.addEventListener("unhandledrejection",function(e){var r=e.reason;if(r&&(r.name==="ChunkLoadError"||/chunk|dynamically imported module/i.test(r.message||"")))recover()});
+})();`;

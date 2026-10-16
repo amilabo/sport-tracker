@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Onest, Unbounded } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { loadRecoveryScript } from "@/lib/pwa";
 import { DEFAULT_THEME, themeInitScript } from "@/lib/theme";
 import "./globals.css";
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${unbounded.variable} ${onest.variable} ${jetbrains.variable} antialiased`}
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: loadRecoveryScript }} />
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
