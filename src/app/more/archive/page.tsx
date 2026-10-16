@@ -44,7 +44,10 @@ export default function ArchivePage() {
           <ul className="flex flex-col">
             {data.plans.map((p) => (
               <li key={p.id} className="flex min-h-14 items-center gap-3 border-b border-line last:border-b-0">
-                <span className="flex-1 text-base font-semibold">{p.name}</span>
+                <Link href={`/more/archive/plan/?id=${p.id}`} className="flex min-w-0 flex-1 flex-col py-2">
+                  <span className="text-base font-semibold">{p.name}</span>
+                  <span className="text-[13px] text-ink-muted">посмотреть план</span>
+                </Link>
                 <Button size="md" variant="outline" onClick={() => restore(() => plansRepo.restore(p.id))}>
                   Вернуть
                 </Button>

@@ -75,3 +75,17 @@ describe("workout before «Начать»", () => {
     expect(await workoutsRepo.get(draft.workout.id)).toBeUndefined();
   });
 });
+
+describe("planStats", () => {
+  it("counts completed workouts by the plan and the latest start", async () => {
+    expect(await workoutsRepo.planStats(LEGS)).toEqual({ count: 0, last: null });
+    for (const at of ["2026-10-05T07:00:00.000Z", "2026-10-09T07:00:00.000Z"]) {
+      const r = await workoutsRepo.start(LEGS);
+      if (r.status !== "started") throw new Error("expected start");
+      const w = (await workoutsRepo.get(r.id))!;
+      await workoutsRepo.put({ workout: touch(w, { started_at: at, status: "finished", finished_at: at }) });
+    }
+    await workoutsRepo.start(LEGS); // in progress — not counted
+    expect(await workoutsRepo.planStats(LEGS)).toEqual({ count: 2, last: "2026-10-09T07:00:00.000Z" });
+  });
+});

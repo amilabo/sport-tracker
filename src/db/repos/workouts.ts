@@ -348,6 +348,12 @@ export const workoutsRepo = {
   },
 
   /** Start time of the latest completed workout per plan (in-progress ones do not count). */
+  /** Completed workouts by one plan: how many and the latest start (archived plan view). */
+  async planStats(planId: Id): Promise<{ count: number; last: IsoDateTime | null }> {
+    const done = (await (await getDb()).getAllFromIndex("workouts", "plan_id", planId)).filter((w) => COMPLETED.has(w.status));
+    return { count: done.length, last: done.reduce<IsoDateTime | null>((acc, w) => (!acc || w.started_at > acc ? w.started_at : acc), null) };
+  },
+
   async lastStartedByPlan(): Promise<Map<Id, IsoDateTime>> {
     const all = await (await getDb()).getAll("workouts");
     const last = new Map<Id, IsoDateTime>();
