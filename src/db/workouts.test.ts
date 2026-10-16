@@ -203,6 +203,30 @@ describe("history", () => {
     expect(list[0].summary.volumeKg).toBe(4899);
   });
 
+  it("editing a past workout can add sets and exercises and remove exercises with their sets", async () => {
+    const full = await startFull();
+    await finishAllDone(full, "2026-10-05T07:24:00.000Z");
+    const [first, second] = full.items;
+    const { addedExercise, newWorkoutSet } = await import("@/domain/workout");
+    const extraSet = { ...newWorkoutSet(second.we.id, second.sets.length, { weight: 20, reps: 10, duration_sec: null, speed_kmh: null }), done_at: "2026-10-05T07:24:00.000Z" };
+    const added = addedExercise(full.workout.id, exerciseSeedId("pec_deck"), full.items.length, undefined);
+
+    await workoutsRepo.put({
+      exercises: [added.we],
+      sets: [extraSet, ...added.sets.map((s) => ({ ...s, reps: 12, done_at: "2026-10-05T07:24:00.000Z" }))],
+      deleteExerciseIds: [first.we.id],
+    });
+
+    const after = (await workoutsRepo.getFull(full.workout.id))!;
+    expect(after.items).toHaveLength(full.items.length);
+    expect(after.items.some((i) => i.we.id === first.we.id)).toBe(false);
+    expect(after.items.find((i) => i.we.id === second.we.id)!.sets).toHaveLength(second.sets.length + 1);
+    expect(after.items.at(-1)!.sets.map((s) => s.reps)).toEqual([12]);
+    const { getDb } = await import("./client");
+    const db = await getDb();
+    expect(await db.getAllFromIndex("workout_sets", "workout_exercise_id", first.we.id)).toEqual([]);
+  });
+
   it("remove deletes the workout with its exercises and sets; the plan rotation forgets it", async () => {
     const full = await startFull();
     await finishAllDone(full, "2026-10-05T07:24:00.000Z");

@@ -91,6 +91,20 @@ describe("backupRepo", () => {
     expect(r.renamed).toEqual(["берпи (2)"]);
   });
 
+  it("«Объединить» accepts a file with only a program that uses exercises from the starter catalog", async () => {
+    const plan = newEntity({ name: "Программа из клуба", source: "coach" as const, archived_at: null });
+    const pe = newEntity({ plan_id: plan.id, exercise_id: exerciseSeedId("pec_deck"), position: 0, note: null });
+    const ps = newEntity({ plan_exercise_id: pe.id, position: 0, weight: 17.5, reps: 12, duration_sec: null, speed_kmh: null });
+    const file = roundTrip({ app: "sport-tracker", format: 1, schema_version: 1, exported_at: "", data: { plans: [plan], plan_exercises: [pe], plan_sets: [ps] } });
+    expect(backupCounts(file)).toEqual({ workouts: 0, plans: 1, exercises: 0, measurements: 0 });
+
+    const r = await backupRepo.import(file, "merge");
+    expect(r.added).toBe(3);
+    const db = await getDb();
+    expect((await db.get("plans", plan.id))?.name).toBe("Программа из клуба");
+    expect(await db.get("plans", LEGS)).toBeDefined();
+  });
+
   it("refuses a file with dangling references and leaves the phone untouched", async () => {
     const before = await backupRepo.exportAll();
     const orphan = newEntity({ workout_id: "nope", exercise_id: exerciseSeedId("pec_deck"), replaced_exercise_id: null, plan_exercise_id: null, position: 0, skipped: false, note: null });

@@ -53,12 +53,12 @@ export function PlanUpdateList({ planName, changes, onDecide, busy }: PlanUpdate
           );
         })}
       </ul>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-col gap-2">
+        <Button variant="primary" onClick={() => onDecide(changes.filter((c) => checked.has(c.key)))} disabled={busy || count === 0}>
+          Обновить отмеченные
+        </Button>
         <Button variant="outline" onClick={() => onDecide([])} disabled={busy}>
           Не обновлять
-        </Button>
-        <Button variant="primary" onClick={() => onDecide(changes.filter((c) => checked.has(c.key)))} disabled={busy || count === 0}>
-          {count ? `Обновить (${count})` : "Обновить"}
         </Button>
       </div>
     </div>

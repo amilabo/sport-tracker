@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { ExercisePicker } from "@/components/exercises/ExercisePicker";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field, FormError } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -15,8 +16,8 @@ import { touch } from "@/domain/entity";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { fieldText, formatSetDetail, parseField } from "@/domain/history";
 import { durationMinutes, formatDurationLong, formatKg, summarize } from "@/domain/summary";
-import type { Id, LogType, Workout, WorkoutSet } from "@/domain/types";
-import { fieldsFor, type SetField } from "@/domain/workout";
+import type { Exercise, Id, LogType, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
+import { addedExercise, fieldsFor, newWorkoutSet, type SetField } from "@/domain/workout";
 
 export function HistoryWorkoutRoute() {
   const id = useSearchParams().get("id");
@@ -65,8 +66,19 @@ function Loader({ id }: { id: Id }) {
 // ---------- Edit draft ----------
 
 interface SetDraft {
+  set: WorkoutSet;
+  /** Added during this edit: not in the database yet. */
+  isNew: boolean;
   fields: Partial<Record<SetField, string>>;
   done: boolean;
+}
+
+interface ItemDraft {
+  we: WorkoutExercise;
+  exercise: Exercise;
+  replaced: Exercise | null;
+  isNew: boolean;
+  sets: SetDraft[];
 }
 
 interface Draft {
@@ -77,19 +89,20 @@ interface Draft {
   moodBefore: number | null;
   energyAfter: number | null;
   moodAfter: number | null;
-  sets: Record<Id, SetDraft>;
+  items: ItemDraft[];
+  /** Records from the database removed in this edit; deleted only on «Сохранить». */
+  removedExercises: Id[];
+  removedSets: Id[];
+}
+
+function setDraftOf(logType: LogType, set: WorkoutSet, isNew: boolean, done: boolean): SetDraft {
+  const fields: Partial<Record<SetField, string>> = {};
+  for (const f of fieldsFor(logType)) fields[f] = fieldText(f, set[f]);
+  return { set, isNew, fields, done };
 }
 
 function makeDraft(full: WorkoutFull): Draft {
   const { workout } = full;
-  const sets: Record<Id, SetDraft> = {};
-  for (const item of full.items) {
-    for (const s of item.sets) {
-      const fields: Partial<Record<SetField, string>> = {};
-      for (const f of fieldsFor(item.exercise.log_type)) fields[f] = fieldText(f, s[f]);
-      sets[s.id] = { fields, done: s.done_at !== null };
-    }
-  }
   return {
     start: formatTime(workout.started_at),
     end: workout.finished_at ? formatTime(workout.finished_at) : "",
@@ -98,7 +111,15 @@ function makeDraft(full: WorkoutFull): Draft {
     moodBefore: workout.mood_before,
     energyAfter: workout.energy_after,
     moodAfter: workout.mood_after,
-    sets,
+    items: full.items.map((item) => ({
+      we: item.we,
+      exercise: item.exercise,
+      replaced: item.replaced,
+      isNew: false,
+      sets: item.sets.map((s) => setDraftOf(item.exercise.log_type, s, false, s.done_at !== null)),
+    })),
+    removedExercises: [],
+    removedSets: [],
   };
 }
 
@@ -117,6 +138,9 @@ function timesOf(workout: Workout, start: string, end: string) {
   return { start: s, end: e };
 }
 
+const EMPTY_VALUES: SetValues = { weight: null, reps: null, duration_sec: null, speed_kmh: null };
+const actionClass = "min-h-11 rounded-[10px] border-[1.5px] border-line px-1 text-[13px] font-semibold disabled:opacity-40";
+
 const UNIT: Record<SetField, (logType: LogType) => string> = {
   weight: () => "кг",
   reps: () => "раз",
@@ -134,6 +158,7 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const summary = useMemo(() => summarize(items), [items]);
   const started = new Date(workout.started_at);
@@ -146,37 +171,97 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
     setError(null);
   }
 
-  function setField(setId: Id, field: SetField, value: string) {
-    setDraft((d) => d && { ...d, sets: { ...d.sets, [setId]: { ...d.sets[setId], fields: { ...d.sets[setId].fields, [field]: value } } } });
+  function updateItem(index: number, fn: (item: ItemDraft, d: Draft) => Partial<Draft> & { item?: ItemDraft | null }) {
+    setDraft((d) => {
+      if (!d) return d;
+      const { item, ...rest } = fn(d.items[index], d);
+      const list = item === undefined ? d.items : item === null ? d.items.filter((_, i) => i !== index) : d.items.map((x, i) => (i === index ? item : x));
+      return { ...d, ...rest, items: list };
+    });
+  }
+
+  function updateSet(index: number, setIndex: number, patch: Partial<SetDraft>) {
+    updateItem(index, (item) => ({ item: { ...item, sets: item.sets.map((s, i) => (i === setIndex ? { ...s, ...patch } : s)) } }));
+  }
+
+  function setField(index: number, setIndex: number, set: SetDraft, field: SetField, value: string) {
+    updateSet(index, setIndex, { fields: { ...set.fields, [field]: value } });
     setInvalid((prev) => {
-      if (!prev.has(`${setId}:${field}`)) return prev;
+      if (!prev.has(`${set.set.id}:${field}`)) return prev;
       const next = new Set(prev);
-      next.delete(`${setId}:${field}`);
+      next.delete(`${set.set.id}:${field}`);
       return next;
     });
+  }
+
+  /** A set added afterwards goes last, as a copy of the previous one, and counts as done: it is a record of what was done. */
+  function addSet(index: number) {
+    updateItem(index, (item) => {
+      const prev = item.sets.at(-1);
+      const set = newWorkoutSet(item.we.id, item.sets.length, EMPTY_VALUES);
+      const added: SetDraft = { set, isNew: true, fields: prev ? { ...prev.fields } : setDraftOf(item.exercise.log_type, set, true, true).fields, done: true };
+      return { item: { ...item, sets: [...item.sets, added] } };
+    });
+  }
+
+  function removeLastSet(index: number) {
+    updateItem(index, (item, d) => {
+      const last = item.sets.at(-1);
+      if (!last || item.sets.length <= 1) return {};
+      return {
+        item: { ...item, sets: item.sets.slice(0, -1) },
+        removedSets: last.isNew ? d.removedSets : [...d.removedSets, last.set.id],
+      };
+    });
+  }
+
+  function removeExercise(index: number) {
+    updateItem(index, (item, d) => ({
+      item: null,
+      removedExercises: item.isNew ? d.removedExercises : [...d.removedExercises, item.we.id],
+    }));
+  }
+
+  /** Added exercise: sets from the latest other workout with it (to correct), or one empty set; all done. */
+  async function addExercise(exercise: Exercise) {
+    const last = (await workoutsRepo.lastSetsByExercise([exercise.id], workout.id)).get(exercise.id);
+    const added = addedExercise(workout.id, exercise.id, 0, last);
+    const item: ItemDraft = {
+      we: added.we,
+      exercise,
+      replaced: null,
+      isNew: true,
+      sets: added.sets.map((s) => setDraftOf(exercise.log_type, s, true, true)),
+    };
+    setDraft((d) => d && { ...d, items: [...d.items, item] });
   }
 
   async function save() {
     if (!draft) return;
     setError(null);
     const bad = new Set<string>();
+    const changedExercises: WorkoutExercise[] = [];
     const changedSets: WorkoutSet[] = [];
     const doneFallback = workout.finished_at ?? workout.started_at;
 
-    for (const item of items) {
+    draft.items.forEach((item, position) => {
+      if (item.isNew) changedExercises.push({ ...item.we, position });
+      else if (item.we.position !== position) changedExercises.push(touch(item.we, { position }));
       const logType = item.exercise.log_type;
-      for (const s of item.sets) {
-        const d = draft.sets[s.id];
+      item.sets.forEach((d, setPosition) => {
+        const s = d.set;
         const patch: Partial<WorkoutSet> = {};
         for (const f of fieldsFor(logType)) {
           const v = parseField(logType, f, d.fields[f] ?? "");
           if (v === undefined) bad.add(`${s.id}:${f}`);
-          else if (v !== s[f]) patch[f] = v;
+          else if (d.isNew || v !== s[f]) patch[f] = v;
         }
-        if (d.done !== (s.done_at !== null)) patch.done_at = d.done ? doneFallback : null;
-        if (Object.keys(patch).length) changedSets.push(touch(s, patch));
-      }
-    }
+        if (d.isNew || d.done !== (s.done_at !== null)) patch.done_at = d.done ? doneFallback : null;
+        if (s.position !== setPosition) patch.position = setPosition;
+        if (d.isNew) changedSets.push({ ...s, ...patch });
+        else if (Object.keys(patch).length) changedSets.push(touch(s, patch));
+      });
+    });
 
     const times = timesOf(workout, draft.start, draft.end);
     if (!times.start) bad.add("start");
@@ -199,8 +284,15 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
 
     setBusy(true);
     try {
-      if (workoutChanged || changedSets.length) {
-        await workoutsRepo.put({ workout: workoutChanged ? touch(workout, nextWorkout) : undefined, sets: changedSets });
+      const structureChanged = changedExercises.length || changedSets.length || draft.removedExercises.length || draft.removedSets.length;
+      if (workoutChanged || structureChanged) {
+        await workoutsRepo.put({
+          workout: workoutChanged ? touch(workout, nextWorkout) : undefined,
+          exercises: changedExercises,
+          sets: changedSets,
+          deleteSetIds: draft.removedSets,
+          deleteExerciseIds: draft.removedExercises,
+        });
       }
       setDraft(null);
     } catch (err) {
@@ -311,20 +403,19 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
         )}
 
         <h2 className={`${sectionTitle} mt-1`}>Упражнения</h2>
-        {items.map((item) => {
-          const logType = item.exercise.log_type;
-          return (
-            <article key={item.we.id} className={`flex flex-col gap-2 rounded-2xl border-[1.5px] border-line bg-surface p-3.5 ${item.we.skipped && !draft ? "opacity-60" : ""}`}>
-              <div className="flex flex-col gap-0.5">
-                <Link href={`/exercises/view/?id=${item.exercise.id}`} className="text-base leading-tight font-semibold underline-offset-2 hover:underline">
-                  {item.exercise.name}
-                </Link>
-                {item.replaced && <span className="text-[13px] text-ink-muted">вместо: {item.replaced.name}</span>}
-                {item.we.skipped && <span className="text-[13px] text-accent-text">пропущено</span>}
-                {item.we.note && <span className="text-[13px] text-ink-muted">{item.we.note}</span>}
-              </div>
-
-              {!draft && (
+        {!draft &&
+          items.map((item) => {
+            const logType = item.exercise.log_type;
+            return (
+              <article key={item.we.id} className={`flex flex-col gap-2 rounded-2xl border-[1.5px] border-line bg-surface p-3.5 ${item.we.skipped ? "opacity-60" : ""}`}>
+                <div className="flex flex-col gap-0.5">
+                  <Link href={`/exercises/view/?id=${item.exercise.id}`} className="text-base leading-tight font-semibold underline-offset-2 hover:underline">
+                    {item.exercise.name}
+                  </Link>
+                  {item.replaced && <span className="text-[13px] text-ink-muted">вместо: {item.replaced.name}</span>}
+                  {item.we.skipped && <span className="text-[13px] text-accent-text">пропущено</span>}
+                  {item.we.note && <span className="text-[13px] text-ink-muted">{item.we.note}</span>}
+                </div>
                 <ol className="flex flex-col">
                   {item.sets.map((s, i) => (
                     <li key={s.id} className="flex items-baseline gap-3 border-t border-line py-1.5 first:border-t-0">
@@ -334,12 +425,24 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                     </li>
                   ))}
                 </ol>
-              )}
+              </article>
+            );
+          })}
+        {!draft && !items.length && <p className="text-[15px] text-ink-muted">Упражнений нет.</p>}
 
-              {draft && (
+        {draft &&
+          draft.items.map((item, index) => {
+            const logType = item.exercise.log_type;
+            const name = item.exercise.name;
+            return (
+              <article key={item.we.id} className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-line bg-surface p-3.5">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-base leading-tight font-semibold">{name}</span>
+                  {item.replaced && <span className="text-[13px] text-ink-muted">вместо: {item.replaced.name}</span>}
+                </div>
                 <ol className="flex flex-col gap-2">
-                  {item.sets.map((s, i) => {
-                    const d = draft.sets[s.id];
+                  {item.sets.map((d, i) => {
+                    const s = d.set;
                     return (
                       <li key={s.id} className="flex items-center gap-2">
                         <span className="w-5 font-mono text-[13px] text-ink-muted">{i + 1}</span>
@@ -347,9 +450,9 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                           <label key={f} className="flex min-w-0 flex-1 items-center gap-1">
                             <input
                               value={d.fields[f] ?? ""}
-                              onChange={(e) => setField(s.id, f, e.target.value)}
+                              onChange={(e) => setField(index, i, d, f, e.target.value)}
                               inputMode={f === "reps" ? "numeric" : f === "duration_sec" ? "text" : "decimal"}
-                              aria-label={`Подход ${i + 1}: ${UNIT[f](logType)}`}
+                              aria-label={`${name}, подход ${i + 1}: ${UNIT[f](logType)}`}
                               aria-invalid={invalid.has(`${s.id}:${f}`) || undefined}
                               className={`h-11 w-full min-w-0 rounded-[10px] border-[1.5px] bg-bg px-2 text-center font-mono text-[15px] font-bold ${
                                 invalid.has(`${s.id}:${f}`) ? "border-accent-text" : "border-line-strong"
@@ -362,8 +465,8 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                           type="button"
                           role="checkbox"
                           aria-checked={d.done}
-                          aria-label={`Подход ${i + 1} выполнен`}
-                          onClick={() => setDraft({ ...draft, sets: { ...draft.sets, [s.id]: { ...d, done: !d.done } } })}
+                          aria-label={`${name}, подход ${i + 1} выполнен`}
+                          onClick={() => updateSet(index, i, { done: !d.done })}
                           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border-[1.5px] ${
                             d.done ? "border-ink bg-surface-inverse text-on-inverse" : "border-line-strong text-ink-muted"
                           }`}
@@ -376,10 +479,25 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                     );
                   })}
                 </ol>
-              )}
-            </article>
-          );
-        })}
+                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                  <button type="button" onClick={() => addSet(index)} className={actionClass} aria-label={`${name}: добавить подход`}>
+                    + подход
+                  </button>
+                  <button type="button" onClick={() => removeLastSet(index)} disabled={item.sets.length <= 1} className={actionClass} aria-label={`${name}: убрать последний подход`}>
+                    − подход
+                  </button>
+                  <button type="button" onClick={() => removeExercise(index)} className={actionClass} aria-label={`Убрать упражнение «${name}»`}>
+                    Убрать
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        {draft && (
+          <Button variant="ghost" size="lg" onClick={() => setPicking(true)}>
+            + Добавить упражнение
+          </Button>
+        )}
 
         <FormError message={error} />
 
@@ -405,6 +523,15 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
           </Button>
         )}
       </div>
+
+      <ExercisePicker
+        open={picking}
+        onClose={() => setPicking(false)}
+        onPick={async (e) => {
+          setPicking(false);
+          await addExercise(e);
+        }}
+      />
 
       <Sheet
         open={confirmDelete}
