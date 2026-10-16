@@ -5,8 +5,10 @@ import { summarize } from "@/domain/summary";
 import { nowIso } from "@/domain/time";
 import type { Exercise, Id, IsoDateTime, Plan, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
 import { DomainError } from "@/domain/types";
-import { buildWorkout, isStale, lastActivity, newWorkoutExercise, newWorkoutSet, type PlanSnapshotItem } from "@/domain/workout";
+import { addedExercise, buildWorkout, isStale, lastActivity, replacedExercise, type PlanSnapshotItem } from "@/domain/workout";
+import type { IDBPTransaction } from "idb";
 import { getDb, withTx } from "../client";
+import type { TrackerDB } from "../schema";
 
 export interface WorkoutItem {
   we: WorkoutExercise;
@@ -28,6 +30,25 @@ export type StartResult = { status: "started"; id: Id } | { status: "conflict"; 
 
 const WORKOUT_STORES = ["workouts", "workout_exercises", "workout_sets"] as const;
 const COMPLETED = new Set<Workout["status"]>(["finished", "auto_finished"]);
+const PLAN_STORES = ["plans", "plan_exercises", "plan_sets", "exercises"] as const;
+
+type PlanReadTx = IDBPTransaction<TrackerDB, (typeof PLAN_STORES)[number][], "readonly" | "readwrite">;
+
+/** The plan with its exercises and sets in order — what a new workout copies. */
+async function readPlanSnapshot(tx: PlanReadTx, planId: Id): Promise<{ plan: Plan; items: PlanSnapshotItem[] }> {
+  const plan = await tx.objectStore("plans").get(planId);
+  if (!plan) throw new DomainError("План не найден");
+  const pes = (await tx.objectStore("plan_exercises").index("plan_id").getAll(planId)).sort((a, b) => a.position - b.position);
+  const items: PlanSnapshotItem[] = [];
+  for (const pe of pes) {
+    const [exercise, sets] = await Promise.all([
+      tx.objectStore("exercises").get(pe.exercise_id),
+      tx.objectStore("plan_sets").index("plan_exercise_id").getAll(pe.id),
+    ]);
+    if (exercise) items.push({ planExercise: pe, exercise, sets: sets.sort((a, b) => a.position - b.position) });
+  }
+  return { plan, items };
+}
 
 export const workoutsRepo = {
   /**
@@ -36,25 +57,13 @@ export const workoutsRepo = {
    */
   async start(planId: Id | null): Promise<StartResult> {
     return withTx(
-      [...WORKOUT_STORES, "plans", "plan_exercises", "plan_sets", "exercises"],
+      [...WORKOUT_STORES, ...PLAN_STORES],
       "readwrite",
       async (tx) => {
         const active = await tx.objectStore("workouts").index("status").get("in_progress");
         if (active) return { status: "conflict", active } as const;
-
-        const items: PlanSnapshotItem[] = [];
-        if (planId) {
-          const plan = await tx.objectStore("plans").get(planId);
-          if (!plan) throw new DomainError("План не найден");
-          const pes = (await tx.objectStore("plan_exercises").index("plan_id").getAll(planId)).sort((a, b) => a.position - b.position);
-          for (const pe of pes) {
-            const [exercise, sets] = await Promise.all([
-              tx.objectStore("exercises").get(pe.exercise_id),
-              tx.objectStore("plan_sets").index("plan_exercise_id").getAll(pe.id),
-            ]);
-            if (exercise) items.push({ planExercise: pe, exercise, sets: sets.sort((a, b) => a.position - b.position) });
-          }
-        }
+        // The transaction covers the plan stores too; idb's types cannot narrow it to them.
+        const items = planId ? (await readPlanSnapshot(tx as unknown as PlanReadTx, planId)).items : [];
         const rec = buildWorkout(planId, items, nowIso());
         await tx.objectStore("workouts").put(rec.workout);
         await Promise.all(rec.exercises.map((r) => tx.objectStore("workout_exercises").put(r)));
@@ -62,6 +71,43 @@ export const workoutsRepo = {
         return { status: "started", id: rec.workout.id } as const;
       },
     );
+  },
+
+  /**
+   * A workout from the plan that is not started yet and is not stored: the screen before "Начать".
+   * Changes for today are made on it in memory; `startDraft` writes it.
+   */
+  async draft(planId: Id): Promise<WorkoutFull> {
+    return withTx([...PLAN_STORES], "readonly", async (tx) => {
+      const { plan, items } = await readPlanSnapshot(tx, planId);
+      const rec = buildWorkout(planId, items, nowIso());
+      return {
+        workout: rec.workout,
+        plan,
+        items: rec.exercises.map((we, i) => ({
+          we,
+          exercise: items[i].exercise,
+          replaced: null,
+          planNote: items[i].planExercise.note,
+          sets: rec.sets.filter((s) => s.workout_exercise_id === we.id),
+        })),
+      };
+    });
+  },
+
+  /** Starts a draft as it is now (with today's changes), the start time is now. Same one-in-progress rule. */
+  async startDraft(full: WorkoutFull): Promise<StartResult> {
+    return withTx([...WORKOUT_STORES], "readwrite", async (tx) => {
+      const active = await tx.objectStore("workouts").index("status").get("in_progress");
+      if (active) return { status: "conflict", active } as const;
+      const at = nowIso();
+      await tx.objectStore("workouts").put({ ...full.workout, started_at: at, created_at: at, updated_at: at });
+      for (const item of full.items) {
+        await tx.objectStore("workout_exercises").put(item.we);
+        for (const s of item.sets) await tx.objectStore("workout_sets").put(s);
+      }
+      return { status: "started", id: full.workout.id } as const;
+    });
   },
 
   async getActive(): Promise<Workout | undefined> {
@@ -101,12 +147,24 @@ export const workoutsRepo = {
   },
 
   /** Writes records already updated in the UI (sets, workout exercises, the workout) in one transaction. */
-  async put(records: { workout?: Workout; exercises?: WorkoutExercise[]; sets?: WorkoutSet[]; deleteSetIds?: Id[] }): Promise<void> {
+  async put(records: {
+    workout?: Workout;
+    exercises?: WorkoutExercise[];
+    sets?: WorkoutSet[];
+    deleteSetIds?: Id[];
+    /** Workout exercises to delete together with their sets. */
+    deleteExerciseIds?: Id[];
+  }): Promise<void> {
     await withTx([...WORKOUT_STORES], "readwrite", async (tx) => {
       if (records.workout) await tx.objectStore("workouts").put(records.workout);
       for (const we of records.exercises ?? []) await tx.objectStore("workout_exercises").put(we);
       for (const s of records.sets ?? []) await tx.objectStore("workout_sets").put(s);
       for (const id of records.deleteSetIds ?? []) await tx.objectStore("workout_sets").delete(id);
+      for (const id of records.deleteExerciseIds ?? []) {
+        const setIds = await tx.objectStore("workout_sets").index("workout_exercise_id").getAllKeys(id);
+        for (const setId of setIds) await tx.objectStore("workout_sets").delete(setId);
+        await tx.objectStore("workout_exercises").delete(id);
+      }
     });
   },
 
@@ -115,18 +173,13 @@ export const workoutsRepo = {
     const last = (await this.lastSetsByExercise([exerciseId], workoutId)).get(exerciseId);
     await withTx([...WORKOUT_STORES], "readwrite", async (tx) => {
       const count = await tx.objectStore("workout_exercises").index("workout_id").count(workoutId);
-      const we = newWorkoutExercise(workoutId, exerciseId, count);
-      await tx.objectStore("workout_exercises").put(we);
-      const values: SetValues[] = last?.length ? last : [{ weight: null, reps: null, duration_sec: null, speed_kmh: null }];
-      for (const [i, v] of values.entries()) await tx.objectStore("workout_sets").put(newWorkoutSet(we.id, i, v));
+      const added = addedExercise(workoutId, exerciseId, count, last);
+      await tx.objectStore("workout_exercises").put(added.we);
+      for (const s of added.sets) await tx.objectStore("workout_sets").put(s);
     });
   },
 
-  /**
-   * Replaces the exercise for today only (PRD §3.4): the plan is untouched, history keeps "instead of".
-   * Sets start from last time's result for the new exercise; without history — the current values
-   * (same log type) or empty sets. Plan targets no longer apply to a replacement and are cleared.
-   */
+  /** Replaces the exercise for today only — see `replacedExercise`. */
   async replaceExercise(workoutExerciseId: Id, exercise: Exercise): Promise<void> {
     const db = await getDb();
     const we = await db.get("workout_exercises", workoutExerciseId);
@@ -135,22 +188,11 @@ export const workoutsRepo = {
     const last = (await this.lastSetsByExercise([exercise.id], we.workout_id)).get(exercise.id);
 
     await withTx([...WORKOUT_STORES], "readwrite", async (tx) => {
-      const original = we.replaced_exercise_id ?? we.exercise_id;
-      const updated = touch(we, {
-        exercise_id: exercise.id,
-        replaced_exercise_id: original === exercise.id ? null : original,
-      });
-      await tx.objectStore("workout_exercises").put(updated);
-
       const sets = (await tx.objectStore("workout_sets").index("workout_exercise_id").getAll(we.id)).sort((a, b) => a.position - b.position);
-      const empty: SetValues = { weight: null, reps: null, duration_sec: null, speed_kmh: null };
-      const values: SetValues[] = last?.length
-        ? last
-        : old?.log_type === exercise.log_type
-          ? sets.map(({ weight, reps, duration_sec, speed_kmh }) => ({ weight, reps, duration_sec, speed_kmh }))
-          : sets.map(() => empty);
+      const next = replacedExercise(we, old?.log_type, sets, exercise, last);
+      await tx.objectStore("workout_exercises").put(next.we);
       for (const s of sets) await tx.objectStore("workout_sets").delete(s.id);
-      for (const [i, v] of values.entries()) await tx.objectStore("workout_sets").put(newWorkoutSet(we.id, i, v));
+      for (const s of next.sets) await tx.objectStore("workout_sets").put(s);
     });
   },
 

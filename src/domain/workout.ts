@@ -1,4 +1,4 @@
-import { newEntity } from "./entity";
+import { newEntity, touch } from "./entity";
 import { toLocalDate } from "./time";
 import type {
   Exercise,
@@ -169,4 +169,39 @@ export function buildWorkout(planId: Id | null, items: PlanSnapshotItem[], at: I
     item.sets.forEach((ps, i) => sets.push(newWorkoutSet(we.id, i, ps, ps)));
   });
   return { workout, exercises, sets };
+}
+
+const EMPTY_VALUES: SetValues = { weight: null, reps: null, duration_sec: null, speed_kmh: null };
+
+function valuesOf({ weight, reps, duration_sec, speed_kmh }: SetValues): SetValues {
+  return { weight, reps, duration_sec, speed_kmh };
+}
+
+/** An exercise added on the fly, at `position`: sets start from last time's result, or one empty set. */
+export function addedExercise(workoutId: Id, exerciseId: Id, position: number, last: SetValues[] | undefined) {
+  const we = newWorkoutExercise(workoutId, exerciseId, position);
+  const values = last?.length ? last : [EMPTY_VALUES];
+  return { we, sets: values.map((v, i) => newWorkoutSet(we.id, i, v)) };
+}
+
+/**
+ * Replaces the exercise for today only (PRD §3.4): the plan is untouched, history keeps "instead of".
+ * Sets start from last time's result for the new exercise; without history — the current values
+ * (same log type) or empty sets. Plan targets no longer apply to a replacement and are cleared.
+ * Returns the updated workout exercise and its new sets (the old sets are to be deleted).
+ */
+export function replacedExercise(
+  we: WorkoutExercise,
+  oldLogType: LogType | undefined,
+  sets: WorkoutSet[],
+  exercise: Exercise,
+  last: SetValues[] | undefined,
+) {
+  const original = we.replaced_exercise_id ?? we.exercise_id;
+  const updated = touch(we, {
+    exercise_id: exercise.id,
+    replaced_exercise_id: original === exercise.id ? null : original,
+  });
+  const values = last?.length ? last : oldLogType === exercise.log_type ? sets.map(valuesOf) : sets.map(() => EMPTY_VALUES);
+  return { we: updated, sets: values.map((v, i) => newWorkoutSet(updated.id, i, v)) };
 }

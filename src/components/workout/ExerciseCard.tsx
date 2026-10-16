@@ -12,6 +12,8 @@ interface ExerciseCardProps {
   index: number;
   total: number;
   open: boolean;
+  /** Before "Начать": values can be changed, nothing can be marked done. */
+  planning?: boolean;
   last: SetValues[] | undefined;
   onToggleOpen: () => void;
   onToggleDone: () => void;
@@ -59,7 +61,7 @@ function CheckIcon({ className = "" }: { className?: string }) {
 const actionClass = "min-h-11 rounded-[10px] border-[1.5px] border-line px-1 text-[13px] font-semibold disabled:opacity-40";
 
 export function ExerciseCard(props: ExerciseCardProps) {
-  const { item, index, total, open, last } = props;
+  const { item, index, total, open, planning, last } = props;
   const { exercise, we, sets } = item;
   const logType = exercise.log_type;
   const done = isExerciseDone(sets);
@@ -97,24 +99,42 @@ export function ExerciseCard(props: ExerciseCardProps) {
               </span>
             ))}
           </span>
+          {planning && (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              className={`mr-1.5 ml-auto shrink-0 self-center text-ink-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          )}
         </button>
-        <button
-          type="button"
-          onClick={props.onToggleDone}
-          disabled={skipped || sets.length === 0}
-          aria-pressed={done}
-          aria-label={`Выполнено: ${exercise.name}`}
-          className="flex w-[76px] shrink-0 items-center justify-center border-l-[1.5px] border-line disabled:opacity-50"
-        >
-          <span
-            className={`check-ring flex h-13 w-13 items-center justify-center rounded-full border-2 transition-[background-color,border-color,transform] duration-200 active:scale-90 ${
-              done ? "border-accent bg-accent text-on-accent" : "border-ink text-line-strong"
-            }`}
-            data-done={done || undefined}
+        {!planning && (
+          <button
+            type="button"
+            onClick={props.onToggleDone}
+            disabled={skipped || sets.length === 0}
+            aria-pressed={done}
+            aria-label={`Выполнено: ${exercise.name}`}
+            className="flex w-[76px] shrink-0 items-center justify-center border-l-[1.5px] border-line disabled:opacity-50"
           >
-            <CheckIcon className={done ? "check-draw" : ""} />
-          </span>
-        </button>
+            <span
+              className={`check-ring flex h-13 w-13 items-center justify-center rounded-full border-2 transition-[background-color,border-color,transform] duration-200 active:scale-90 ${
+                done ? "border-accent bg-accent text-on-accent" : "border-ink text-line-strong"
+              }`}
+              data-done={done || undefined}
+            >
+              <CheckIcon className={done ? "check-draw" : ""} />
+            </span>
+          </button>
+        )}
       </div>
 
       {open && (
@@ -122,17 +142,21 @@ export function ExerciseCard(props: ExerciseCardProps) {
           {showLast && <p className="text-[13px] text-ink-muted">В прошлый раз: {formatSetsSummary(logType, last!)}</p>}
           {sets.map((s, si) => (
             <div key={s.id} className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => props.onToggleSet(si)}
-                aria-pressed={s.done_at !== null}
-                aria-label={`Подход ${si + 1} ${s.done_at ? "выполнен" : "не выполнен"}`}
-                className={`h-12 w-11 shrink-0 rounded-[10px] border-[1.5px] border-ink font-mono text-sm font-bold transition-colors ${
-                  s.done_at ? "bg-accent text-on-accent" : ""
-                }`}
-              >
-                {si + 1}
-              </button>
+              {planning ? (
+                <span className="flex h-12 w-11 shrink-0 items-center justify-center font-mono text-sm font-bold text-ink-muted">{si + 1}</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => props.onToggleSet(si)}
+                  aria-pressed={s.done_at !== null}
+                  aria-label={`Подход ${si + 1} ${s.done_at ? "выполнен" : "не выполнен"}`}
+                  className={`h-12 w-11 shrink-0 rounded-[10px] border-[1.5px] border-ink font-mono text-sm font-bold transition-colors ${
+                    s.done_at ? "bg-accent text-on-accent" : ""
+                  }`}
+                >
+                  {si + 1}
+                </button>
+              )}
               {fieldsFor(logType).map((field) => (
                 <ValueStepper
                   key={field}
@@ -152,8 +176,9 @@ export function ExerciseCard(props: ExerciseCardProps) {
             </div>
           ))}
           <div className="grid grid-cols-4 gap-1.5 pt-0.5">
-            <button type="button" onClick={props.onAddSet} className={actionClass}>
-              + подход
+            {/* "+ подход" is the most frequent action — rightmost, under the thumb. */}
+            <button type="button" onClick={props.onSkip} className={actionClass}>
+              {skipped ? "Вернуть" : "Пропуск"}
             </button>
             <button type="button" onClick={props.onReplace} className={actionClass}>
               Заменить
@@ -161,19 +186,19 @@ export function ExerciseCard(props: ExerciseCardProps) {
             <button type="button" onClick={props.onNote} className={actionClass}>
               Заметка
             </button>
-            <button type="button" onClick={props.onSkip} className={actionClass}>
-              {skipped ? "Вернуть" : "Пропуск"}
+            <button type="button" onClick={props.onAddSet} className={actionClass}>
+              + подход
             </button>
           </div>
           <div className="grid grid-cols-3 gap-1.5">
-            <button type="button" onClick={props.onRemoveSet} disabled={sets.length <= 1} className={actionClass}>
-              − подход
-            </button>
             <button type="button" onClick={() => props.onMove(-1)} disabled={index === 0} className={actionClass} aria-label="Переместить выше">
               ↑ выше
             </button>
             <button type="button" onClick={() => props.onMove(1)} disabled={index === total - 1} className={actionClass} aria-label="Переместить ниже">
               ↓ ниже
+            </button>
+            <button type="button" onClick={props.onRemoveSet} disabled={sets.length <= 1} className={actionClass}>
+              − подход
             </button>
           </div>
         </div>

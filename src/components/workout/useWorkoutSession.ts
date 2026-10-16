@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
+import { workoutsRepo, type StartResult, type WorkoutFull } from "@/db/repos/workouts";
 import { touch } from "@/domain/entity";
 import { nowIso } from "@/domain/time";
 import type { Exercise, Id, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
-import { isExerciseDone, isStale, newWorkoutSet, type SetField } from "@/domain/workout";
+import { addedExercise, isExerciseDone, isStale, newWorkoutSet, replacedExercise, type SetField } from "@/domain/workout";
 
 type Records = Parameters<typeof workoutsRepo.put>[0];
 type Change = { next: WorkoutFull; records: Records };
@@ -15,10 +15,16 @@ interface Loaded {
   last: Map<Id, SetValues[]>;
 }
 
-async function load(id: Id): Promise<Loaded> {
-  const full = (await workoutsRepo.getFull(id)) ?? null;
+/** A stored workout, or a draft from a plan: not started and not stored until `start()`. */
+export type SessionTarget = { kind: "workout"; id: Id } | { kind: "draft"; planId: Id };
+
+async function load(target: SessionTarget): Promise<Loaded> {
+  const full =
+    target.kind === "workout"
+      ? ((await workoutsRepo.getFull(target.id)) ?? null)
+      : await workoutsRepo.draft(target.planId).catch(() => null);
   const last = full
-    ? await workoutsRepo.lastSetsByExercise([...new Set(full.items.map((i) => i.exercise.id))], id)
+    ? await workoutsRepo.lastSetsByExercise([...new Set(full.items.map((i) => i.exercise.id))], full.workout.id)
     : new Map<Id, SetValues[]>();
   return { full, last };
 }
@@ -26,12 +32,15 @@ async function load(id: Id): Promise<Loaded> {
 /**
  * The workout screen state. Every action updates the screen immediately and is written to IndexedDB
  * right away through a sequential queue (PRD §3.3 autosave); `savedAt` is set when the write commits.
+ * A draft keeps the changes in memory (`dirty`) and writes everything on `start()`.
  */
-export function useWorkoutSession(id: Id) {
+export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: Id) {
+  const isDraft = targetKind === "draft";
   const [full, setFull] = useState<WorkoutFull | null | "missing">(null);
   const [last, setLast] = useState<Map<Id, SetValues[]>>(new Map());
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const current = useRef<WorkoutFull | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
 
@@ -40,37 +49,45 @@ export function useWorkoutSession(id: Id) {
     setFull(loaded.full ?? "missing");
     setLast(loaded.last);
     // Everything on screen is already stored: show when it was last written.
-    if (loaded.full) {
+    if (loaded.full && !isDraft) {
       const { workout, items } = loaded.full;
       const latest = [workout.updated_at, ...items.flatMap((i) => [i.we.updated_at, ...i.sets.map((s) => s.updated_at)])].sort().at(-1)!;
       setSavedAt((prev) => prev ?? new Date(latest));
     }
-  }, []);
+  }, [isDraft]);
 
-  const reload = useCallback(async () => applyLoaded(await load(id)), [id, applyLoaded]);
+  const target = useCallback(
+    (): SessionTarget => (targetKind === "draft" ? { kind: "draft", planId: targetId } : { kind: "workout", id: targetId }),
+    [targetKind, targetId],
+  );
+  const reload = useCallback(async () => applyLoaded(await load(target())), [target, applyLoaded]);
 
   useEffect(() => {
     let alive = true;
-    load(id).then((loaded) => alive && applyLoaded(loaded));
+    load(target()).then((loaded) => alive && applyLoaded(loaded));
     return () => {
       alive = false;
     };
-  }, [id, applyLoaded]);
+  }, [target, applyLoaded]);
 
   // Screen left open overnight: the workout is finished automatically — reload instead of writing on top of it.
   useEffect(() => {
     const onVisible = async () => {
       const cur = current.current;
-      if (document.visibilityState !== "visible" || !cur || !isStale(cur.workout)) return;
+      if (isDraft || document.visibilityState !== "visible" || !cur || !isStale(cur.workout)) return;
       await queue.current;
       await workoutsRepo.autoFinishStale();
       await reload();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [reload]);
+  }, [reload, isDraft]);
 
   const persist = useCallback((records: Records) => {
+    if (isDraft) {
+      setDirty(true);
+      return queue.current;
+    }
     queue.current = queue.current
       .then(() => workoutsRepo.put(records))
       .then(
@@ -84,7 +101,7 @@ export function useWorkoutSession(id: Id) {
         },
       );
     return queue.current;
-  }, []);
+  }, [isDraft]);
 
   const apply = useCallback(
     (fn: (f: WorkoutFull) => Change | null) => {
@@ -98,6 +115,13 @@ export function useWorkoutSession(id: Id) {
     },
     [persist],
   );
+
+  /** Last time's result for an exercise that appears on screen now — also shown as "в прошлый раз". */
+  const lastFor = async (exerciseId: Id, workoutId: Id) => {
+    const sets = (await workoutsRepo.lastSetsByExercise([exerciseId], workoutId)).get(exerciseId);
+    if (sets) setLast((prev) => new Map(prev).set(exerciseId, sets));
+    return sets;
+  };
 
   /** Replaces item `index` (its we and sets) and records what to write. */
   const withItem = (f: WorkoutFull, index: number, we: WorkoutExercise, sets: WorkoutSet[], records: Records): Change => ({
@@ -193,24 +217,44 @@ export function useWorkoutSession(id: Id) {
       }),
 
     addExercise: async (exercise: Exercise) => {
-      await queue.current;
-      await workoutsRepo.addExercise(id, exercise.id);
-      setSavedAt(new Date());
-      await reload();
+      const cur = current.current;
+      if (!cur) return;
+      const lastSets = await lastFor(exercise.id, cur.workout.id);
+      apply((f) => {
+        const added = addedExercise(f.workout.id, exercise.id, f.items.length, lastSets);
+        const item = { we: added.we, exercise, replaced: null, planNote: null, sets: added.sets };
+        return { next: { ...f, items: [...f.items, item] }, records: { exercises: [added.we], sets: added.sets } };
+      });
     },
 
     replaceExercise: async (index: number, exercise: Exercise) => {
       const cur = current.current;
       if (!cur) return;
-      await queue.current;
-      await workoutsRepo.replaceExercise(cur.items[index].we.id, exercise);
-      setSavedAt(new Date());
-      await reload();
+      const weId = cur.items[index].we.id;
+      const lastSets = await lastFor(exercise.id, cur.workout.id);
+      apply((f) => {
+        const i = f.items.findIndex((it) => it.we.id === weId);
+        if (i < 0) return null;
+        const item = f.items[i];
+        const next = replacedExercise(item.we, item.exercise.log_type, item.sets, exercise, lastSets);
+        // The original exercise: the one already replaced earlier today, or the current one.
+        const replaced = next.we.replaced_exercise_id ? (item.replaced ?? item.exercise) : null;
+        return {
+          next: { ...f, items: f.items.map((it, k) => (k === i ? { ...it, we: next.we, exercise, replaced, sets: next.sets } : it)) },
+          records: { exercises: [next.we], sets: next.sets, deleteSetIds: item.sets.map((s) => s.id) },
+        };
+      });
+    },
+
+    /** Draft only: starts the workout as it is on screen now. */
+    start: async (): Promise<StartResult | null> => {
+      const cur = current.current;
+      return isDraft && cur ? workoutsRepo.startDraft(cur) : null;
     },
 
     /** Waits for pending writes (before leaving the screen). */
     flush: () => queue.current,
   };
 
-  return { full, last, savedAt, saveFailed, actions };
+  return { full, last, savedAt, saveFailed, dirty, isDraft, actions };
 }

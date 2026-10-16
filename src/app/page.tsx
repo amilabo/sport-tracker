@@ -10,6 +10,7 @@ import { TodayLabel } from "@/components/TodayLabel";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
+import { StartConflictSheet } from "@/components/workout/StartConflictSheet";
 import { useLive } from "@/db/hooks";
 import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo } from "@/db/repos/workouts";
@@ -17,7 +18,7 @@ import { EXERCISE_FORMS, formatShortDate, formatTime, plural } from "@/domain/fo
 import { pickNextPlan } from "@/domain/next-plan";
 import { planChanges } from "@/domain/plan-diff";
 import { PlanUpdateList } from "@/components/workout/PlanUpdateList";
-import type { Id, Plan, Workout } from "@/domain/types";
+import type { Plan, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
 
 interface PlanRow {
@@ -45,7 +46,7 @@ function PlayIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-function NextCard({ row, onStart, busy }: { row: PlanRow; onStart: () => void; busy: boolean }) {
+function NextCard({ row }: { row: PlanRow }) {
   return (
     <section aria-label="Следующая тренировка" className="flex flex-col gap-3.5 rounded-[22px] bg-surface-inverse px-4 pt-[18px] pb-4 text-on-inverse">
       <div className="flex flex-col gap-1.5">
@@ -56,10 +57,10 @@ function NextCard({ row, onStart, busy }: { row: PlanRow; onStart: () => void; b
         </span>
         <span className="text-[15px] text-on-inverse-muted">{lastLine(row.last)}</span>
       </div>
-      <Button variant="accent" size="xl" className="w-full" onClick={onStart} disabled={busy}>
+      <ButtonLink href={planHref(row)} variant="accent" size="xl" className="w-full">
         <PlayIcon size={22} />
-        Начать тренировку
-      </Button>
+        К тренировке
+      </ButtonLink>
     </section>
   );
 }
@@ -83,10 +84,15 @@ function ActiveCard({ active }: { active: ActiveInfo }) {
   );
 }
 
-function PlanCard({ row, onStart }: { row: PlanRow; onStart: () => void }) {
+/** The plan's workout before "Начать": look through it, change it for today, then start. */
+function planHref(row: PlanRow) {
+  return `/workout/?plan=${row.plan.id}`;
+}
+
+function PlanCard({ row }: { row: PlanRow }) {
   return (
     <div className="flex items-stretch overflow-hidden rounded-[18px] border-[1.5px] border-ink bg-surface">
-      <button type="button" onClick={onStart} className="flex min-w-0 flex-1 items-center gap-3.5 py-4 pr-3.5 pl-4 text-left active:bg-surface-done">
+      <Link href={planHref(row)} className="flex min-w-0 flex-1 items-center gap-3.5 py-4 pr-3.5 pl-4 text-left active:bg-surface-done">
         <span className={`flex h-13 w-13 shrink-0 items-center justify-center rounded-full ${row.last ? "bg-accent text-on-accent" : "bg-line text-ink"}`}>
           <PlayIcon />
         </span>
@@ -97,7 +103,7 @@ function PlanCard({ row, onStart }: { row: PlanRow; onStart: () => void }) {
           </span>
           <span className="text-[13px] text-ink-muted">{lastLine(row.last)}</span>
         </span>
-      </button>
+      </Link>
       <Link
         href={`/plans/edit/?id=${row.plan.id}`}
         aria-label={`Редактировать план «${row.plan.name}»`}
@@ -114,7 +120,7 @@ function PlanCard({ row, onStart }: { row: PlanRow; onStart: () => void }) {
 export default function HomePage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [conflict, setConflict] = useState<{ active: Workout; planId: Id | null } | null>(null);
+  const [conflict, setConflict] = useState<Workout | null>(null);
 
   const { data } = useLive(
     async () => {
@@ -171,25 +177,25 @@ export default function HomePage() {
     }
   }
 
-  /** One tap: start and open the workout. If another one is in progress — ask (PRD §3.13). */
-  async function begin(planId: Id | null) {
+  /** "Без плана": nothing to look through — start right away. If another one is in progress — ask (PRD §3.13). */
+  async function beginFree() {
     if (busy) return;
     setBusy(true);
     try {
-      const r = await workoutsRepo.start(planId);
+      const r = await workoutsRepo.start(null);
       if (r.status === "started") router.push(`/workout/?id=${r.id}`);
-      else setConflict({ active: r.active, planId });
+      else setConflict(r.active);
     } finally {
       setBusy(false);
     }
   }
 
-  async function finishAndBegin() {
+  async function finishAndBeginFree() {
     if (!conflict) return;
-    const { active, planId } = conflict;
+    const active = conflict;
     setConflict(null);
     await workoutsRepo.finish(active.id);
-    await begin(planId);
+    await beginFree();
   }
 
   return (
@@ -204,7 +210,7 @@ export default function HomePage() {
       {data?.active && <ActiveCard active={data.active} />}
 
       {data && !data.active && (data.next ? (
-        <NextCard row={data.next} onStart={() => begin(data.next!.plan.id)} busy={busy} />
+        <NextCard row={data.next} />
       ) : (
         <section className="flex flex-col gap-3 rounded-[22px] bg-surface-inverse p-4 text-on-inverse">
           <span className="font-display text-xl leading-tight font-extrabold">Начнём с плана</span>
@@ -226,7 +232,7 @@ export default function HomePage() {
             </span>
           </div>
           {(data.active ? [...(data.next ? [data.next] : []), ...data.others] : data.others).map((row) => (
-            <PlanCard key={row.plan.id} row={row} onStart={() => begin(row.plan.id)} />
+            <PlanCard key={row.plan.id} row={row} />
           ))}
         </section>
       )}
@@ -236,7 +242,7 @@ export default function HomePage() {
           <ButtonLink href="/plans/edit/?new=1" variant="outline">
             + Новый план
           </ButtonLink>
-          <Button variant="outline" onClick={() => begin(null)} disabled={busy}>
+          <Button variant="outline" onClick={beginFree} disabled={busy}>
             Без плана
           </Button>
         </div>
@@ -280,26 +286,7 @@ export default function HomePage() {
         )}
       </Sheet>
 
-      <Sheet
-        open={conflict !== null}
-        onClose={() => setConflict(null)}
-        title="Уже идёт тренировка"
-        footer={
-          <div className="flex flex-col gap-2">
-            <ButtonLink href={conflict ? `/workout/?id=${conflict.active.id}` : "/workout/"} variant="primary" onClick={() => setConflict(null)}>
-              Продолжить текущую
-            </ButtonLink>
-            <Button variant="outline" onClick={finishAndBegin}>
-              Завершить её и начать новую
-            </Button>
-          </div>
-        }
-      >
-        <p className="text-[15px]">
-          Тренировка начата в {conflict ? formatTime(conflict.active.started_at) : ""}. Одновременно может идти только одна. Продолжить её или завершить
-          и начать новую?
-        </p>
-      </Sheet>
+      <StartConflictSheet active={conflict} onClose={() => setConflict(null)} onFinishAndStart={finishAndBeginFree} />
     </div>
   );
 }

@@ -155,7 +155,8 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
         items: rows.map((r) => ({ id: r.id, exercise_id: r.exercise.id, note: r.note, sets: r.sets })),
       });
       setSaved(snapshot(name, rows));
-      router.push("/");
+      // Back where it was opened from: the home screen or the workout before "Начать".
+      router.back();
     } catch (err) {
       setFormError(err instanceof DomainError ? err.message : "Не получилось сохранить. Попробуйте ещё раз.");
       if (!(err instanceof DomainError)) console.error(err);
