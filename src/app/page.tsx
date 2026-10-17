@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BackupReminder } from "@/components/home/BackupReminder";
 import { InstallHint } from "@/components/home/InstallHint";
 import { SavedWorkout } from "@/components/home/SavedWorkout";
 import { TodayLabel } from "@/components/TodayLabel";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
-import { StartConflictSheet } from "@/components/workout/StartConflictSheet";
 import { useLive } from "@/db/hooks";
 import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo } from "@/db/repos/workouts";
@@ -133,9 +131,6 @@ function PencilIcon() {
 }
 
 export default function HomePage() {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [conflict, setConflict] = useState<Workout | null>(null);
 
   const { data } = useLive(
     async () => {
@@ -192,27 +187,6 @@ export default function HomePage() {
     }
   }
 
-  /** "Без плана": nothing to look through — start right away. If another one is in progress — ask (PRD §3.13). */
-  async function beginFree() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const r = await workoutsRepo.start(null);
-      if (r.status === "started") router.push(`/workout/?id=${r.id}`);
-      else setConflict(r.active);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function finishAndBeginFree() {
-    if (!conflict) return;
-    const active = conflict;
-    setConflict(null);
-    await workoutsRepo.finish(active.id);
-    await beginFree();
-  }
-
   return (
     <div className="flex flex-1 flex-col gap-5 px-5 pb-5">
       <div className="-mx-5">
@@ -257,9 +231,9 @@ export default function HomePage() {
           <ButtonLink href="/plans/edit/?new=1" variant="outline">
             + Новый план
           </ButtonLink>
-          <Button variant="outline" onClick={beginFree} disabled={busy}>
+          <ButtonLink href="/workout/?free=1" variant="outline">
             Без плана
-          </Button>
+          </ButtonLink>
         </div>
       )}
 
@@ -274,7 +248,7 @@ export default function HomePage() {
       </p>
 
       <Sheet
-        open={!!pending && !data?.active && conflict === null}
+        open={!!pending && !data?.active}
         onClose={() => decidePending([])}
         title="Обновить веса в плане?"
       >
@@ -295,7 +269,6 @@ export default function HomePage() {
         )}
       </Sheet>
 
-      <StartConflictSheet active={conflict} onClose={() => setConflict(null)} onFinishAndStart={finishAndBeginFree} />
     </div>
   );
 }

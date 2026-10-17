@@ -29,6 +29,7 @@ interface AnyStore {
   get(id: string): Promise<Row | undefined>;
   getAll(): Promise<Row[]>;
   put(value: Row): Promise<unknown>;
+  delete(id: string): Promise<void>;
   clear(): Promise<void>;
   index(name: string): { getAll(key: string): Promise<Row[]> };
 }
@@ -91,6 +92,19 @@ export const backupRepo = {
             result.kept++;
             continue;
           }
+          // One value per date and measurement: the same one entered on the phone under another id is the same
+          // record — the newer edit wins, so values from a file fill a measurement day instead of doubling it.
+          let twin: Row | undefined;
+          if (name === "measurements" && mode === "merge" && !existing) {
+            twin = (await store(name).getAll()).find(
+              (m) => m.date === row.date && m.measurement_type_id === row.measurement_type_id && !written.get(name)!.has(m.id),
+            );
+            if (twin && twin.updated_at >= row.updated_at) {
+              result.kept++;
+              continue;
+            }
+            if (twin) await store(name).delete(twin.id);
+          }
           if (name === "exercises") {
             const taken = (n: string) => {
               const owner = names.get(searchKey(n));
@@ -107,7 +121,7 @@ export const backupRepo = {
           }
           await store(name).put(row);
           written.get(name)!.add(row.id);
-          if (existing) result.updated++;
+          if (existing || twin) result.updated++;
           else {
             result.added++;
             if (name === "workouts") result.workoutsAdded++;

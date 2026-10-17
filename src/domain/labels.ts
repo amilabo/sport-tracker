@@ -15,6 +15,7 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
 export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   barbell: "штанга",
   dumbbells: "гантели",
+  kettlebell: "гиря",
   machine: "тренажёр",
   cable: "блок",
   bodyweight: "свой вес",

@@ -10,6 +10,7 @@ import {
   lastActivity,
   lastTimeDiffers,
   newWorkoutSet,
+  parseSignedWeight,
   progress,
   stepValue,
 } from "./workout";
@@ -135,5 +136,22 @@ describe("stale workouts", () => {
     const s2 = { ...newWorkoutSet("we", 1, v(1, 1)), done_at: "2026-10-14T06:20:00.000Z" };
     expect(lastActivity(workout, [s1, s2])).toBe("2026-10-14T06:40:00.000Z");
     expect(lastActivity(workout, [])).toBe("2026-10-14T06:00:00.000Z");
+  });
+});
+
+describe("assistance minus without a «−» key", () => {
+  it("an unsigned number keeps the minus of the exercise's known weight", () => {
+    expect(parseSignedWeight("20", [-25])).toBe(-20);
+    expect(parseSignedWeight("17,5", [null, 0, -20])).toBe(-17.5);
+    expect(parseSignedWeight("20", [10])).toBe(20);
+    expect(parseSignedWeight("20", [null])).toBe(20);
+  });
+
+  it("an explicit sign wins", () => {
+    expect(parseSignedWeight("+10", [-25])).toBe(10);
+    expect(parseSignedWeight("−20", [10])).toBe(-20);
+    expect(parseSignedWeight("0", [-25])).toBe(0);
+    expect(parseSignedWeight("+-5", [])).toBeNull();
+    expect(parseSignedWeight("abc", [])).toBeNull();
   });
 });

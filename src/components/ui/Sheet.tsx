@@ -28,6 +28,25 @@ export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
     }
   }, [open]);
 
+  // The on-screen keyboard: keep the sheet (search results, suggestions) above it. Android resizes the
+  // page itself (viewport interactive-widget); iOS lays the keyboard over it — lift the sheet by its height.
+  useEffect(() => {
+    const dialog = ref.current;
+    const vv = window.visualViewport;
+    if (!open || !dialog || !vv) return;
+    const update = () => {
+      dialog.style.setProperty("--kb", `${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px`);
+      dialog.style.setProperty("--vvh", `${Math.round(vv.height - 12)}px`);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [open]);
+
   return (
     <dialog
       ref={ref}
@@ -40,7 +59,7 @@ export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
         if (e.target === e.currentTarget) onClose();
       }}
       aria-label={title}
-      className="sheet fixed inset-x-0 top-auto bottom-0 m-0 mx-auto hidden max-h-[88dvh] open:flex w-full max-w-[480px] flex-col rounded-t-[24px] bg-bg p-0 text-ink"
+      className="sheet fixed inset-x-0 top-auto bottom-[var(--kb,0px)] m-0 mx-auto hidden max-h-[min(88dvh,var(--vvh,88dvh))] open:flex w-full max-w-[480px] flex-col rounded-t-[24px] bg-bg p-0 text-ink"
     >
       {open && (
         <>

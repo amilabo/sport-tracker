@@ -16,7 +16,11 @@ function Row({ entry }: { entry: HistoryEntry }) {
   const { workout, summary } = entry;
   const d = new Date(workout.started_at);
   const minutes = workout.finished_at ? durationMinutes(workout.started_at, workout.finished_at) : null;
-  const mood = moodLine(workout.mood_before, workout.mood_after);
+  // Before → after: mood with mood, «силы» — wellbeing before with energy after.
+  const ratings = [
+    { label: "настроение", value: moodLine(workout.mood_before, workout.mood_after) },
+    { label: "силы", value: moodLine(workout.wellbeing_before, workout.energy_after) },
+  ].filter((r) => r.value);
   const stats = [`выполнено ${summary.percent}%`, summary.volumeKg > 0 ? `${formatKg(summary.volumeKg)} кг` : null].filter(Boolean).join(" · ");
 
   return (
@@ -37,10 +41,14 @@ function Row({ entry }: { entry: HistoryEntry }) {
         <span className="font-mono text-xs text-ink-muted">{stats}</span>
         {workout.status === "auto_finished" && <span className="text-xs text-accent-text">завершена автоматически</span>}
       </span>
-      {mood && (
-        <span className="flex shrink-0 flex-col items-end gap-0.5">
-          <span className="text-[11px] text-ink-muted">настроение</span>
-          <span className="font-mono text-sm font-bold">{mood}</span>
+      {ratings.length > 0 && (
+        <span className="flex shrink-0 flex-col items-end gap-1.5">
+          {ratings.map((r) => (
+            <span key={r.label} className="flex flex-col items-end gap-0.5">
+              <span className="text-[11px] text-ink-muted">{r.label}</span>
+              <span className="font-mono text-sm font-bold">{r.value}</span>
+            </span>
+          ))}
         </span>
       )}
     </Link>

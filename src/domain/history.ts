@@ -2,7 +2,7 @@ import { formatNumber, parseDecimal, parseDurationInput } from "./format";
 import { formatCardioDuration, formatClock } from "./sets";
 import type { WorkoutSummary } from "./summary";
 import type { Id, LogType, SetValues, Workout } from "./types";
-import type { SetField } from "./workout";
+import { parseSignedWeight, type SetField } from "./workout";
 
 // History feed (PRD §3.8): finished workouts, newest first, grouped by month.
 
@@ -57,15 +57,15 @@ export function moodLine(before: number | null, after: number | null): string | 
   return `${before ?? "—"} → ${after ?? "—"}`;
 }
 
-/** A set in the workout card: "20 кг × 12", "+10 кг × 8", "12 раз", "0:30", "15 мин · 10 км/ч". */
+/** A set in the workout card: "20 кг × 12 раз", "+10 кг × 8 раз", "12 раз", "0:30", "15 мин · 10 км/ч". */
 export function formatSetDetail(logType: LogType, s: SetValues): string {
   switch (logType) {
     case "weight_reps":
-      return s.weight === null ? `${s.reps ?? "—"} раз` : `${formatNumber(s.weight)} кг × ${s.reps ?? "—"}`;
+      return s.weight === null ? `${s.reps ?? "—"} раз` : `${formatNumber(s.weight)} кг × ${s.reps ?? "—"} раз`;
     case "bodyweight_plus": {
       if (s.weight === null || s.weight === 0) return `${s.reps ?? "—"} раз`;
       const w = s.weight > 0 ? `+${formatNumber(s.weight)}` : `−${formatNumber(-s.weight)}`;
-      return `${w} кг × ${s.reps ?? "—"}`;
+      return `${w} кг × ${s.reps ?? "—"} раз`;
     }
     case "reps":
       return `${s.reps ?? "—"} раз`;
@@ -89,13 +89,16 @@ export function fieldText(field: SetField, value: number | null): string {
   return field === "reps" ? String(value) : formatNumber(value, 2);
 }
 
-/** Parses an edit field; undefined — invalid. Empty is allowed (null) only for weight. */
-export function parseField(logType: LogType, field: SetField, text: string): number | null | undefined {
+/**
+ * Parses an edit field; undefined — invalid. Empty is allowed (null) only for weight.
+ * `reference` — known weights of the exercise: an unsigned assistance weight keeps its minus (parseSignedWeight).
+ */
+export function parseField(logType: LogType, field: SetField, text: string, reference: (number | null)[] = []): number | null | undefined {
   const t = text.trim();
   if (t === "") return field === "weight" ? null : undefined;
   switch (field) {
     case "weight": {
-      const v = parseDecimal(t);
+      const v = logType === "bodyweight_plus" ? parseSignedWeight(t, reference) : parseDecimal(t);
       if (v === null || Math.abs(v) > 999) return undefined;
       if (v < 0 && logType !== "bodyweight_plus") return undefined;
       return v;

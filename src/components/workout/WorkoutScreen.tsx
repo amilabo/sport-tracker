@@ -14,7 +14,7 @@ import type { Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
 import { ExerciseCard } from "./ExerciseCard";
 import { StartConflictSheet } from "./StartConflictSheet";
-import { useWorkoutSession } from "./useWorkoutSession";
+import { FREE_DRAFT, useWorkoutSession } from "./useWorkoutSession";
 
 /**
  * /workout/?id=… — a workout; /workout/?plan=… — the plan's workout before "Начать";
@@ -24,19 +24,21 @@ export function WorkoutRoute() {
   const params = useSearchParams();
   const id = params.get("id");
   const planId = params.get("plan");
+  const free = params.get("free") !== null;
   const router = useRouter();
   const [activeId, setActiveId] = useState<Id | null | "none">(null);
 
   useEffect(() => {
-    if (id || planId) return;
+    if (id || planId || free) return;
     workoutsRepo.getActive().then((w) => {
       if (w) router.replace(`/workout/?id=${w.id}`);
       else setActiveId("none");
     });
-  }, [id, planId, router]);
+  }, [id, planId, free, router]);
 
   if (id) return <WorkoutScreen key={id} kind="workout" targetId={id} />;
   if (planId) return <WorkoutScreen key={`plan-${planId}`} kind="draft" targetId={planId} />;
+  if (free) return <WorkoutScreen key="free" kind="draft" targetId={FREE_DRAFT} />;
   if (activeId === "none") {
     return (
       <div className="flex flex-1 flex-col items-start gap-4 p-5">
@@ -164,7 +166,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   if (full === "missing") {
     return (
       <div className="flex flex-1 flex-col items-start gap-4 p-5">
-        <p className="text-[15px]">{isDraft ? "План не найден." : "Тренировка не найдена."}</p>
+        <p className="text-[15px]">{isDraft && targetId !== FREE_DRAFT ? "План не найден." : "Тренировка не найдена."}</p>
         <ButtonLink href="/" variant="primary">
           К планам
         </ButtonLink>
@@ -216,7 +218,9 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
                 <div className="font-mono text-[13px] text-on-inverse-muted">
                   ещё не начата · {total} {plural(total, EXERCISE_FORMS)}
                 </div>
-                <div className="text-xs text-on-inverse-muted">правки — только на сегодня, план не меняется</div>
+                <div className="text-xs text-on-inverse-muted">
+                  {full.plan ? "правки — только на сегодня, план не меняется" : "добавьте упражнения сейчас или после «Начать»"}
+                </div>
               </>
             ) : (
               <>

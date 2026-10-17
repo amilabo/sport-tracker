@@ -75,9 +75,10 @@ export const workoutsRepo = {
 
   /**
    * A workout from the plan that is not started yet and is not stored: the screen before "Начать".
-   * Changes for today are made on it in memory; `startDraft` writes it.
+   * Changes for today are made on it in memory; `startDraft` writes it. `null` — an empty workout without a plan.
    */
-  async draft(planId: Id): Promise<WorkoutFull> {
+  async draft(planId: Id | null): Promise<WorkoutFull> {
+    if (planId === null) return { workout: buildWorkout(null, [], nowIso()).workout, plan: null, items: [] };
     return withTx([...PLAN_STORES], "readonly", async (tx) => {
       const { plan, items } = await readPlanSnapshot(tx, planId);
       const rec = buildWorkout(planId, items, nowIso());

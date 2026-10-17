@@ -1,4 +1,5 @@
 import { newEntity, touch } from "./entity";
+import { parseDecimal } from "./format";
 import { toLocalDate } from "./time";
 import type {
   Exercise,
@@ -36,6 +37,21 @@ export function fieldsFor(logType: LogType): SetField[] {
     case "cardio":
       return ["duration_sec", "speed_kmh"];
   }
+}
+
+/**
+ * Typed weight of a bodyweight_plus set. The phone's number pad often has no "−": a number typed
+ * without a sign keeps the minus (assistance, like the gravitron) when the first known weight in
+ * `reference` (this set, other sets, last time) is negative. "+10" is always extra weight, "−20" assistance.
+ */
+export function parseSignedWeight(text: string, reference: (number | null)[]): number | null {
+  const t = text.trim();
+  const plus = t.startsWith("+");
+  const v = parseDecimal(plus ? t.slice(1) : t);
+  if (v === null || (plus && v < 0)) return null;
+  if (plus || v <= 0 || /^[-−–]/.test(t)) return v;
+  const known = reference.find((w) => w !== null && w !== 0);
+  return known !== undefined && known !== null && known < 0 ? -v : v;
 }
 
 export function stepValue(logType: LogType, field: SetField, value: number | null, dir: 1 | -1): number {

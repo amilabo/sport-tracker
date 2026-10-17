@@ -6,12 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field, FormError } from "@/components/ui/Field";
 import { Scale5 } from "@/components/ui/Scale5";
-import { parseTime24, TimeField } from "@/components/ui/TimeField";
+import { DateField, TimeField } from "@/components/ui/TimeField";
 import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { planChanges, type PlanChange } from "@/domain/plan-diff";
 import { durationMinutes, formatDuration, formatDurationLong, formatKg, summarize } from "@/domain/summary";
+import { isWorkoutDate, parseTime24, toLocalDate, workoutMoments } from "@/domain/time";
 import { DomainError, type Id } from "@/domain/types";
 import { rememberSaved } from "@/components/home/SavedWorkout";
 import { PlanUpdateList } from "./PlanUpdateList";
@@ -56,26 +57,15 @@ function FinishLoader({ id }: { id: Id }) {
   return <FinishForm full={full} />;
 }
 
-/** "HH:MM" of a moment in local time and back, on the workout's start date. */
-function toTimeInput(iso: string) {
-  return formatTime(iso);
-}
-function fromTimeInput(baseIso: string, hhmm: string): Date | null {
-  const t = parseTime24(hhmm);
-  if (!t) return null;
-  const d = new Date(baseIso);
-  d.setHours(t.h, t.m, 0, 0);
-  return d;
-}
-
 function FinishForm({ full }: { full: WorkoutFull }) {
   const router = useRouter();
   const { workout, plan, items } = full;
   const [energy, setEnergy] = useState<number | null>(null);
   const [mood, setMood] = useState<number | null>(null);
   const [afterHidden, setAfterHidden] = useState(false);
-  const [start, setStart] = useState(() => toTimeInput(workout.started_at));
-  const [end, setEnd] = useState(() => toTimeInput(new Date().toISOString()));
+  const [date, setDate] = useState(() => toLocalDate(new Date(workout.started_at)));
+  const [start, setStart] = useState(() => formatTime(workout.started_at));
+  const [end, setEnd] = useState(() => formatTime(new Date().toISOString()));
   const [note, setNote] = useState(workout.note ?? "");
   const [decision, setDecision] = useState<PlanChange[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,14 +76,14 @@ function FinishForm({ full }: { full: WorkoutFull }) {
   const summary = useMemo(() => summarize(items), [items]);
   const changes = useMemo(() => (plan && !plan.archived_at ? planChanges(items) : []), [plan, items]);
 
-  // Times: end on the start date; an end before the start means the workout crossed midnight.
-  const startDate = fromTimeInput(workout.started_at, start);
-  let endDate = fromTimeInput(workout.started_at, end);
-  if (startDate && endDate && endDate < startDate) endDate = new Date(endDate.getTime() + 24 * 3600 * 1000);
+  // Date and times: an entry made later can move the workout to the day it happened.
+  const dateOk = isWorkoutDate(date);
+  const { start: startDate, end: endDate } = workoutMoments(date, start, end);
   const minutes = startDate && endDate ? durationMinutes(startDate.toISOString(), endDate.toISOString()) : null;
 
   async function save() {
     setError(null);
+    if (!dateOk) return setError("Проверьте дату: не позже сегодня");
     if (!startDate || !endDate || minutes === null) return setError("Проверьте время начала и конца");
     if (minutes > 12 * 60) return setError("Тренировка дольше 12 часов? Проверьте время начала и конца");
     setBusy(true);
@@ -145,7 +135,7 @@ function FinishForm({ full }: { full: WorkoutFull }) {
     <div className="flex flex-1 flex-col">
       <header className="flex flex-col gap-2 bg-surface-inverse px-5 pt-7 pb-6 text-on-inverse">
         <div className="flex items-center justify-between gap-3">
-          <span className="font-mono text-[13px] tracking-[0.08em] text-accent uppercase">Готово · {formatHeaderDate(new Date(workout.started_at))}</span>
+          <span className="font-mono text-[13px] tracking-[0.08em] text-accent uppercase">Готово · {formatHeaderDate(startDate ?? new Date(workout.started_at))}</span>
           <Link href={`/workout/?id=${workout.id}`} className="min-h-11 content-center text-[13px] text-on-inverse-muted underline">
             К тренировке
           </Link>
@@ -207,8 +197,11 @@ function FinishForm({ full }: { full: WorkoutFull }) {
               <span className="font-display text-[22px] font-extrabold">{minutes === null ? "—" : formatDuration(minutes)}</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <TimeField label="Начало" value={start} onChange={setStart} invalid={!startDate} />
-              <TimeField label="Конец" value={end} onChange={setEnd} invalid={!fromTimeInput(workout.started_at, end)} />
+              <div className="col-span-2">
+                <DateField label="Дата" value={date} onChange={setDate} invalid={!dateOk} />
+              </div>
+              <TimeField label="Начало" value={start} onChange={setStart} invalid={!parseTime24(start)} />
+              <TimeField label="Конец" value={end} onChange={setEnd} invalid={!parseTime24(end)} />
             </div>
           </div>
           {(summary.notDone.length > 0 || summary.replacements.length > 0) && (

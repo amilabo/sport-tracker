@@ -25,6 +25,23 @@ describe("workout before «Начать»", () => {
     expect(await workoutsRepo.get(draft.workout.id)).toBeUndefined();
   });
 
+  it("«Без плана» is a draft too: nothing stored until «Начать», exercises added before it are kept", async () => {
+    const draft = await workoutsRepo.draft(null);
+    expect(draft.plan).toBeNull();
+    expect(draft.items).toEqual([]);
+    expect(await workoutsRepo.getActive()).toBeUndefined();
+
+    const bench = (await exercisesRepo.get(exerciseSeedId("bench_press")))!;
+    const added = addedExercise(draft.workout.id, bench.id, 0, undefined);
+    const item = { we: added.we, exercise: bench, replaced: null, planNote: null, sets: added.sets };
+    const r = await workoutsRepo.startDraft({ ...draft, items: [item] });
+    expect(r.status).toBe("started");
+    const full = (await workoutsRepo.getFull(draft.workout.id))!;
+    expect(full.workout.plan_id).toBeNull();
+    expect(full.workout.status).toBe("in_progress");
+    expect(full.items.map((i) => i.exercise.id)).toEqual([bench.id]);
+  });
+
   it("a draft of a missing plan fails", async () => {
     await expect(workoutsRepo.draft("nope")).rejects.toThrow("План не найден");
   });

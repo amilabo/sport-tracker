@@ -1,5 +1,6 @@
 "use client";
 
+import { toLocalDate } from "@/domain/time";
 import { inputClass } from "./Field";
 
 interface TimeFieldProps {
@@ -37,11 +38,27 @@ export function TimeField({ label, value, onChange, invalid }: TimeFieldProps) {
   );
 }
 
-/** Parses "HH:MM" (24-hour); null if not a valid time. */
-export function parseTime24(value: string): { h: number; m: number } | null {
-  const m = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  return h <= 23 && min <= 59 ? { h, m: min } : null;
+interface DateFieldProps {
+  label: string;
+  /** "YYYY-MM-DD" */
+  value: string;
+  onChange: (value: string) => void;
+  invalid?: boolean;
+}
+
+/** Workout date: the phone's own calendar picker, no dates after today. */
+export function DateField({ label, value, onChange, invalid }: DateFieldProps) {
+  return (
+    <label className="flex flex-col gap-1 text-xs text-ink-muted">
+      {label}
+      <input
+        type="date"
+        value={value}
+        max={toLocalDate()}
+        aria-invalid={invalid || undefined}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${inputClass} bg-bg font-mono font-bold ${invalid ? "border-accent-text" : ""}`}
+      />
+    </label>
+  );
 }

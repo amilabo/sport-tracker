@@ -9,13 +9,14 @@ import { Field, FormError } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Scale5 } from "@/components/ui/Scale5";
 import { Sheet } from "@/components/ui/Sheet";
-import { parseTime24, TimeField } from "@/components/ui/TimeField";
+import { DateField, TimeField } from "@/components/ui/TimeField";
 import { useLive } from "@/db/hooks";
 import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { touch } from "@/domain/entity";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { fieldText, formatSetDetail, parseField } from "@/domain/history";
 import { durationMinutes, formatDurationLong, formatKg, summarize } from "@/domain/summary";
+import { isWorkoutDate, parseTime24, toLocalDate, workoutMoments } from "@/domain/time";
 import type { Exercise, Id, LogType, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
 import { addedExercise, fieldsFor, newWorkoutSet, type SetField } from "@/domain/workout";
 
@@ -82,6 +83,8 @@ interface ItemDraft {
 }
 
 interface Draft {
+  /** "YYYY-MM-DD" */
+  date: string;
   start: string;
   end: string;
   note: string;
@@ -104,6 +107,7 @@ function setDraftOf(logType: LogType, set: WorkoutSet, isNew: boolean, done: boo
 function makeDraft(full: WorkoutFull): Draft {
   const { workout } = full;
   return {
+    date: toLocalDate(new Date(workout.started_at)),
     start: formatTime(workout.started_at),
     end: workout.finished_at ? formatTime(workout.finished_at) : "",
     note: workout.note ?? "",
@@ -121,21 +125,6 @@ function makeDraft(full: WorkoutFull): Draft {
     removedExercises: [],
     removedSets: [],
   };
-}
-
-/** The moment "HH:MM" on the workout's start date; an end before the start crossed midnight. */
-function timesOf(workout: Workout, start: string, end: string) {
-  const at = (hhmm: string) => {
-    const t = parseTime24(hhmm);
-    if (!t) return null;
-    const d = new Date(workout.started_at);
-    d.setHours(t.h, t.m, 0, 0);
-    return d;
-  };
-  const s = at(start);
-  let e = at(end);
-  if (s && e && e < s) e = new Date(e.getTime() + 24 * 3600 * 1000);
-  return { start: s, end: e };
 }
 
 const EMPTY_VALUES: SetValues = { weight: null, reps: null, duration_sec: null, speed_kmh: null };
@@ -242,7 +231,8 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
     const bad = new Set<string>();
     const changedExercises: WorkoutExercise[] = [];
     const changedSets: WorkoutSet[] = [];
-    const doneFallback = workout.finished_at ?? workout.started_at;
+    const times = workoutMoments(draft.date, draft.start, draft.end);
+    const doneFallback = times.end?.toISOString() ?? workout.finished_at ?? workout.started_at;
 
     draft.items.forEach((item, position) => {
       if (item.isNew) changedExercises.push({ ...item.we, position });
@@ -252,7 +242,7 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
         const s = d.set;
         const patch: Partial<WorkoutSet> = {};
         for (const f of fieldsFor(logType)) {
-          const v = parseField(logType, f, d.fields[f] ?? "");
+          const v = parseField(logType, f, d.fields[f] ?? "", [s.weight, ...item.sets.map((x) => x.set.weight)]);
           if (v === undefined) bad.add(`${s.id}:${f}`);
           else if (d.isNew || v !== s[f]) patch[f] = v;
         }
@@ -263,9 +253,9 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
       });
     });
 
-    const times = timesOf(workout, draft.start, draft.end);
-    if (!times.start) bad.add("start");
-    if (!times.end) bad.add("end");
+    if (!isWorkoutDate(draft.date)) bad.add("date");
+    if (!parseTime24(draft.start)) bad.add("start");
+    if (!parseTime24(draft.end)) bad.add("end");
     setInvalid(bad);
     if (bad.size) return setError("Проверьте выделенные значения");
     const mins = durationMinutes(times.start!.toISOString(), times.end!.toISOString());
@@ -392,6 +382,9 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
         {draft && (
           <section className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-line bg-surface p-3.5">
             <div className="grid grid-cols-2 gap-2">
+              <div className="col-span-2">
+                <DateField label="Дата" value={draft.date} onChange={(v) => setDraft({ ...draft, date: v })} invalid={invalid.has("date")} />
+              </div>
               <TimeField label="Начало" value={draft.start} onChange={(v) => setDraft({ ...draft, start: v })} invalid={invalid.has("start")} />
               <TimeField label="Конец" value={draft.end} onChange={(v) => setDraft({ ...draft, end: v })} invalid={invalid.has("end")} />
             </div>

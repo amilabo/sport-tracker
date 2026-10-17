@@ -29,8 +29,8 @@ describe("moodLine", () => {
 
 describe("formatSetDetail", () => {
   it("writes units for every log type", () => {
-    expect(formatSetDetail("weight_reps", { weight: 42.5, reps: 10, duration_sec: null, speed_kmh: null })).toBe("42,5 кг × 10");
-    expect(formatSetDetail("bodyweight_plus", { weight: -20, reps: 10, duration_sec: null, speed_kmh: null })).toBe("−20 кг × 10");
+    expect(formatSetDetail("weight_reps", { weight: 42.5, reps: 10, duration_sec: null, speed_kmh: null })).toBe("42,5 кг × 10 раз");
+    expect(formatSetDetail("bodyweight_plus", { weight: -20, reps: 10, duration_sec: null, speed_kmh: null })).toBe("−20 кг × 10 раз");
     expect(formatSetDetail("reps", { weight: null, reps: 12, duration_sec: null, speed_kmh: null })).toBe("12 раз");
     expect(formatSetDetail("time", { weight: null, reps: null, duration_sec: 30, speed_kmh: null })).toBe("0:30");
     expect(formatSetDetail("cardio", { weight: null, reps: null, duration_sec: 900, speed_kmh: 10 })).toBe("15 мин · 10 км/ч");
@@ -52,5 +52,13 @@ describe("edit fields", () => {
     expect(parseField("weight_reps", "reps", "12,5")).toBeUndefined();
     expect(parseField("weight_reps", "reps", "")).toBeUndefined();
     expect(parseField("weight_reps", "weight", "")).toBeNull();
+  });
+});
+
+describe("parseField: assistance minus", () => {
+  it("an unsigned weight keeps the minus of the gravitron", () => {
+    expect(parseField("bodyweight_plus", "weight", "20", [-25])).toBe(-20);
+    expect(parseField("bodyweight_plus", "weight", "+5", [-25])).toBe(5);
+    expect(parseField("weight_reps", "weight", "20", [-25])).toBe(20);
   });
 });

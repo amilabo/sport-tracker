@@ -117,6 +117,28 @@ describe("backupRepo", () => {
     expect([again.added, again.updated]).toEqual([0, 0]);
   });
 
+  it("«Объединить» fills a measurement day from a file: one value per date and measurement, the newer edit wins", async () => {
+    const types = await measurementsRepo.listTypes();
+    const id = (key: string) => types.find((t) => t.key === key)!.id;
+    // Entered on the phone: weight and waist on 01.09.
+    await measurementsRepo.saveSession("2026-09-01", new Map([[id("weight"), 70], [id("waist"), 75]]));
+    // A file made later (club data) for the same day: weight (other value), fat; and an older waist.
+    const at = new Date(Date.now() + 60_000).toISOString();
+    const m = (key: string, value: number, updated = at) => ({
+      ...newEntity({ date: "2026-09-01", measurement_type_id: id(key), value }, { at: updated }),
+    });
+    const file = roundTrip({
+      app: "sport-tracker", format: 1, schema_version: 1, exported_at: "",
+      data: { measurements: [m("weight", 70.6), m("fat_kg", 20.9), m("waist", 74, "2000-01-01T00:00:00.000Z")] },
+    });
+
+    const r = await backupRepo.import(file, "merge");
+    expect([r.added, r.updated, r.kept]).toEqual([1, 1, 1]);
+    const day = (await measurementsRepo.list()).filter((x) => x.date === "2026-09-01");
+    const byKey = Object.fromEntries(types.filter((t) => day.some((x) => x.measurement_type_id === t.id)).map((t) => [t.key, day.filter((x) => x.measurement_type_id === t.id).map((x) => x.value)]));
+    expect(byKey).toEqual({ weight: [70.6], fat_kg: [20.9], waist: [75] });
+  });
+
   it("renames an imported exercise whose name is taken by another exercise on the phone", async () => {
     await exercisesRepo.create({ name: "Берпи", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps" });
     const theirs: Exercise = newEntity({

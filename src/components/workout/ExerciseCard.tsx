@@ -4,7 +4,7 @@ import type { WorkoutItem } from "@/db/repos/workouts";
 import { formatNumber, parseDecimal, parseDurationInput } from "@/domain/format";
 import { formatCardioDuration, formatClock, formatSetsSummary } from "@/domain/sets";
 import type { LogType, SetValues } from "@/domain/types";
-import { fieldsFor, isExerciseDone, isFieldChanged, lastTimeDiffers, stepValue, type SetField } from "@/domain/workout";
+import { fieldsFor, isExerciseDone, isFieldChanged, lastTimeDiffers, parseSignedWeight, stepValue, type SetField } from "@/domain/workout";
 import { ValueStepper } from "./ValueStepper";
 
 interface ExerciseCardProps {
@@ -41,8 +41,13 @@ function display(logType: LogType, field: SetField, v: number | null): string {
   return formatNumber(v, 2);
 }
 
-function parseTyped(logType: LogType, field: SetField, text: string): number | null {
+/** `reference` — known weights of this exercise, for the assistance minus (see parseSignedWeight). */
+function parseTyped(logType: LogType, field: SetField, text: string, reference: (number | null)[]): number | null {
   if (field === "duration_sec") return parseDurationInput(text, logType === "cardio" ? "min" : "sec");
+  if (field === "weight" && logType === "bodyweight_plus") {
+    const w = parseSignedWeight(text, reference);
+    return w !== null && Math.abs(w) <= 999 ? w : null;
+  }
   const n = parseDecimal(text);
   if (n === null) return null;
   if (field === "reps") return Number.isInteger(n) && n >= 0 && n <= 999 ? n : null;
@@ -80,7 +85,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
       aria-label={exercise.name}
       className={`overflow-hidden rounded-[18px] border-[1.5px] border-ink transition-colors duration-300 ${
         done ? "bg-surface-done" : "bg-surface"
-      } ${skipped ? "opacity-60" : ""}`}
+      }`}
     >
       <div className="flex items-stretch">
         <button
@@ -89,9 +94,10 @@ export function ExerciseCard(props: ExerciseCardProps) {
           aria-expanded={open}
           className="flex min-w-0 flex-1 items-start gap-3 py-3.5 pr-2 pl-3.5 text-left"
         >
+          {/* A skipped exercise mutes only its text (a readable muted color): the buttons stay clearly usable. */}
           <span className="w-[26px] shrink-0 pt-0.5 font-mono text-sm font-bold text-ink-muted">{num}</span>
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="text-base leading-tight font-semibold">{exercise.name}</span>
+          <span className={`flex min-w-0 flex-col gap-1 ${skipped ? "text-ink-muted" : ""}`}>
+            <span className={`text-base leading-tight font-semibold ${skipped ? "line-through decoration-1" : ""}`}>{exercise.name}</span>
             <span className="font-mono text-[15px] font-bold">{formatSetsSummary(logType, sets)}</span>
             {tags.map((t) => (
               <span key={t.text} className={`text-[13px] ${t.accent ? "text-accent-text" : "text-ink-muted"}`}>
@@ -166,7 +172,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
                   inputMode={field === "reps" ? "numeric" : "decimal"}
                   onStep={(dir) => props.onValue(si, field, stepValue(logType, field, s[field], dir))}
                   onType={(text) => {
-                    const v = parseTyped(logType, field, text);
+                    const v = parseTyped(logType, field, text, [s.weight, ...sets.map((x) => x.weight), ...(last ?? []).map((x) => x.weight)]);
                     if (v === null) return false;
                     props.onValue(si, field, v);
                     return true;
@@ -177,7 +183,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
           ))}
           <div className="grid grid-cols-4 gap-1.5 pt-0.5">
             {/* "+ подход" is the most frequent action — rightmost, under the thumb. */}
-            <button type="button" onClick={props.onSkip} className={actionClass}>
+            <button type="button" onClick={props.onSkip} className={`${actionClass} ${skipped ? "border-ink" : ""}`}>
               {skipped ? "Вернуть" : "Пропуск"}
             </button>
             <button type="button" onClick={props.onReplace} className={actionClass}>

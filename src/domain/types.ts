@@ -22,7 +22,7 @@ export const MUSCLE_GROUPS = [
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
 
 export const EQUIPMENT = [
-  "barbell", "dumbbells", "machine", "cable", "bodyweight", "band", "cardio_machine", "other",
+  "barbell", "dumbbells", "kettlebell", "machine", "cable", "bodyweight", "band", "cardio_machine", "other",
 ] as const;
 export type Equipment = (typeof EQUIPMENT)[number];
 

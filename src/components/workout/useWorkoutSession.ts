@@ -15,8 +15,11 @@ interface Loaded {
   last: Map<Id, SetValues[]>;
 }
 
-/** A stored workout, or a draft from a plan: not started and not stored until `start()`. */
-export type SessionTarget = { kind: "workout"; id: Id } | { kind: "draft"; planId: Id };
+/** A stored workout, or a draft from a plan (null — without a plan): not started and not stored until `start()`. */
+export type SessionTarget = { kind: "workout"; id: Id } | { kind: "draft"; planId: Id | null };
+
+/** Draft target id for «Без плана». */
+export const FREE_DRAFT = "free";
 
 async function load(target: SessionTarget): Promise<Loaded> {
   const full =
@@ -57,7 +60,8 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
   }, [isDraft]);
 
   const target = useCallback(
-    (): SessionTarget => (targetKind === "draft" ? { kind: "draft", planId: targetId } : { kind: "workout", id: targetId }),
+    (): SessionTarget =>
+      targetKind === "draft" ? { kind: "draft", planId: targetId === FREE_DRAFT ? null : targetId } : { kind: "workout", id: targetId },
     [targetKind, targetId],
   );
   const reload = useCallback(async () => applyLoaded(await load(target())), [target, applyLoaded]);
