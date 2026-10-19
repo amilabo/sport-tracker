@@ -52,7 +52,7 @@ export function BottomNav({ active }: { active: string }) {
             href={tab.href}
             aria-current={on ? "page" : undefined}
             className={`flex min-h-12 flex-col items-center gap-1 py-2 text-xs transition-colors ${
-              on ? "font-semibold text-accent" : "text-on-inverse-muted"
+              on ? "font-semibold text-accent-on-inverse" : "text-on-inverse-muted"
             }`}
           >
             <svg

@@ -36,7 +36,7 @@ export function SearchInput(props: React.InputHTMLAttributes<HTMLInputElement> &
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="text-sm font-semibold text-accent-text">
+    <p role="alert" className="text-sm font-semibold text-danger">
       {message}
     </p>
   );

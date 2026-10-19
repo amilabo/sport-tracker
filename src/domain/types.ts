@@ -137,6 +137,8 @@ export interface Settings extends BaseEntity {
   height_cm: number | null;
   theme_mode: ThemeMode;
   color_theme: string;
+  /** Accent color id (lib/theme ACCENTS); absent in records made before stage 21 — means the default. */
+  accent?: string;
 }
 
 export const SETTINGS_ID = "app";

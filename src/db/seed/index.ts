@@ -108,6 +108,7 @@ export function buildSeedData(at: string = nowIso()): SeedData {
       height_cm: null,
       theme_mode: "system" as const,
       color_theme: "card",
+      accent: "signal",
     },
     { id: SETTINGS_ID, at },
   );

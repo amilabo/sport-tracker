@@ -13,7 +13,7 @@ export function DemoBanner() {
       <span>
         <b className="font-semibold">Демо-данные</b> · примеры тренировок и замеров
       </span>
-      <Link href="/more/#demo" className="min-h-11 content-center font-semibold text-accent underline underline-offset-2">
+      <Link href="/more/#demo" className="min-h-11 content-center font-semibold text-accent-on-inverse underline underline-offset-2">
         Удалить
       </Link>
     </div>

@@ -70,7 +70,7 @@ export function ProgressionPanel({ chain, current }: { chain: Chain; current: Ex
             >
               <span
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 font-mono text-sm font-bold ${
-                  isCurrent ? "border-accent" : l.state === "passed" ? "border-ink" : "border-line-strong"
+                  isCurrent ? "border-accent-line" : l.state === "passed" ? "border-ink" : "border-line-strong"
                 }`}
               >
                 {l.level}

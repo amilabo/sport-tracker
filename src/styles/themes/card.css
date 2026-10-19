@@ -2,6 +2,7 @@
  * Theme "card" — training card: paper, ink, signal orange.
  * A theme is one block of semantic tokens per mode. Values must be hex:
  * scripts/check-contrast.mjs parses this file and checks WCAG AA.
+ * The accent tokens here are the default «Сигнал»; ../accents.css overrides them per [data-accent].
  */
 
 [data-theme="card"][data-mode="light"] {
@@ -21,6 +22,10 @@
   --accent: #FF5A1F;
   --on-accent: #17140F;
   --accent-text: #B23A0B;
+  --accent-line: #EF551E;
+  --accent-on-inverse: #FF5A1F;
+  --danger: #B23A0B;
+  --danger-on-inverse: #FF8A5C;
   --positive-on-inverse: #9FD6A8;
   --focus: #1F5FCC;
   --chart-line: #FF5A1F;
@@ -48,6 +53,10 @@
   --accent: #FF5A1F;
   --on-accent: #17140F;
   --accent-text: #FF8A5C;
+  --accent-line: #FF5A1F;
+  --accent-on-inverse: #FF5A1F;
+  --danger: #FF8A5C;
+  --danger-on-inverse: #FF8A5C;
   --positive-on-inverse: #9FD6A8;
   --focus: #7FB0FF;
   --chart-line: #FF5A1F;

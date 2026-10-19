@@ -3,7 +3,7 @@ import { JetBrains_Mono, Onest, Unbounded } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { loadRecoveryScript } from "@/lib/pwa";
-import { DEFAULT_THEME, themeInitScript } from "@/lib/theme";
+import { DEFAULT_ACCENT, DEFAULT_THEME, themeInitScript } from "@/lib/theme";
 import "./globals.css";
 
 // Fonts are downloaded at build time and served from our own origin: no third-party requests, works offline.
@@ -40,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="ru"
       data-theme={DEFAULT_THEME}
+      data-accent={DEFAULT_ACCENT}
       data-mode="light"
       suppressHydrationWarning
       className={`${unbounded.variable} ${onest.variable} ${jetbrains.variable} antialiased`}

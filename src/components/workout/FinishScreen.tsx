@@ -135,7 +135,7 @@ function FinishForm({ full }: { full: WorkoutFull }) {
     <div className="flex flex-1 flex-col">
       <header className="flex flex-col gap-2 bg-surface-inverse px-5 pt-7 pb-6 text-on-inverse">
         <div className="flex items-center justify-between gap-3">
-          <span className="font-mono text-[13px] tracking-[0.08em] text-accent uppercase">Готово · {formatHeaderDate(startDate ?? new Date(workout.started_at))}</span>
+          <span className="font-mono text-[13px] tracking-[0.08em] text-accent-on-inverse uppercase">Готово · {formatHeaderDate(startDate ?? new Date(workout.started_at))}</span>
           <Link href={`/workout/?id=${workout.id}`} className="min-h-11 content-center text-[13px] text-on-inverse-muted underline">
             К тренировке
           </Link>
@@ -158,7 +158,7 @@ function FinishForm({ full }: { full: WorkoutFull }) {
         )}
 
         {changes.length > 0 && plan && (
-          <section className={`flex flex-col gap-3 rounded-[18px] border-2 bg-surface p-3.5 ${decision === null ? "border-accent" : "border-line"}`}>
+          <section className={`flex flex-col gap-3 rounded-[18px] border-2 bg-surface p-3.5 ${decision === null ? "border-accent-line" : "border-line"}`}>
             <h2 className="font-display text-[17px] leading-tight font-bold">Обновить веса в плане?</h2>
             {decision === null ? (
               <PlanUpdateList planName={plan.name} changes={changes} onDecide={setDecision} />
@@ -180,7 +180,7 @@ function FinishForm({ full }: { full: WorkoutFull }) {
           <div className="grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1.5 rounded-2xl bg-surface-inverse p-3.5 text-on-inverse">
               <span className="text-xs text-on-inverse-muted">Выполнено</span>
-              <span className="font-display text-[30px] leading-none font-extrabold text-accent">{summary.percent}%</span>
+              <span className="font-display text-[30px] leading-none font-extrabold text-accent-on-inverse">{summary.percent}%</span>
               <span className="text-xs text-on-inverse-muted">
                 {summary.doneSets} из {summary.totalSets} подходов
               </span>

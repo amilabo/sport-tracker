@@ -60,33 +60,6 @@ export function seriesOf(type: MeasurementType, sessions: BodySession[], types: 
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export interface TileLine {
-  type: MeasurementType;
-  /** The latest value of the type and its date (may be older than the latest session). */
-  value: number | null;
-  date: LocalDate | null;
-  /** Change against the previous session; null when either side is missing. */
-  delta: number | null;
-}
-
-/**
- * A tile line compares the latest session with the previous one — the two dates in the screen header
- * («Замер 29.09 · стрелки — к 08.09»). A type missing in the latest session shows its last value without an arrow.
- */
-export function tileLine(type: MeasurementType, sessions: BodySession[], types: MeasurementType[], heightCm: number | null): TileLine {
-  const [latest, previous] = sessions;
-  const series = seriesOf(type, sessions, types, heightCm);
-  const last = series.at(-1) ?? null;
-  const now = latest ? valueOf(type, latest, types, heightCm) : null;
-  const before = previous ? valueOf(type, previous, types, heightCm) : null;
-  return {
-    type,
-    value: last?.value ?? null,
-    date: last?.date ?? null,
-    delta: now && before ? Math.round((now.value - before.value) * 10) / 10 : null,
-  };
-}
-
 /** «12.05» */
 export function shortDate(date: LocalDate): string {
   const [, m, d] = date.split("-");

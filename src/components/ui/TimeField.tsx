@@ -32,7 +32,7 @@ export function TimeField({ label, value, onChange, invalid }: TimeFieldProps) {
         aria-invalid={invalid || undefined}
         onChange={(e) => onChange(mask(e.target.value))}
         onFocus={(e) => e.currentTarget.select()}
-        className={`${inputClass} bg-bg font-mono font-bold ${invalid ? "border-accent-text" : ""}`}
+        className={`${inputClass} bg-bg font-mono font-bold ${invalid ? "border-danger" : ""}`}
       />
     </label>
   );
@@ -57,7 +57,7 @@ export function DateField({ label, value, onChange, invalid }: DateFieldProps) {
         max={toLocalDate()}
         aria-invalid={invalid || undefined}
         onChange={(e) => onChange(e.target.value)}
-        className={`${inputClass} bg-bg font-mono font-bold ${invalid ? "border-accent-text" : ""}`}
+        className={`${inputClass} bg-bg font-mono font-bold ${invalid ? "border-danger" : ""}`}
       />
     </label>
   );

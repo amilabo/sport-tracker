@@ -4,8 +4,11 @@ import { createContext, useCallback, useContext, useEffect, useSyncExternalStore
 import { settingsRepo } from "@/db/repos/settings";
 import {
   applyTheme,
+  DEFAULT_ACCENT,
   DEFAULT_MODE,
   DEFAULT_THEME,
+  hasStoredTheme,
+  normalizeTheme,
   readStoredTheme,
   writeStoredTheme,
   type Mode,
@@ -14,7 +17,7 @@ import {
 } from "@/lib/theme";
 
 // The theme choice lives outside React: localStorage is the source the inline <head> script reads.
-const SERVER_THEME: StoredTheme = { theme: DEFAULT_THEME, mode: DEFAULT_MODE };
+const SERVER_THEME: StoredTheme = { theme: DEFAULT_THEME, accent: DEFAULT_ACCENT, mode: DEFAULT_MODE };
 let currentTheme: StoredTheme | null = null;
 const themeListeners = new Set<() => void>();
 
@@ -33,7 +36,7 @@ const themeStore = {
     writeStoredTheme(next);
     themeListeners.forEach((l) => l());
     // Also keep the choice in IndexedDB settings, so it travels with the backup file.
-    settingsRepo.update({ theme_mode: next.mode, color_theme: next.theme }).catch(console.error);
+    settingsRepo.update({ theme_mode: next.mode, color_theme: next.theme, accent: next.accent }).catch(console.error);
   },
 };
 
@@ -52,9 +55,11 @@ const systemDarkStore = {
 
 interface ThemeContextValue {
   theme: string;
+  accent: string;
   modePref: ModePref;
   mode: Mode;
   setTheme: (theme: string) => void;
+  setAccent: (accent: string) => void;
   setModePref: (mode: ModePref) => void;
 }
 
@@ -72,15 +77,25 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const mode: Mode = stored.mode === "system" ? (systemDark ? "dark" : "light") : stored.mode;
 
+  // Nothing chosen in this browser yet (a new phone restored from a backup): take the choice from the settings.
   useEffect(() => {
-    if (hydrated) applyTheme(stored.theme, mode);
-  }, [hydrated, stored.theme, mode]);
+    if (hasStoredTheme()) return;
+    settingsRepo
+      .get()
+      .then((s) => themeStore.set(normalizeTheme({ mode: s.theme_mode, theme: s.color_theme, accent: s.accent })))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) applyTheme(stored.theme, stored.accent, mode);
+  }, [hydrated, stored.theme, stored.accent, mode]);
 
   const setTheme = useCallback((theme: string) => themeStore.set({ ...themeStore.getSnapshot(), theme }), []);
+  const setAccent = useCallback((accent: string) => themeStore.set({ ...themeStore.getSnapshot(), accent }), []);
   const setModePref = useCallback((m: ModePref) => themeStore.set({ ...themeStore.getSnapshot(), mode: m }), []);
 
   return (
-    <ThemeContext.Provider value={{ theme: stored.theme, modePref: stored.mode, mode, setTheme, setModePref }}>
+    <ThemeContext.Provider value={{ theme: stored.theme, accent: stored.accent, modePref: stored.mode, mode, setTheme, setAccent, setModePref }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { groupSessions, parseBodyValue, seriesOf, tileLine, valueOf } from "./body";
+import { groupSessions, parseBodyValue, seriesOf, valueOf } from "./body";
 import type { Measurement, MeasurementType } from "./types";
 
 const type = (id: string, key: string | null, unit: string, computed: MeasurementType["computed"] = null, base: string | null = null) =>
@@ -12,7 +12,7 @@ const TYPES = [
   type("waist", "waist", "см"),
 ];
 const m = (date: string, typeId: string, value: number) => ({ date, measurement_type_id: typeId, value }) as Measurement;
-const [W, BMI, FAT, FATP, WAIST] = TYPES;
+const [W, BMI, FAT, FATP] = TYPES;
 
 describe("body values", () => {
   const sessions = groupSessions([
@@ -32,13 +32,6 @@ describe("body values", () => {
   it("a typed percentage wins; otherwise it is computed from kg and weight", () => {
     expect(valueOf(FATP, sessions[1], TYPES, 164)).toEqual({ value: 28.01, computed: false });
     expect(valueOf(FATP, sessions[0], TYPES, 164)).toEqual({ value: 29.3, computed: true });
-  });
-
-  it("tile: latest value and the change against the previous session", () => {
-    expect(tileLine(W, sessions, TYPES, 164)).toMatchObject({ value: 68.5, delta: -0.4 });
-    expect(tileLine(FAT, sessions, TYPES, 164)).toMatchObject({ value: 20.1, delta: 0.8 });
-    // Only in the latest session: a value, no arrow.
-    expect(tileLine(WAIST, sessions, TYPES, 164)).toMatchObject({ value: 72.5, delta: null });
   });
 
   it("series oldest first", () => {

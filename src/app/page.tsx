@@ -76,7 +76,7 @@ function ActiveCard({ active }: { active: ActiveInfo }) {
   return (
     <section aria-label="Идёт тренировка" className="flex flex-col gap-3.5 rounded-[22px] bg-surface-inverse px-4 pt-[18px] pb-4 text-on-inverse">
       <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-semibold text-accent">Идёт тренировка</span>
+        <span className="text-sm font-semibold text-accent-on-inverse">Идёт тренировка</span>
         <span className="font-display text-2xl leading-[1.1] font-extrabold">{active.title}</span>
         <span className="text-[15px] text-on-inverse-muted">начало {formatTime(active.workout.started_at)}</span>
         <span className="text-[15px] text-on-inverse-muted">

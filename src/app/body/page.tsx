@@ -1,116 +1,93 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { DatePickSheet } from "@/components/body/DatePickSheet";
 import { HeightSheet } from "@/components/body/HeightSheet";
 import { MeasurementSheet } from "@/components/body/MeasurementSheet";
-import { LineChart } from "@/components/charts/LineChart";
+import { dayLabel, Delta, fullDate, sectionTitle, Sparkline, useBodyData } from "@/components/body/parts";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useLive } from "@/db/hooks";
-import { measurementsRepo } from "@/db/repos/measurements";
-import { settingsRepo } from "@/db/repos/settings";
-import { groupSessions, seriesOf, shortDate, tileLine, valueOf, type BodySession, type TileLine } from "@/domain/body";
-import { formatNumber } from "@/domain/format";
-import type { MeasurementType } from "@/domain/types";
+import { shortDate, type BodySession } from "@/domain/body";
+import {
+  BODY_PERIODS,
+  compareGroups,
+  composition,
+  enteredCount,
+  periodDates,
+  type BodyPeriod,
+  type CompareRow,
+  type PeriodDates,
+} from "@/domain/body-compare";
+import { formatNumber, plural } from "@/domain/format";
+import type { LocalDate } from "@/domain/types";
 
-// The «Тело» screen layout (PRD §3.10): 3 rows of 2 tiles; fat and muscle show kg and % in one tile.
-const TILE_ROWS: string[][][] = [
-  [["weight"], ["bmi"]],
-  [["fat_kg", "fat_pct"], ["muscle_kg", "muscle_pct"]],
-  [["waist"], ["hips"]],
-];
-const TILE_KEYS = new Set(TILE_ROWS.flat(2));
+const metricHref = (row: CompareRow) => `/body/metric/?type=${row.type.id}`;
+const valuesNote = (n: number) => `${n} ${plural(n, ["значение", "значения", "значений"])}`;
+// Columns of the table: name · sparkline · было · стало · разница. Fits 375 px without scrolling sideways.
+const COLS = "grid-cols-[minmax(0,1fr)_44px_50px_54px_56px]";
 
-function Delta({ line }: { line: TileLine }) {
-  if (line.delta === null) return null;
-  const d = line.delta;
-  const dir = d > 0 ? "up" : d < 0 ? "down" : "flat";
-  const unit = line.type.unit ? ` ${line.type.unit}` : "";
-  return (
-    <span
-      aria-label={dir === "flat" ? "без изменений" : `${dir === "up" ? "выросло" : "снизилось"} на ${formatNumber(Math.abs(d))}${unit}`}
-      className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-[9px] bg-surface-done px-2 font-mono text-[15px] font-bold whitespace-nowrap"
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d={dir === "up" ? "M12 19V5M6 11l6-6 6 6" : dir === "down" ? "M12 5v14M6 13l6 6 6-6" : "M5 12h14"} />
-      </svg>
-      {dir === "flat" ? "0" : formatNumber(Math.abs(d))}
-    </span>
-  );
+/** «к 08.09» for the previous session, «с 16.06» for a longer stretch, «с 16.06 по 08.09» when «стало» is not the latest. */
+function caption(dates: PeriodDates, latest: LocalDate, period: BodyPeriod) {
+  if (!dates.a || !dates.b) return "";
+  if (dates.b !== latest) return `с ${dayLabel(dates.a, latest)} по ${dayLabel(dates.b, latest)}`;
+  return `${period === "last" ? "к" : "с"} ${dayLabel(dates.a, latest)}`;
 }
 
-/** «16.10.2026» for the chart callout. */
-function fullDate(date: string): string {
-  const [y, m, d] = date.split("-");
-  return `${d}.${m}.${y}`;
-}
-
-/** `secondary` — the % line under kg in the fat and muscle tiles: same size, quieter color. */
-function ValueLine({ line, latestDate, secondary = false }: { line: TileLine; latestDate: string | null; secondary?: boolean }) {
+/** A value with a small date under it when the type's nearest value is not on the column's date. */
+function Cell({ point, column, latest, strong }: { point: CompareRow["a"]; column: LocalDate | null; latest: LocalDate | null; strong?: boolean }) {
+  if (!point) return <span className="text-right font-mono text-sm text-ink-muted">—</span>;
   return (
-    <span className={`flex items-center justify-between gap-1.5 ${secondary ? "text-ink-muted" : ""}`}>
-      <span className="font-display text-[22px] leading-none font-extrabold whitespace-nowrap">
-        {line.value === null ? "—" : formatNumber(line.value)}
-        {line.value !== null && line.type.unit && <span className="ml-0.5 font-sans text-[15px] font-semibold">{line.type.unit}</span>}
+    <span className="flex flex-col items-end leading-tight">
+      <span
+        className={`font-mono ${strong ? "text-[15px] font-bold" : "text-sm"} ${point.computed || !strong ? "text-ink-muted" : ""}`}
+      >
+        {formatNumber(point.value)}
       </span>
-      {line.value !== null && line.date !== latestDate ? (
-        <span className="font-mono text-[11px] text-ink-muted">{shortDate(line.date!)}</span>
-      ) : (
-        <Delta line={line} />
-      )}
+      {point.date !== column && <span className="font-mono text-[11px] text-ink-muted">{dayLabel(point.date, latest)}</span>}
     </span>
   );
 }
 
 export default function BodyPage() {
-  const { data } = useLive(
-    async () => {
-      const [types, measurements, settings] = await Promise.all([
-        measurementsRepo.listTypes({ includeArchived: true }),
-        measurementsRepo.list(),
-        settingsRepo.get(),
-      ]);
-      return { types, sessions: groupSessions(measurements), height: settings.height_cm };
-    },
-    [],
-    ["measurement_types", "measurements", "settings"],
-  );
-  const [selected, setSelected] = useState("weight");
-  const [pct, setPct] = useState(false);
+  const data = useBodyData();
+  const [period, setPeriod] = useState<BodyPeriod>("last");
+  const [custom, setCustom] = useState<PeriodDates | null>(null);
+  const [picking, setPicking] = useState<"a" | "b" | null>(null);
   const [editing, setEditing] = useState<BodySession | "new" | null>(null);
   const [heightOpen, setHeightOpen] = useState(false);
 
-  if (!data) return <PageHeader title="Тело" />;
+  const addButton = (
+    <Button variant="accent" className="whitespace-nowrap" onClick={() => setEditing("new")}>
+      + Замер
+    </Button>
+  );
+  if (!data) return <PageHeader title="Тело" action={addButton} />;
   const { types, sessions, height } = data;
-  const byKey = (key: string) => types.find((t) => t.key === key);
-  const line = (t: MeasurementType) => tileLine(t, sessions, types, height);
   const latest = sessions[0]?.date ?? null;
-  const previous = sessions[1]?.date ?? null;
 
-  // Selected tile: built-in key, or the id of another type. Fat/muscle tiles switch kg ↔ %.
-  const tile = TILE_ROWS.flat().find((keys) => keys[0] === selected);
-  const chartType = tile ? byKey(tile.length > 1 && pct ? tile[1] : tile[0]) : types.find((t) => t.id === selected);
-  const series = chartType ? seriesOf(chartType, sessions, types, height) : [];
-  const others = types.filter((t) => !t.archived_at && !TILE_KEYS.has(t.key ?? ""));
-  const tableTypes = types.filter((t) => sessions.some((s) => valueOf(t, s, types, height)));
+  // «Даты» starts from the pair the screen showed last, so switching to it changes nothing at first.
+  const shown = periodDates(sessions, period === "custom" ? "last" : period);
+  const dates = period === "custom" ? periodDates(sessions, "custom", custom ?? shown) : shown;
+  const groups = compareGroups(types, sessions, height, dates);
+  const rows = groups.flatMap((g) => g.rows);
+  const weight = rows.find((r) => r.type.key === "weight");
+  const bmi = rows.find((r) => r.type.key === "bmi");
+  const bmiType = types.find((t) => t.key === "bmi");
+  const comp = composition(types, sessions, dates);
+  const cap = latest ? caption(dates, latest, period) : "";
+  const compared = sessions.length > 1;
+
+  function choosePeriod(p: BodyPeriod) {
+    if (p === "custom" && period !== "custom") setCustom(dates);
+    setPeriod(p);
+  }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 pb-6">
+    <div className="flex flex-1 flex-col gap-3.5 pb-6">
       <div className="flex flex-col gap-1.5">
-        <PageHeader
-          title="Тело"
-          action={
-            <Button variant="accent" className="whitespace-nowrap" onClick={() => setEditing("new")}>
-              + Замер
-            </Button>
-          }
-        />
-        {latest && (
-          <p className="px-5 text-[15px] text-ink-muted">
-            Замер {shortDate(latest)}
-            {previous && ` · стрелки — к ${shortDate(previous)}`}
-          </p>
-        )}
+        <PageHeader title="Тело" action={addButton} />
+        {latest && <p className="px-5 text-sm text-ink-muted">Последний замер {shortDate(latest)}</p>}
       </div>
 
       {sessions.length === 0 && (
@@ -122,165 +99,228 @@ export default function BodyPage() {
         </section>
       )}
 
-      <div className="flex flex-col gap-2 px-4">
-        {TILE_ROWS.map((row, r) => (
-          <div key={r} className="grid grid-cols-2 gap-2">
-            {row.map((keys) => {
-              const tileTypes = keys.map(byKey).filter((t): t is MeasurementType => !!t);
-              if (!tileTypes.length) return <div key={keys[0]} />;
-              const on = selected === keys[0];
-              const isBmi = keys[0] === "bmi";
+      {compared && (
+        <div className="flex flex-col gap-2 px-4">
+          <div role="radiogroup" aria-label="С чем сравнивать" className="grid grid-cols-4 gap-1 rounded-[13px] bg-surface-done p-[3px]">
+            {BODY_PERIODS.map((p) => {
+              const on = p.id === period;
               return (
                 <button
-                  key={keys[0]}
+                  key={p.id}
                   type="button"
-                  aria-pressed={on}
-                  onClick={() => {
-                    if (isBmi && !height) return setHeightOpen(true);
-                    setSelected(keys[0]);
-                  }}
-                  className={`flex flex-col gap-2.5 rounded-2xl border-[1.5px] p-3 text-left ${on ? "border-accent bg-surface-raised" : "border-line bg-surface"}`}
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => choosePeriod(p.id)}
+                  className={`h-11 rounded-[10px] px-0.5 text-sm font-semibold whitespace-nowrap transition-colors ${on ? "bg-surface-raised text-ink" : "text-ink-muted"}`}
                 >
-                  <span className="text-[15px] font-semibold text-ink-muted">{tileTypes[0].name}</span>
-                  {isBmi && !height ? (
-                    <span className="text-[13px] leading-snug font-semibold underline underline-offset-2">Указать рост для ИМТ</span>
-                  ) : (
-                    tileTypes.map((t, i) => <ValueLine key={t.id} line={line(t)} latestDate={latest} secondary={i > 0} />)
-                  )}
+                  {p.label}
                 </button>
               );
             })}
           </div>
-        ))}
-      </div>
+          {period === "custom" && dates.b && (
+            <div className="grid grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)] items-center gap-1.5">
+              {(["a", "b"] as const).map((side, i) => (
+                <div key={side} className="contents">
+                  {i === 1 && (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-ink-muted">
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPicking(side)}
+                    aria-label={`${side === "a" ? "Было" : "Стало"}: ${dates[side] ? fullDate(dates[side]!) : "не выбрано"}, выбрать дату`}
+                    className={`flex h-14 flex-col items-start justify-center gap-0.5 rounded-[14px] border-[1.5px] px-3 ${
+                      side === "a" ? "border-line-strong bg-surface" : "border-ink bg-surface-raised"
+                    }`}
+                  >
+                    <span className="text-xs text-ink-muted">{side === "a" ? "Было" : "Стало"}</span>
+                    <span className="flex items-center gap-1.5 font-mono text-[15px] font-bold">
+                      {dates[side] ? fullDate(dates[side]!) : "—"}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-ink-muted">
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-      {sessions.length > 0 && chartType && (
-        <section className="mx-4 flex flex-col gap-2.5 rounded-[20px] bg-surface-inverse p-4 text-on-inverse">
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex flex-col gap-0.5">
-              <span className="font-display text-sm font-bold">
-                {chartType.name}
-                {chartType.unit && `, ${chartType.unit}`}
+      {weight?.b && (
+        <section className="mx-4 flex flex-col gap-3.5 rounded-[20px] bg-surface-inverse p-4 text-on-inverse">
+          <Link href={metricHref(weight)} className="flex items-start justify-between gap-3">
+            <span className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-on-inverse-muted">{weight.b.date === dates.b ? "Вес" : `Вес на ${dayLabel(weight.b.date, latest)}`}</span>
+              <span className="font-display text-[44px] leading-none font-extrabold tracking-[-0.02em] whitespace-nowrap">
+                {formatNumber(weight.b.value)}
+                <span className="ml-1 font-sans text-[17px] font-semibold tracking-normal">кг</span>
               </span>
-              {series.length > 0 && (
-                <span className="font-mono text-xs text-on-inverse-muted">
-                  {formatNumber(Math.min(...series.map((p) => p.value)))} – {formatNumber(Math.max(...series.map((p) => p.value)))}
+              {weight.delta !== null && (
+                <span className="flex items-center gap-1.5 text-[13px] text-on-inverse-muted">
+                  <Delta value={weight.delta} unit="кг" size={14} className="text-on-inverse" />
+                  <span className="font-mono text-sm font-bold text-on-inverse">кг</span>
+                  {cap}
                 </span>
               )}
             </span>
-            {tile && tile.length > 1 && (
-              <span role="radiogroup" aria-label="Единицы" className="flex gap-1">
-                {[false, true].map((p) => (
-                  <button
-                    key={String(p)}
-                    type="button"
-                    role="radio"
-                    aria-checked={pct === p}
-                    onClick={() => setPct(p)}
-                    className={`h-11 min-w-11 rounded-[9px] border-[1.5px] border-line-inverse px-2.5 text-[13px] font-semibold ${
-                      pct === p ? "bg-on-inverse text-surface-inverse" : "text-on-inverse-muted"
-                    }`}
-                  >
-                    {p ? "%" : "кг"}
-                  </button>
-                ))}
-              </span>
+            <span className="mt-1.5">
+              <Sparkline series={weight.series} from={weight.a?.date ?? null} to={weight.b.date} width={132} height={72} tone="inverse" />
+            </span>
+          </Link>
+          <div className="flex min-h-11 items-center justify-between gap-2 border-t border-line-inverse pt-3 text-sm">
+            {bmi?.b ? (
+              <Link href={metricHref(bmi)} className="flex min-h-11 flex-1 items-center justify-between gap-2">
+                <span className="text-on-inverse-muted">
+                  ИМТ <b className="ml-1 font-mono text-on-inverse">{formatNumber(bmi.b.value)}</b>
+                  <span className="ml-1.5">· рост {height} см</span>
+                </span>
+                {bmi.delta !== null && <Delta value={bmi.delta} className="text-on-inverse-muted" />}
+              </Link>
+            ) : (
+              bmiType && (
+                <button type="button" onClick={() => setHeightOpen(true)} className="min-h-11 font-semibold text-on-inverse underline underline-offset-2">
+                  Указать рост для ИМТ
+                </button>
+              )
             )}
           </div>
-          {series.length > 0 ? (
-            <LineChart
-              key={chartType.id}
-              points={series.map((p) => ({
-                t: new Date(`${p.date}T12:00:00`).getTime(),
-                y: p.value,
-                xLabel: shortDate(p.date),
-                detail: `${fullDate(p.date)} · ${formatNumber(p.value)}${chartType.unit ? ` ${chartType.unit}` : ""}`,
-              }))}
-              formatY={(v) => formatNumber(v)}
-              ariaLabel={`График: ${chartType.name} по датам`}
-            />
-          ) : (
-            <p className="py-6 text-center text-[13px] text-on-inverse-muted">
-              {chartType.computed === "bmi" ? "Нужны вес и рост." : "Этот замер ещё не вводили."}
-            </p>
-          )}
         </section>
       )}
 
-      {others.length > 0 && sessions.length > 0 && (
-        <section className="mx-4 flex flex-col overflow-hidden rounded-2xl border-[1.5px] border-line bg-surface">
-          {others.map((t) => {
-            const l = line(t);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                aria-pressed={selected === t.id}
-                onClick={() => setSelected(t.id)}
-                className={`flex min-h-14 items-center gap-3 border-t border-line px-3.5 py-2 text-left first:border-t-0 ${selected === t.id ? "bg-surface-raised" : ""}`}
-              >
-                <span className="flex-1 text-[15px] font-semibold">{t.name}</span>
-                <span className="font-mono text-[15px] font-bold">{l.value === null ? "—" : `${formatNumber(l.value)} ${t.unit}`}</span>
-                {l.value !== null && (l.date === latest ? <Delta line={l} /> : <span className="font-mono text-[11px] text-ink-muted">{shortDate(l.date!)}</span>)}
-              </button>
-            );
-          })}
-        </section>
-      )}
-
-      {sessions.length > 0 && (
-        <section className="flex flex-col gap-2 px-4">
-          <h2 className="px-1 font-display text-xs font-bold tracking-[0.04em] uppercase">Все замеры</h2>
-          <div className="overflow-x-auto rounded-2xl border-[1.5px] border-line bg-surface">
-            <table className="border-collapse text-[13px] whitespace-nowrap">
-              <thead>
-                <tr className="text-left text-ink-muted">
-                  <th scope="col" className="sticky left-0 bg-surface px-3 py-2.5 font-medium">
-                    Дата
-                  </th>
-                  {tableTypes.map((t) => (
-                    <th key={t.id} scope="col" className="px-2 py-2.5 font-medium">
-                      {t.name}
-                      {t.unit === "%" ? " %" : t.key === "fat_kg" || t.key === "muscle_kg" ? " кг" : ""}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((s) => (
-                  <tr key={s.date} className="border-t border-line font-mono">
-                    <th scope="row" className="sticky left-0 bg-surface p-0 text-left font-sans font-normal">
-                      <button type="button" onClick={() => setEditing(s)} className="min-h-11 px-3 text-ink-muted underline underline-offset-2">
-                        {shortDate(s.date)}
-                        {s.date.slice(0, 4) !== String(new Date().getFullYear()) && `.${s.date.slice(2, 4)}`}
-                      </button>
-                    </th>
-                    {tableTypes.map((t) => {
-                      const v = valueOf(t, s, types, height);
-                      return (
-                        <td key={t.id} className={`px-2 py-2.5 font-bold ${v?.computed ? "text-ink-muted" : ""}`}>
-                          {v ? formatNumber(v.value) : "—"}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {comp && (
+        <section className="mx-4 flex flex-col gap-3.5 rounded-[18px] border-[1.5px] border-line bg-surface p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className={sectionTitle}>Состав тела</h2>
+            <span className="text-[13px] text-ink-muted">
+              из {formatNumber(comp.weight)} кг{comp.date !== dates.b && ` · ${dayLabel(comp.date, latest)}`}
+            </span>
           </div>
-          <p className="px-1 text-xs leading-snug text-ink-muted">
-            Тап по дате — изменить или удалить замер. Серым — посчитано: ИМТ по весу и росту{height ? ` (${height} см)` : ""}, проценты жира и мышц из килограммов, если их не ввели вручную.{" "}
-            <button type="button" onClick={() => setHeightOpen(true)} className="font-semibold underline underline-offset-2">
+          <div aria-hidden="true" className="flex h-3.5 gap-[3px]">
+            {comp.parts.map((p) => (
+              <span
+                key={p.key}
+                style={{ width: `${p.pct}%` }}
+                className={`rounded ${p.key === "fat" ? "bg-accent-line" : p.key === "muscle" ? "bg-ink" : "bg-line-strong"}`}
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {comp.parts.map((p) => (
+              <div key={p.key} className="flex flex-col gap-1">
+                <span className="flex items-center gap-1.5 text-[13px] text-ink-muted">
+                  <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-[3px] ${p.key === "fat" ? "bg-accent-line" : p.key === "muscle" ? "bg-ink" : "bg-line-strong"}`} />
+                  {p.name}
+                </span>
+                <span className="text-lg font-bold whitespace-nowrap">
+                  {formatNumber(p.kg)}
+                  <span className="ml-0.5 text-[13px] font-semibold">кг</span>
+                </span>
+                <span className="flex items-center gap-1.5 font-mono text-xs whitespace-nowrap text-ink-muted">
+                  {formatNumber(p.pct)} %{p.delta !== null && <Delta value={p.delta} unit="кг" size={12} />}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {groups.length > 0 && (
+        <section className="mx-4 flex flex-col overflow-hidden rounded-[18px] border-[1.5px] border-line bg-surface">
+          <div className="flex items-baseline justify-between px-3.5 pt-3.5 pb-1">
+            <h2 className={sectionTitle}>Все показатели</h2>
+            <span className="text-xs text-ink-muted">тап — график</span>
+          </div>
+          <div className={`grid ${COLS} gap-1.5 px-3.5 pt-1.5 pb-2.5 text-xs text-ink-muted`} aria-hidden="true">
+            <span />
+            <span />
+            <span className="text-right">{dates.a ? dayLabel(dates.a, latest) : ""}</span>
+            <span className="text-right font-semibold text-ink">{dates.b ? dayLabel(dates.b, latest) : ""}</span>
+            <span className="text-right">{compared ? "Разница" : ""}</span>
+          </div>
+          {groups.map((g) => (
+            <div key={g.title} className="flex flex-col">
+              <h3 className="border-t border-line px-3.5 pt-3 pb-1.5 font-display text-[11px] font-bold tracking-[0.05em] text-ink-muted uppercase">{g.title}</h3>
+              {g.rows.map((r) => (
+                <Link
+                  key={r.type.id}
+                  href={metricHref(r)}
+                  aria-label={`${r.type.name}${r.type.unit ? `, ${r.type.unit}` : ""}: ${r.b ? formatNumber(r.b.value) : "нет значения"}${
+                    r.a ? `, было ${formatNumber(r.a.value)}` : ""
+                  }. Открыть график`}
+                  className={`grid min-h-11 ${COLS} items-center gap-1.5 px-3.5 py-1`}
+                >
+                  <span className="truncate text-sm font-medium">
+                    {r.type.name}
+                    {r.type.unit && <span className="ml-1 text-xs font-normal text-ink-muted">{r.type.unit}</span>}
+                  </span>
+                  <Sparkline series={r.series} from={r.a?.date ?? null} to={r.b?.date ?? null} width={44} height={20} tone="paper" />
+                  <Cell point={r.a} column={dates.a} latest={latest} />
+                  <Cell point={r.b} column={dates.b} latest={latest} strong />
+                  <span className="flex justify-end">{r.a && <Delta value={r.delta} unit={r.type.unit} />}</span>
+                </Link>
+              ))}
+            </div>
+          ))}
+          <p className="border-t border-line px-3.5 pt-2.5 pb-3 text-xs leading-snug text-ink-muted">
+            Серым — посчитано: ИМТ по весу и росту{height ? ` (${height} см)` : ""}, проценты жира и мышц из килограммов, если их не ввели вручную. Маленькая дата —
+            ближайший замер этого показателя.{" "}
+            <button type="button" onClick={() => setHeightOpen(true)} className="font-semibold text-ink underline underline-offset-2">
               {height ? "Изменить рост" : "Указать рост"}
             </button>
           </p>
         </section>
       )}
 
+      {sessions.length > 0 && (
+        <section className="flex flex-col gap-2 px-4">
+          <h2 className={`${sectionTitle} px-1 pt-1.5`}>Записи</h2>
+          <div className="flex flex-col overflow-hidden rounded-2xl border-[1.5px] border-line bg-surface">
+            {sessions.slice(0, 3).map((s) => (
+              <button
+                key={s.date}
+                type="button"
+                onClick={() => setEditing(s)}
+                aria-label={`Замер ${fullDate(s.date)}, ${valuesNote(enteredCount(s))}: изменить или удалить`}
+                className="flex min-h-[52px] items-center gap-2.5 border-t border-line px-3.5 text-left first:border-t-0"
+              >
+                <span className="flex-1 font-mono text-sm font-bold">{fullDate(s.date)}</span>
+                <span className="text-[13px] text-ink-muted">{valuesNote(enteredCount(s))}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-ink-muted">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+            ))}
+            {sessions.length > 3 && (
+              <Link
+                href="/body/records/"
+                className="flex min-h-12 items-center border-t border-line px-3.5 text-sm font-semibold text-ink-muted underline underline-offset-[3px]"
+              >
+                Все {sessions.length} {plural(sessions.length, ["запись", "записи", "записей"])}
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+
+      <DatePickSheet
+        open={picking !== null}
+        onClose={() => setPicking(null)}
+        title={picking === "a" ? "Было" : "Стало"}
+        dates={sessions
+          .filter((s) => (picking === "a" ? !dates.b || s.date < dates.b : !dates.a || s.date > dates.a))
+          .map((s) => ({ date: s.date, note: valuesNote(enteredCount(s)) }))}
+        selected={picking ? dates[picking] : null}
+        onPick={(date) => picking && setCustom({ ...dates, [picking]: date })}
+      />
       <MeasurementSheet
         open={editing !== null}
         onClose={() => setEditing(null)}
         types={types}
+        sessions={sessions}
         session={editing === "new" ? null : editing}
         heightCm={height}
         onAskHeight={() => setHeightOpen(true)}

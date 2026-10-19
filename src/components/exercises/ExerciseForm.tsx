@@ -91,14 +91,14 @@ export function ExerciseForm({ id, initial, logTypeLocked, onSubmit }: ExerciseF
                 aria-checked={on}
                 onClick={() => setLogType(t)}
                 className={`flex min-h-14 items-center gap-3 rounded-xl border-[1.5px] px-3 py-2 text-left transition-colors disabled:opacity-60 ${
-                  on ? "border-accent bg-surface-raised" : "border-line bg-surface"
+                  on ? "border-accent-line bg-surface-raised" : "border-line bg-surface"
                 }`}
               >
                 <span
                   aria-hidden="true"
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${on ? "border-accent" : "border-line-strong"}`}
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${on ? "border-accent-line" : "border-line-strong"}`}
                 >
-                  {on && <span className="h-2.5 w-2.5 rounded-full bg-accent" />}
+                  {on && <span className="h-2.5 w-2.5 rounded-full bg-accent-line" />}
                 </span>
                 <span className="flex flex-col">
                   <span className="text-[15px] font-semibold">{LOG_TYPE_OPTIONS[t].title}</span>

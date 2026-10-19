@@ -228,7 +228,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
                 <div className="font-mono text-[13px] text-on-inverse-muted">начало {formatTime(workout.started_at)}</div>
               </>
             )}
-            <div role="status" className={`flex items-center gap-1.5 text-xs ${saveFailed ? "text-accent" : "text-positive-on-inverse"}`}>
+            <div role="status" className={`flex items-center gap-1.5 text-xs ${saveFailed ? "text-danger-on-inverse" : "text-positive-on-inverse"}`}>
               {saveFailed ? (
                 "не удалось сохранить — проверьте память телефона"
               ) : savedAt ? (

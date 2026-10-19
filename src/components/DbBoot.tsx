@@ -25,7 +25,7 @@ export function DbBoot() {
 
   if (!failed) return null;
   return (
-    <div role="alert" className="mx-4 mt-4 rounded-2xl border-2 border-accent bg-surface p-4">
+    <div role="alert" className="mx-4 mt-4 rounded-2xl border-2 border-danger bg-surface p-4">
       <p className="font-semibold">Не получилось открыть хранилище на телефоне</p>
       <p className="mt-1 text-sm text-ink-muted">
         Без него записи не сохранятся. Проверьте, что браузер не в приватном режиме, и перезапустите приложение.

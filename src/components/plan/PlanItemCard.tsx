@@ -54,7 +54,7 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
       ref={ref}
       style={style}
       className={`flex flex-col gap-2.5 rounded-[18px] border-[1.5px] bg-surface p-3 ${
-        row.error ? "border-accent-text" : lifted ? "border-accent shadow-lg" : "border-line"
+        row.error ? "border-danger" : lifted ? "border-accent-line shadow-lg" : "border-line"
       }`}
     >
       <div className="flex items-center gap-2.5">
@@ -136,7 +136,7 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
             )}
           </div>
           {row.error && (
-            <p id={`${inputId}-err`} className="text-[13px] font-semibold text-accent-text">
+            <p id={`${inputId}-err`} className="text-[13px] font-semibold text-danger">
               {row.error}
             </p>
           )}

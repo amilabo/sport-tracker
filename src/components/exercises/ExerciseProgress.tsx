@@ -62,7 +62,7 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
           <div className="flex items-end justify-between gap-3">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-on-inverse-muted">{best.title}</span>
-              <span className="font-display text-[30px] leading-none font-extrabold text-accent">
+              <span className="font-display text-[30px] leading-none font-extrabold text-accent-on-inverse">
                 {best.value}
                 {best.note && <span className="ml-1.5 text-base text-on-inverse">{best.note}</span>}
               </span>

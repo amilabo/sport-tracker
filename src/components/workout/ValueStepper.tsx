@@ -30,7 +30,7 @@ export function ValueStepper({ display, unit, changed, onStep, onType, inputMode
     setInvalid(!onType(value));
   }
 
-  const border = invalid ? "border-accent-text" : changed ? "border-accent" : "border-line";
+  const border = invalid ? "border-danger" : changed ? "border-accent-line" : "border-line";
 
   return (
     <div className={`flex h-12 min-w-0 flex-1 items-center overflow-hidden rounded-xl border-[1.5px] ${border}`}>

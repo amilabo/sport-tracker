@@ -184,7 +184,7 @@ export function ExerciseView() {
       >
         <div className="flex flex-col gap-3 text-[15px]">
           {data.plans.length > 0 && (
-            <p className="rounded-xl border-2 border-accent bg-surface p-3 font-semibold">
+            <p className="rounded-xl border-2 border-accent-line bg-surface p-3 font-semibold">
               Используется в планах: {data.plans.map((p) => p.name).join(", ")}
             </p>
           )}

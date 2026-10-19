@@ -58,7 +58,7 @@ export const backupRepo = {
       const seed = buildSeedData();
       const settings = {
         ...seed.settings,
-        ...(old ? { theme_mode: old.theme_mode, color_theme: old.color_theme, install_hint_dismissed: old.install_hint_dismissed } : {}),
+        ...(old ? { theme_mode: old.theme_mode, color_theme: old.color_theme, accent: old.accent, install_hint_dismissed: old.install_hint_dismissed } : {}),
       };
       const rows: [StoreName, BaseEntity[]][] = [
         ["exercises", seed.exercises], ["plans", seed.plans], ["plan_exercises", seed.planExercises],

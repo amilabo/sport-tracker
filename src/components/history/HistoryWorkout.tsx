@@ -332,7 +332,7 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
 
       <div className="flex flex-col gap-3.5 px-4 pb-8">
         <section className="flex flex-col gap-2 rounded-[22px] bg-surface-inverse p-4 text-on-inverse">
-          <span className="font-mono text-[13px] tracking-[0.08em] text-accent uppercase">{formatHeaderDate(started)}</span>
+          <span className="font-mono text-[13px] tracking-[0.08em] text-accent-on-inverse uppercase">{formatHeaderDate(started)}</span>
           <h1 className="font-display text-[26px] leading-[1.05] font-extrabold tracking-[-0.02em]">{title}</h1>
           <span className="font-mono text-[13px] text-on-inverse-muted">
             {formatTime(started)}
@@ -449,7 +449,7 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                               aria-label={`${name}, подход ${i + 1}: ${UNIT[f](logType)}`}
                               aria-invalid={invalid.has(`${s.id}:${f}`) || undefined}
                               className={`h-11 w-full min-w-0 rounded-[10px] border-[1.5px] bg-bg px-2 text-center font-mono text-[15px] font-bold ${
-                                invalid.has(`${s.id}:${f}`) ? "border-accent-text" : "border-line-strong"
+                                invalid.has(`${s.id}:${f}`) ? "border-danger" : "border-line-strong"
                               }`}
                             />
                             <span className="shrink-0 text-xs text-ink-muted">{UNIT[f](logType)}</span>

@@ -1,0 +1,167 @@
+/*
+ * Accent colors: the theme (paper, ink) stays, only the signal color changes.
+ * One block per accent × mode overrides just these tokens:
+ *   --accent             fills: buttons, ✓, progress, active tab, chart line
+ *   --on-accent          text on --accent — always ink
+ *   --accent-text        accent as text and links on light surfaces (4.5:1)
+ *   --accent-line        selected borders and rings on surfaces (3:1)
+ *   --accent-on-inverse  accent as text on dark panels (4.5:1)
+ *   --chart-line         line of charts on dark panels (3:1)
+ * Bright accents (sun, acid, aqua…) are almost invisible on paper, so their
+ * text and line shades are darker. Errors never use the accent: see --danger.
+ * Order and names: ACCENTS in src/lib/theme.ts. scripts/check-contrast.mjs checks
+ * every theme × mode × accent.
+ */
+
+[data-accent="signal"][data-mode="light"] {
+  --accent: #FF5A1F;
+  --on-accent: #17140F;
+  --accent-text: #B23A0B;
+  --accent-line: #EF551E;
+  --accent-on-inverse: #FF5A1F;
+  --chart-line: #FF5A1F;
+}
+[data-accent="signal"][data-mode="dark"] {
+  --accent: #FF5A1F;
+  --on-accent: #17140F;
+  --accent-text: #FF8A5C;
+  --accent-line: #FF5A1F;
+  --accent-on-inverse: #FF5A1F;
+  --chart-line: #FF5A1F;
+}
+
+[data-accent="sun"][data-mode="light"] {
+  --accent: #FFD23F;
+  --on-accent: #17140F;
+  --accent-text: #735400;
+  --accent-line: #A2862C;
+  --accent-on-inverse: #FFD23F;
+  --chart-line: #FFD23F;
+}
+[data-accent="sun"][data-mode="dark"] {
+  --accent: #FFD23F;
+  --on-accent: #17140F;
+  --accent-text: #FFD23F;
+  --accent-line: #FFD23F;
+  --accent-on-inverse: #FFD23F;
+  --chart-line: #FFD23F;
+}
+
+[data-accent="acid"][data-mode="light"] {
+  --accent: #DCF500;
+  --on-accent: #17140F;
+  --accent-text: #596600;
+  --accent-line: #839007;
+  --accent-on-inverse: #DCF500;
+  --chart-line: #DCF500;
+}
+[data-accent="acid"][data-mode="dark"] {
+  --accent: #DCF500;
+  --on-accent: #17140F;
+  --accent-text: #DCF500;
+  --accent-line: #DCF500;
+  --accent-on-inverse: #DCF500;
+  --chart-line: #DCF500;
+}
+
+[data-accent="court"][data-mode="light"] {
+  --accent: #1FCB7E;
+  --on-accent: #17140F;
+  --accent-text: #0B7444;
+  --accent-line: #1D9B61;
+  --accent-on-inverse: #1FCB7E;
+  --chart-line: #1FCB7E;
+}
+[data-accent="court"][data-mode="dark"] {
+  --accent: #1FCB7E;
+  --on-accent: #17140F;
+  --accent-text: #3FE096;
+  --accent-line: #1FCB7E;
+  --accent-on-inverse: #1FCB7E;
+  --chart-line: #1FCB7E;
+}
+
+[data-accent="lagoon"][data-mode="light"] {
+  --accent: #00BFAE;
+  --on-accent: #17140F;
+  --accent-text: #00756B;
+  --accent-line: #05998B;
+  --accent-on-inverse: #00BFAE;
+  --chart-line: #00BFAE;
+}
+[data-accent="lagoon"][data-mode="dark"] {
+  --accent: #00BFAE;
+  --on-accent: #17140F;
+  --accent-text: #2ED9C9;
+  --accent-line: #00BFAE;
+  --accent-on-inverse: #00BFAE;
+  --chart-line: #00BFAE;
+}
+
+[data-accent="aqua"][data-mode="light"] {
+  --accent: #5EEAD4;
+  --on-accent: #17140F;
+  --accent-text: #00706A;
+  --accent-line: #429485;
+  --accent-on-inverse: #5EEAD4;
+  --chart-line: #5EEAD4;
+}
+[data-accent="aqua"][data-mode="dark"] {
+  --accent: #5EEAD4;
+  --on-accent: #17140F;
+  --accent-text: #5EEAD4;
+  --accent-line: #5EEAD4;
+  --accent-on-inverse: #5EEAD4;
+  --chart-line: #5EEAD4;
+}
+
+[data-accent="electric"][data-mode="light"] {
+  --accent: #2F80FF;
+  --on-accent: #17140F;
+  --accent-text: #1F55E0;
+  --accent-line: #2F80FF;
+  --accent-on-inverse: #2F80FF;
+  --chart-line: #2F80FF;
+}
+[data-accent="electric"][data-mode="dark"] {
+  --accent: #2F80FF;
+  --on-accent: #17140F;
+  --accent-text: #6FA6FF;
+  --accent-line: #2F80FF;
+  --accent-on-inverse: #428BFF;
+  --chart-line: #2F80FF;
+}
+
+[data-accent="violet"][data-mode="light"] {
+  --accent: #8F75FF;
+  --on-accent: #17140F;
+  --accent-text: #5A3FE0;
+  --accent-line: #8D73FA;
+  --accent-on-inverse: #8F75FF;
+  --chart-line: #8F75FF;
+}
+[data-accent="violet"][data-mode="dark"] {
+  --accent: #8F75FF;
+  --on-accent: #17140F;
+  --accent-text: #A894FF;
+  --accent-line: #8F75FF;
+  --accent-on-inverse: #9178FF;
+  --chart-line: #8F75FF;
+}
+
+[data-accent="raspberry"][data-mode="light"] {
+  --accent: #FF3D7F;
+  --on-accent: #17140F;
+  --accent-text: #B5104A;
+  --accent-line: #F83C7C;
+  --accent-on-inverse: #FF3D7F;
+  --chart-line: #FF3D7F;
+}
+[data-accent="raspberry"][data-mode="dark"] {
+  --accent: #FF3D7F;
+  --on-accent: #17140F;
+  --accent-text: #FF6B9A;
+  --accent-line: #FF3D7F;
+  --accent-on-inverse: #FF4182;
+  --chart-line: #FF3D7F;
+}
