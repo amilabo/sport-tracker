@@ -35,6 +35,8 @@ export interface Exercise extends BaseEntity {
   archived_at: IsoDateTime | null;
   progression_id: Id | null;
   progression_level: number | null;
+  /** «Как делать» in the person's own words — own exercises only (stage 27); catalog ones ship theirs in the app. */
+  description?: string | null;
 }
 
 export interface Progression extends BaseEntity {

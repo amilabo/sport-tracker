@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import { Chip } from "@/components/ui/Chip";
 import { SearchInput } from "@/components/ui/Field";
+import { techniqueOf } from "@/content/technique";
 import { filterExercises, presentGroups } from "@/domain/exercise-search";
 import { EQUIPMENT_LABELS, MUSCLE_GROUP_LABELS } from "@/domain/labels";
 import type { Exercise, MuscleGroup } from "@/domain/types";
+import { BookIcon } from "./Technique";
 
 interface ExerciseBrowserProps {
   exercises: Exercise[];
@@ -15,10 +17,12 @@ interface ExerciseBrowserProps {
   autoFocus?: boolean;
   /** Ids shown as unavailable (e.g. the exercise being replaced). */
   disabledIds?: string[];
+  /** «Как делать» before choosing: a book button on rows that have a description. */
+  onPreview?: (exercise: Exercise) => void;
 }
 
 /** Search by name + muscle group filter + list. Shared by the catalog and the exercise picker. */
-export function ExerciseBrowser({ exercises, onSelect, footer, autoFocus, disabledIds = [] }: ExerciseBrowserProps) {
+export function ExerciseBrowser({ exercises, onSelect, footer, autoFocus, disabledIds = [], onPreview }: ExerciseBrowserProps) {
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<MuscleGroup | null>(null);
   const groups = useMemo(() => presentGroups(exercises), [exercises]);
@@ -48,12 +52,28 @@ export function ExerciseBrowser({ exercises, onSelect, footer, autoFocus, disabl
         {found.map((e) => {
           const disabled = disabledIds.includes(e.id);
           return (
-            <li key={e.id} className="border-b border-line last:border-b-0">
+            <li key={e.id} className="flex items-center gap-1.5 border-b border-line last:border-b-0">
+              {/* The book sits on the left, away from the thumb's tap on the row (which picks at once). */}
+              {onPreview &&
+                (techniqueOf(e) ? (
+                  <button
+                    type="button"
+                    onClick={() => onPreview(e)}
+                    aria-label={`Как делать: ${e.name}`}
+                    className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-[10px] border-[1.5px] border-ink">
+                      <BookIcon />
+                    </span>
+                  </button>
+                ) : (
+                  <span aria-hidden="true" className="-ml-1 w-11 shrink-0" />
+                ))}
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onSelect(e)}
-                className="flex min-h-14 w-full items-center gap-3 py-2.5 text-left disabled:opacity-40"
+                className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2.5 text-left disabled:opacity-40"
               >
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-base leading-snug font-semibold">{e.name}</span>

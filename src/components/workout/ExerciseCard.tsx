@@ -1,5 +1,7 @@
 "use client";
 
+import { TechniqueHintButton } from "@/components/exercises/Technique";
+import { techniqueOf } from "@/content/technique";
 import type { WorkoutItem } from "@/db/repos/workouts";
 import { formatNumber, parseDecimal, parseDurationInput } from "@/domain/format";
 import { formatCardioDuration, formatClock, formatSetsSummary } from "@/domain/sets";
@@ -25,6 +27,8 @@ interface ExerciseCardProps {
   onNote: () => void;
   onSkip: () => void;
   onMove: (dir: -1 | 1) => void;
+  /** Opens «Как делать»; the row is shown only when the exercise has a description. */
+  onTechnique: () => void;
 }
 
 function unitOf(logType: LogType, field: SetField) {
@@ -73,6 +77,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
   const skipped = we.skipped;
   const showLast = !done && lastTimeDiffers(sets, last);
   const num = String(index + 1).padStart(2, "0");
+  const technique = techniqueOf(exercise);
 
   const tags: { text: string; accent: boolean }[] = [];
   if (item.replaced) tags.push({ text: `вместо: ${item.replaced.name}`, accent: true });
@@ -145,6 +150,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
 
       {open && (
         <div className="flex flex-col gap-2.5 border-t-[1.5px] border-dashed border-line px-3.5 pt-3 pb-3.5">
+          {technique && <TechniqueHintButton technique={technique} onClick={props.onTechnique} />}
           {showLast && <p className="text-[13px] text-ink-muted">В прошлый раз: {formatSetsSummary(logType, last!)}</p>}
           {sets.map((s, si) => (
             <div key={s.id} className="flex items-center gap-2">

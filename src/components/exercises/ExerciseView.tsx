@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { FormError } from "@/components/ui/Field";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
+import { techniqueOf } from "@/content/technique";
 import { useLive } from "@/db/hooks";
 import { exercisesRepo } from "@/db/repos/exercises";
 import { progressionsRepo } from "@/db/repos/progressions";
@@ -15,6 +16,7 @@ import { ExerciseForm } from "./ExerciseForm";
 import { ExerciseProgress } from "./ExerciseProgress";
 import { LinkVariant } from "./LinkVariant";
 import { ProgressionPanel } from "./ProgressionPanel";
+import { TechniqueBlock } from "./Technique";
 
 /** Exercise card: details, best result, progress chart, set history; edit and archive. */
 export function ExerciseView() {
@@ -22,7 +24,7 @@ export function ExerciseView() {
   const id = params.get("id") ?? "";
   const [tab, setTab] = useState<"own" | "chain">(params.get("tab") === "chain" ? "chain" : "own");
   const [linking, setLinking] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<false | "all" | "description">(false);
   const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,7 +68,7 @@ export function ExerciseView() {
         title="Упражнение"
         backHref="/exercises/"
         action={
-          <Button size="md" variant="outline" onClick={() => setEditing(true)}>
+          <Button size="md" variant="outline" onClick={() => setEditing("all")}>
             Изменить
           </Button>
         }
@@ -91,6 +93,13 @@ export function ExerciseView() {
         )}
         <FormError message={error} />
       </div>
+
+      <TechniqueBlock
+        key={exercise.id}
+        technique={techniqueOf(exercise)}
+        defaultOpen={!data.hasHistory}
+        onAdd={exercise.is_builtin ? undefined : () => setEditing("description")}
+      />
 
       {data.chain && (
         <div role="tablist" aria-label="Вид" className="mx-4 mt-5 grid grid-cols-2 gap-1 rounded-[14px] bg-surface-done p-1">
@@ -138,7 +147,7 @@ export function ExerciseView() {
       )}
 
       <Sheet
-        open={editing}
+        open={editing !== false}
         onClose={() => setEditing(false)}
         title="Изменить упражнение"
         footer={
@@ -151,6 +160,8 @@ export function ExerciseView() {
           id="edit-exercise"
           initial={exercise}
           logTypeLocked={data.hasHistory}
+          withDescription={!exercise.is_builtin}
+          focusDescription={editing === "description"}
           onSubmit={async (input) => {
             await exercisesRepo.update(exercise.id, input);
             setEditing(false);

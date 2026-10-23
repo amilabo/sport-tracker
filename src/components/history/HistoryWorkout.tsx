@@ -520,6 +520,7 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
 
       <ExercisePicker
         open={picking}
+        pickLabel="Добавить"
         onClose={() => setPicking(false)}
         onPick={async (e) => {
           setPicking(false);

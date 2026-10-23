@@ -1,5 +1,5 @@
 import { newEntity, touch } from "@/domain/entity";
-import { cleanName, compareRu, searchKey } from "@/domain/text";
+import { cleanDescription, cleanName, compareRu, searchKey } from "@/domain/text";
 import { nowIso } from "@/domain/time";
 import { DomainError, type Equipment, type Exercise, type Id, type LogType, type MuscleGroup, type Plan } from "@/domain/types";
 import { getDb, withTx } from "../client";
@@ -9,6 +9,8 @@ export interface ExerciseInput {
   muscle_group: MuscleGroup;
   equipment: Equipment;
   log_type: LogType;
+  /** «Как делать» of an own exercise; ignored for catalog ones (their text ships with the app). */
+  description?: string | null;
 }
 
 function assertName(name: string) {
@@ -51,6 +53,7 @@ export const exercisesRepo = {
         archived_at: null,
         progression_id: null,
         progression_level: null,
+        description: cleanDescription(input.description),
       });
       await store.put(exercise);
       return exercise;
@@ -65,6 +68,10 @@ export const exercisesRepo = {
       if (!current) throw new DomainError("Упражнение не найдено");
 
       const next: Partial<ExerciseInput> = { ...patch };
+      if (patch.description !== undefined) {
+        if (current.is_builtin) delete next.description;
+        else next.description = cleanDescription(patch.description);
+      }
       if (patch.name !== undefined) {
         next.name = cleanName(patch.name);
         assertName(next.name);

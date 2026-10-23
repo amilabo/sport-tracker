@@ -5,6 +5,7 @@ import { Chip } from "@/components/ui/Chip";
 import { Field, FormError } from "@/components/ui/Field";
 import type { ExerciseInput } from "@/db/repos/exercises";
 import { EQUIPMENT_LABELS, MUSCLE_GROUP_LABELS } from "@/domain/labels";
+import { DESCRIPTION_MAX } from "@/domain/text";
 import { DomainError, EQUIPMENT, LOG_TYPES, MUSCLE_GROUPS, type Equipment, type LogType, type MuscleGroup } from "@/domain/types";
 
 const LOG_TYPE_OPTIONS: Record<LogType, { title: string; example: string }> = {
@@ -20,15 +21,20 @@ interface ExerciseFormProps {
   initial?: Partial<ExerciseInput>;
   /** The log type cannot change once the exercise has history (PRD §3.1). */
   logTypeLocked?: boolean;
+  /** «Как делать» in own words — not for catalog exercises: their description ships with the app. */
+  withDescription?: boolean;
+  /** Opened from «Как делать: добавить описание» — straight to the text. */
+  focusDescription?: boolean;
   onSubmit: (input: ExerciseInput) => Promise<void>;
 }
 
-/** Name, muscle group, equipment and log type. Submit with a button outside: <button form={id}>. */
-export function ExerciseForm({ id, initial, logTypeLocked, onSubmit }: ExerciseFormProps) {
+/** Name, muscle group, equipment, log type and the own description. Submit with a button outside: <button form={id}>. */
+export function ExerciseForm({ id, initial, logTypeLocked, withDescription = true, focusDescription, onSubmit }: ExerciseFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [group, setGroup] = useState<MuscleGroup | null>(initial?.muscle_group ?? null);
   const [equipment, setEquipment] = useState<Equipment | null>(initial?.equipment ?? null);
   const [logType, setLogType] = useState<LogType>(initial?.log_type ?? "weight_reps");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -40,7 +46,7 @@ export function ExerciseForm({ id, initial, logTypeLocked, onSubmit }: ExerciseF
     setBusy(true);
     setError(null);
     try {
-      await onSubmit({ name, muscle_group: group, equipment, log_type: logType });
+      await onSubmit({ name, muscle_group: group, equipment, log_type: logType, ...(withDescription ? { description } : {}) });
     } catch (err) {
       setError(err instanceof DomainError ? err.message : "Не получилось сохранить. Попробуйте ещё раз.");
       if (!(err instanceof DomainError)) console.error(err);
@@ -109,6 +115,22 @@ export function ExerciseForm({ id, initial, logTypeLocked, onSubmit }: ExerciseF
           })}
         </div>
       </fieldset>
+
+      {withDescription && (
+        <label className="flex flex-col gap-1.5 text-xs text-ink-muted">
+          Как делать — необязательно
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={DESCRIPTION_MAX}
+            rows={5}
+            autoFocus={focusDescription}
+            placeholder={"Например:\n1. Сядьте, спина прижата к спинке.\n2. Выжмите рукояти вперёд.\nВажно: плечи не уходят вперёд."}
+            className="min-h-32 w-full rounded-xl border-[1.5px] border-ink bg-surface-raised px-3 py-2.5 text-base leading-[1.45] text-ink placeholder:text-ink-faint"
+          />
+          <span>Своими словами. В зале откроется по кнопке «Как делать».</span>
+        </label>
+      )}
 
       <FormError message={error} />
     </form>

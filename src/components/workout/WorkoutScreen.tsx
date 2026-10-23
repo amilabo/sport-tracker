@@ -4,10 +4,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ExercisePicker } from "@/components/exercises/ExercisePicker";
+import { TechniqueSheet } from "@/components/exercises/Technique";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Scale5 } from "@/components/ui/Scale5";
 import { Sheet } from "@/components/ui/Sheet";
+import { techniqueOf } from "@/content/technique";
 import { workoutsRepo } from "@/db/repos/workouts";
 import { EXERCISE_FORMS, formatTime, plural } from "@/domain/format";
 import type { Id, Workout } from "@/domain/types";
@@ -115,6 +117,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   const [open, setOpen] = useState<Id | null>(null);
   const [picker, setPicker] = useState<Picker>(null);
   const [noteFor, setNoteFor] = useState<number | null>(null);
+  const [techFor, setTechFor] = useState<number | null>(null);
   const [collapsedId, setCollapsedId] = useState<Id | null>(readBeforeCollapsed);
   const [starting, setStarting] = useState(false);
   const [conflict, setConflict] = useState<Workout | null>(null);
@@ -196,6 +199,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
     writeBeforeCollapsed(next);
   };
   const noteItem = noteFor !== null ? items[noteFor] : null;
+  const techExercise = techFor !== null ? (items[techFor]?.exercise ?? null) : null;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -335,6 +339,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
             onNote={() => setNoteFor(i)}
             onSkip={() => actions.setSkipped(i, !item.we.skipped)}
             onMove={(dir) => actions.move(i, dir)}
+            onTechnique={() => setTechFor(i)}
           />
         ))}
       </div>
@@ -372,6 +377,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
       <ExercisePicker
         open={picker !== null}
         title={picker?.kind === "replace" ? "Заменить на сегодня" : "Добавить упражнение"}
+        pickLabel={picker?.kind === "replace" ? "Заменить на это" : "Добавить"}
         disabledIds={picker?.kind === "replace" ? [items[picker.index]?.exercise.id] : undefined}
         onClose={() => setPicker(null)}
         onPick={async (e) => {
@@ -379,6 +385,16 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
           setPicker(null);
           if (p?.kind === "replace") await actions.replaceExercise(p.index, e);
           else await actions.addExercise(e);
+        }}
+      />
+
+      <TechniqueSheet
+        exercise={techExercise}
+        technique={techExercise && techniqueOf(techExercise)}
+        onClose={() => setTechFor(null)}
+        onLeave={(e) => {
+          guardLeave(`/exercises/view/?id=${techExercise!.id}`)(e);
+          if (e.defaultPrevented) setTechFor(null);
         }}
       />
 

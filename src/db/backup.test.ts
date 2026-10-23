@@ -71,7 +71,13 @@ describe("backupRepo", () => {
     const types = await measurementsRepo.listTypes();
     const weight = types.find((t) => t.key === "weight")!;
     await measurementsRepo.saveSession("2026-10-05", new Map([[weight.id, 69.4], [own.id, 31]]));
-    const variant = await exercisesRepo.create({ name: "Гравитрон узким хватом", muscle_group: "back", equipment: "machine", log_type: "bodyweight_plus" });
+    const variant = await exercisesRepo.create({
+      name: "Гравитрон узким хватом",
+      muscle_group: "back",
+      equipment: "machine",
+      log_type: "bodyweight_plus",
+      description: "Хват уже плеч.\nВажно: локти вдоль корпуса.",
+    });
     await progressionsRepo.link(exerciseSeedId("assisted_pull_ups"), variant.id, "harder", "Подтягивания");
     await settingsRepo.update({ height_cm: 164, body_period: "custom", body_custom: { a: null, b: "2026-10-05" } });
     const before = await backupRepo.exportAll();
@@ -87,6 +93,7 @@ describe("backupRepo", () => {
         if (name === "settings") continue;
         expect(after.data[name], `${mode}: ${name}`).toEqual(before.data[name]);
       }
+      expect((await exercisesRepo.get(variant.id))?.description, `${mode}: own description`).toBe("Хват уже плеч.\nВажно: локти вдоль корпуса.");
       const settings = await settingsRepo.get();
       expect(settings.height_cm, `${mode}: height`).toBe(164);
       expect([settings.body_period, settings.body_custom], `${mode}: «Тело» switch`).toEqual(["custom", { a: null, b: "2026-10-05" }]);

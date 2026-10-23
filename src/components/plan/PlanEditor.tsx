@@ -278,6 +278,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
       <ExercisePicker
         open={picker !== null}
         title={picker?.kind === "replace" ? "Заменить упражнение" : "Добавить упражнение"}
+        pickLabel={picker?.kind === "replace" ? "Заменить на это" : "Добавить в план"}
         disabledIds={picker?.kind === "replace" ? [rows[picker.index]?.exercise.id] : undefined}
         onClose={() => setPicker(null)}
         onPick={(e) => (picker?.kind === "replace" ? replaceExercise(picker.index, e) : addExercise(e))}

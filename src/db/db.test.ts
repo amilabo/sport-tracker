@@ -155,6 +155,16 @@ describe("exercisesRepo", () => {
     expect(plan!.items[2].exercise.name).toBe("Бабочка");
   });
 
+  it("keeps the own description cleaned, and none for catalog exercises", async () => {
+    const created = await exercisesRepo.create({ ...input, description: "  1. Сядьте \n\n\n Важно: спина " });
+    expect(created.description).toBe("1. Сядьте\n\nВажно: спина");
+    expect((await exercisesRepo.update(created.id, { description: "  " })).description).toBeNull();
+    expect((await exercisesRepo.create({ ...input, name: "Без описания" })).description).toBeNull();
+
+    const builtin = exerciseSeedId("pec_deck");
+    expect((await exercisesRepo.update(builtin, { description: "своё" })).description).toBeUndefined();
+  });
+
   it("forbids changing the log type once there is history", async () => {
     const created = await exercisesRepo.create(input);
     await exercisesRepo.update(created.id, { log_type: "reps" });
