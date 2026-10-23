@@ -47,6 +47,23 @@ export function periodDates(sessions: BodySession[], period: BodyPeriod, custom?
   return { a: older[0].date, b };
 }
 
+export interface BodyView {
+  period: BodyPeriod;
+  /** null — «Даты» starts from the pair «Прошлый» shows. */
+  custom: PeriodDates | null;
+}
+
+/**
+ * The switch as saved in settings (and in a backup file, which may come from another phone or be old):
+ * an unknown period means «Прошлый»; «Даты» whose sessions are gone fall back to the «Прошлый» pair.
+ */
+export function restoreBodyView(sessions: BodySession[], period: string | undefined, custom: PeriodDates | null | undefined): BodyView {
+  const known = BODY_PERIODS.find((p) => p.id === period)?.id ?? "last";
+  const has = (d: LocalDate | null) => d !== null && sessions.some((s) => s.date === d);
+  const valid = !!custom && has(custom.b) && (custom.a === null || (has(custom.a) && custom.a < custom.b!));
+  return { period: known, custom: valid ? { a: custom!.a, b: custom!.b } : null };
+}
+
 export interface ComparePoint {
   value: number;
   date: LocalDate;

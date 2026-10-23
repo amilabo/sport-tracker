@@ -2,7 +2,7 @@
 
 import { useTheme } from "@/components/ThemeProvider";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { ACCENTS, THEMES, type ModePref } from "@/lib/theme";
+import { accentFits, ACCENTS, themeInfo, THEMES, type ModePref } from "@/lib/theme";
 
 const MODES: { id: ModePref; label: string }[] = [
   { id: "light", label: "Светлая" },
@@ -79,6 +79,7 @@ function AccentPreview() {
 export default function AppearancePage() {
   const { theme, accent, modePref, mode, setTheme, setAccent, setModePref } = useTheme();
   const current = ACCENTS.find((a) => a.id === accent) ?? ACCENTS[0];
+  const unfit = ACCENTS.filter((a) => !accentFits(theme, a.id));
 
   return (
     <div className="flex flex-1 flex-col gap-5 pb-8">
@@ -107,7 +108,7 @@ export default function AppearancePage() {
         </div>
       </section>
 
-      {/* One theme for now: the list appears when a second one is added. */}
+      {/* With one theme there is nothing to choose: the list shows from two. */}
       {THEMES.length > 1 && (
         <section className="flex flex-col gap-2.5 px-4">
           <h2 className={sectionTitle}>Цветовая тема</h2>
@@ -129,7 +130,8 @@ export default function AppearancePage() {
                     <span className="text-base font-semibold">{t.name}</span>
                     <span className="text-[13px] text-ink-muted">{t.description}</span>
                   </span>
-                  <ThemePreview theme={t.id} accent={accent} mode={mode} />
+                  {/* Choosing a theme switches to its own accent, so that is what the preview shows. */}
+                  <ThemePreview theme={t.id} accent={t.defaultAccent} mode={mode} />
                 </button>
               );
             })}
@@ -145,15 +147,18 @@ export default function AppearancePage() {
         <div role="radiogroup" aria-label="Акцентный цвет" className="grid grid-cols-3 gap-1.5">
           {ACCENTS.map((a) => {
             const on = a.id === accent;
+            const fits = accentFits(theme, a.id);
             return (
               <button
                 key={a.id}
                 type="button"
                 role="radio"
                 aria-checked={on}
+                disabled={!fits}
+                aria-describedby={fits ? undefined : "accent-unfit"}
                 onClick={() => setAccent(a.id)}
                 className={`flex min-h-[76px] flex-col items-center justify-center gap-1.5 rounded-[14px] border-[1.5px] px-0.5 py-2 transition-colors ${
-                  on ? "border-ink bg-surface-raised" : "border-line bg-surface"
+                  on ? "border-ink bg-surface-raised" : fits ? "border-line bg-surface" : "border-dashed border-line-strong bg-bg text-ink-muted"
                 }`}
               >
                 {/* The swatch carries its own accent attributes, so it shows that accent's --accent. */}
@@ -161,7 +166,7 @@ export default function AppearancePage() {
                   aria-hidden="true"
                   data-accent={a.id}
                   data-mode={mode}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-on-accent"
+                  className={`flex h-9 w-9 items-center justify-center rounded-full bg-accent text-on-accent ${fits ? "" : "opacity-30"}`}
                 >
                   {on && (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
@@ -174,7 +179,12 @@ export default function AppearancePage() {
             );
           })}
         </div>
-        <p className="text-[13px] leading-snug text-ink-muted">Бумага и чернила остаются. Меняются кнопки, отметки, графики и активная вкладка.</p>
+        <p className="text-[13px] leading-snug text-ink-muted">Фон и текст темы остаются. Меняются кнопки, отметки, графики и активная вкладка.</p>
+        {unfit.length > 0 && (
+          <p id="accent-unfit" className="text-[13px] leading-snug text-ink-muted">
+            К теме «{themeInfo(theme).name}» не подходят: {unfit.map((a) => a.name).join(", ")} — на светлых плашках их не видно.
+          </p>
+        )}
       </section>
 
       <section className="flex flex-col gap-2.5 px-4">

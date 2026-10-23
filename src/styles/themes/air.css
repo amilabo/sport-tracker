@@ -1,0 +1,90 @@
+/*
+ * Theme "air" — Воздух: белый фон и светлые плашки.
+ * One block of semantic tokens per mode; the accent tokens here are the theme's default accent («Электрик»).
+ * Generated with the contrast numbers in mind: scripts/check-contrast.mjs checks every pair, values must be hex.
+ */
+
+[data-theme="air"][data-mode="light"] {
+  --bg: #FFFFFF;
+  --surface: #F6F8FB;
+  --surface-raised: #FFFFFF;
+  --surface-done: #EBEFF5;
+  --surface-inverse: #EEF3FA;
+  --ink: #121821;
+  --ink-muted: #4F5968;
+  --ink-faint: #68707D;
+  --on-inverse: #121821;
+  --on-inverse-muted: #3B4656;
+  --line: #E0E5EC;
+  --line-strong: #B3BDCA;
+  --line-inverse: #B8C5D6;
+  --accent: #2F80FF;
+  --on-accent: #17140F;
+  --accent-text: #1F55E0;
+  --accent-line: #2F80FF;
+  --accent-on-inverse: #296BD3;
+  --danger: #C4321A;
+  --danger-on-inverse: #B3261E;
+  --positive-on-inverse: #17703A;
+  --focus: #1F5FCC;
+  --chart-line: #2F80FF;
+  --chart-grid: #C6CCD3;
+  --chart-label: #3B4656;
+  color-scheme: light;
+}
+
+[data-theme="air"][data-mode="dark"] {
+  --bg: #1E2229;
+  --surface: #272C35;
+  --surface-raised: #313743;
+  --surface-done: #2F353F;
+  --surface-inverse: #30363F;
+  --ink: #F2F5F9;
+  --ink-muted: #B6BFCC;
+  --ink-faint: #8D95A0;
+  --on-inverse: #F2F5F9;
+  --on-inverse-muted: #CCD3DD;
+  --line: #3A414D;
+  --line-strong: #586273;
+  --line-inverse: #4F5868;
+  --accent: #2F80FF;
+  --on-accent: #17140F;
+  --accent-text: #6FA6FF;
+  --accent-line: #2F80FF;
+  --accent-on-inverse: #629FFF;
+  --danger: #FF8A70;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #9FE0B4;
+  --focus: #7FB0FF;
+  --chart-line: #2F80FF;
+  --chart-grid: #535860;
+  --chart-label: #CCD3DD;
+  color-scheme: dark;
+}
+
+/* Accent shades adjusted for this theme: the generic ones (../accents.css) fail here. */
+
+[data-theme="air"][data-accent="electric"][data-mode="light"] {
+  --accent-on-inverse: #296BD3;
+}
+
+[data-theme="air"][data-accent="violet"][data-mode="light"] {
+  --accent-on-inverse: #705EC8;
+}
+
+[data-theme="air"][data-accent="raspberry"][data-mode="light"] {
+  --accent-on-inverse: #C63468;
+}
+
+[data-theme="air"][data-accent="electric"][data-mode="dark"] {
+  --accent-on-inverse: #629FFF;
+}
+
+[data-theme="air"][data-accent="violet"][data-mode="dark"] {
+  --accent-on-inverse: #A38EFF;
+}
+
+[data-theme="air"][data-accent="raspberry"][data-mode="dark"] {
+  --accent-text: #FF6F9D;
+  --accent-on-inverse: #FF6D9F;
+}

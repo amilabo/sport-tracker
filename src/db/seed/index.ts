@@ -1,5 +1,6 @@
-import { newEntity } from "@/domain/entity";
+import { newEntity, touch } from "@/domain/entity";
 import { seedId } from "@/domain/ids";
+import { searchKey } from "@/domain/text";
 import { nowIso } from "@/domain/time";
 import {
   SETTINGS_ID,
@@ -11,7 +12,7 @@ import {
   type Settings,
 } from "@/domain/types";
 import { SCHEMA_VERSION, type TrackerDatabase } from "../schema";
-import { SEED_EXERCISES, SEED_MEASUREMENT_TYPES, SEED_PLANS } from "./catalog";
+import { CATALOG_CHANGES, SEED_EXERCISES, SEED_MEASUREMENT_TYPES, SEED_PLANS } from "./catalog";
 
 // Stable ids: the same on every device, see seedId().
 export const exerciseSeedId = (key: string) => seedId(`exercise:${key}`);
@@ -114,6 +115,41 @@ export function buildSeedData(at: string = nowIso()): SeedData {
   );
 
   return { exercises, plans, planExercises, planSets, measurementTypes, settings };
+}
+
+/**
+ * A phone installed before the catalog grew gets the new starter exercises on the next launch.
+ * Not added: one the person already has under the same name (their own, so no twin), and nothing comes back
+ * from the archive — archived exercises are still in the store. CATALOG_CHANGES apply only to untouched values.
+ * Idempotent, runs on every launch; returns how many exercises were added.
+ */
+export async function syncCatalog(db: TrackerDatabase): Promise<number> {
+  const tx = db.transaction(["exercises", "workout_exercises"], "readwrite");
+  const exercises = tx.objectStore("exercises");
+  const all = await exercises.getAll();
+  const byId = new Map(all.map((e) => [e.id, e]));
+  const names = new Set(all.map((e) => searchKey(e.name)));
+  const seed = buildSeedData().exercises;
+  let added = 0;
+
+  for (const [i, e] of SEED_EXERCISES.entries()) {
+    const id = exerciseSeedId(e.key);
+    if (!byId.has(id) && !names.has(searchKey(e.name))) {
+      await exercises.put(seed[i]);
+      names.add(searchKey(e.name));
+      added++;
+    }
+  }
+
+  for (const change of CATALOG_CHANGES) {
+    const current = byId.get(exerciseSeedId(change.key));
+    if (!current || current[change.field] !== change.from) continue;
+    if (change.field === "name" && names.has(searchKey(change.to))) continue;
+    if (change.field === "log_type" && (await tx.objectStore("workout_exercises").index("exercise_id").count(current.id)) > 0) continue;
+    await exercises.put(touch(current, { [change.field]: change.to }));
+  }
+  await tx.done;
+  return added;
 }
 
 /** First launch: catalog, starter plans, measurement types and settings in one transaction. */

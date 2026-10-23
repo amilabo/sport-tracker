@@ -1,20 +1,21 @@
 export type ModePref = "light" | "dark" | "system";
 export type Mode = "light" | "dark";
 
+import themeList from "@/styles/themes/themes.json";
+
 export interface ThemeInfo {
   id: string;
   name: string;
   description: string;
+  /** Chosen together with the theme; the person can pick another accent on top. */
+  defaultAccent: string;
+  /** Accents that cannot reach the contrast on this theme (e.g. bright fills on light panels): not offered. */
+  excludedAccents: string[];
 }
 
-// Adding a theme = a new token file in src/styles/themes/ + one entry here.
-export const THEMES: ThemeInfo[] = [
-  {
-    id: "card",
-    name: "Тренировочная карточка",
-    description: "Бумага, чернила и цветной сигнал",
-  },
-];
+// Adding a theme = a new token file in src/styles/themes/ (imported in app/globals.css) + an entry in
+// themes.json. scripts/check-contrast.mjs reads the same list.
+export const THEMES: ThemeInfo[] = themeList;
 
 export interface AccentInfo {
   id: string;
@@ -55,12 +56,25 @@ var dark=m==="dark"||(m==="system"&&window.matchMedia("(prefers-color-scheme: da
 d.setAttribute("data-theme",t);d.setAttribute("data-accent",a);d.setAttribute("data-mode",dark?"dark":"light");
 }catch(e){}})();`;
 
-/** Unknown ids (a removed theme or accent, a damaged value) fall back to the defaults. */
+export function themeInfo(id: string): ThemeInfo {
+  return THEMES.find((t) => t.id === id) ?? THEMES.find((t) => t.id === DEFAULT_THEME)!;
+}
+
+export function accentFits(theme: string, accent: string): boolean {
+  return ACCENTS.some((a) => a.id === accent) && !themeInfo(theme).excludedAccents.includes(accent);
+}
+
+/**
+ * Unknown ids (a removed theme or accent, a damaged value) fall back to the defaults;
+ * an accent the theme does not offer falls back to the theme's own accent.
+ */
 export function normalizeTheme(value: Partial<StoredTheme>): StoredTheme {
+  const theme = THEMES.some((t) => t.id === value.theme) ? value.theme! : DEFAULT_THEME;
+  const accent = value.accent && accentFits(theme, value.accent) ? value.accent : themeInfo(theme).defaultAccent;
   return {
     mode: value.mode === "light" || value.mode === "dark" || value.mode === "system" ? value.mode : DEFAULT_MODE,
-    theme: THEMES.some((t) => t.id === value.theme) ? value.theme! : DEFAULT_THEME,
-    accent: ACCENTS.some((a) => a.id === value.accent) ? value.accent! : DEFAULT_ACCENT,
+    theme,
+    accent,
   };
 }
 

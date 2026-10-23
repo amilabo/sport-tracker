@@ -10,6 +10,7 @@ import {
   hasStoredTheme,
   normalizeTheme,
   readStoredTheme,
+  themeInfo,
   writeStoredTheme,
   type Mode,
   type ModePref,
@@ -90,7 +91,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (hydrated) applyTheme(stored.theme, stored.accent, mode);
   }, [hydrated, stored.theme, stored.accent, mode]);
 
-  const setTheme = useCallback((theme: string) => themeStore.set({ ...themeStore.getSnapshot(), theme }), []);
+  // A theme comes with its own accent (as on the «Оформление» previews); another one can be picked after.
+  const setTheme = useCallback(
+    (theme: string) => themeStore.set({ ...themeStore.getSnapshot(), theme, accent: themeInfo(theme).defaultAccent }),
+    [],
+  );
   const setAccent = useCallback((accent: string) => themeStore.set({ ...themeStore.getSnapshot(), accent }), []);
   const setModePref = useCallback((m: ModePref) => themeStore.set({ ...themeStore.getSnapshot(), mode: m }), []);
 

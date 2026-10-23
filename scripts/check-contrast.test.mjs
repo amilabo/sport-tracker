@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCENT_TOKENS, checkAccents, checkTokens, contrast, parseAccents, parseThemes } from "./check-contrast.mjs";
+import { ACCENT_TOKENS, checkAccents, checkThemeList, checkTokens, contrast, parseAccents, parseOverrides, parseThemes } from "./check-contrast.mjs";
 
 describe("contrast", () => {
   it("matches WCAG reference values", () => {
@@ -38,6 +38,28 @@ describe("accents", () => {
     expect(errors).toContain("accent a × light: --bg is not an accent token");
     expect(errors).toContain("accent a: no dark block");
     expect(errors).toContain("accent b × dark: missing --on-accent");
+  });
+
+  it("reads accent shades adjusted for one theme apart from themes and accents", () => {
+    const css = `[data-theme="air"][data-accent="violet"][data-mode="light"] { --accent-text: #4A2FD0; }`;
+    expect(parseThemes(css)).toEqual([]);
+    expect(parseAccents(css)).toEqual([]);
+    expect(parseOverrides(css)).toEqual([{ theme: "air", accent: "violet", mode: "light", tokens: { "accent-text": "#4A2FD0" } }]);
+  });
+
+  it("the theme list matches the theme files and offers each theme its default accent", () => {
+    const list = [
+      { id: "card", defaultAccent: "signal", excludedAccents: [] },
+      { id: "air", defaultAccent: "sun", excludedAccents: ["sun"] },
+      { id: "gone", defaultAccent: "neon", excludedAccents: [] },
+    ];
+    const errors = checkThemeList(list, ["card", "air", "extra"], ["signal", "sun"]);
+    expect(errors).toEqual([
+      "themes.json: air excludes its own default accent",
+      "themes.json: no token file for theme gone",
+      "themes.json: gone default accent neon does not exist",
+      "themes.json: theme extra is missing",
+    ]);
   });
 
   it("catches a pale accent line on paper", () => {

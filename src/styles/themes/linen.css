@@ -1,0 +1,85 @@
+/*
+ * Theme "linen" — Лён: спокойные чистые серые.
+ * One block of semantic tokens per mode; the accent tokens here are the theme's default accent («Лагуна»).
+ * Generated with the contrast numbers in mind: scripts/check-contrast.mjs checks every pair, values must be hex.
+ */
+
+[data-theme="linen"][data-mode="light"] {
+  --bg: #EEEEEC;
+  --surface: #F9F9F8;
+  --surface-raised: #FFFFFF;
+  --surface-done: #E3E3E0;
+  --surface-inverse: #232323;
+  --ink: #1B1B1B;
+  --ink-muted: #575755;
+  --ink-faint: #696967;
+  --on-inverse: #F4F4F2;
+  --on-inverse-muted: #C4C4C0;
+  --line: #D9D9D6;
+  --line-strong: #AAAAA6;
+  --line-inverse: #474745;
+  --accent: #00BFAE;
+  --on-accent: #17140F;
+  --accent-text: #00756B;
+  --accent-line: #05998B;
+  --accent-on-inverse: #00BFAE;
+  --danger: #C4321A;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #A3D9B1;
+  --focus: #1F5FCC;
+  --chart-line: #00BFAE;
+  --chart-grid: #494948;
+  --chart-label: #C4C4C0;
+  color-scheme: light;
+}
+
+[data-theme="linen"][data-mode="dark"] {
+  --bg: #141414;
+  --surface: #1D1D1D;
+  --surface-raised: #272727;
+  --surface-done: #262626;
+  --surface-inverse: #2C2C2C;
+  --ink: #F1F1EF;
+  --ink-muted: #B0B0AC;
+  --ink-faint: #868683;
+  --on-inverse: #F1F1EF;
+  --on-inverse-muted: #C9C9C5;
+  --line: #333333;
+  --line-strong: #555553;
+  --line-inverse: #4A4A48;
+  --accent: #00BFAE;
+  --on-accent: #17140F;
+  --accent-text: #2ED9C9;
+  --accent-line: #00BFAE;
+  --accent-on-inverse: #00BFAE;
+  --danger: #FF8A70;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #A3D9B1;
+  --focus: #7FB0FF;
+  --chart-line: #00BFAE;
+  --chart-grid: #4F4F4F;
+  --chart-label: #C9C9C5;
+  color-scheme: dark;
+}
+
+/* Accent shades adjusted for this theme: the generic ones (../accents.css) fail here. */
+
+[data-theme="linen"][data-accent="electric"][data-mode="light"] {
+  --accent-on-inverse: #3B88FF;
+}
+
+[data-theme="linen"][data-accent="signal"][data-mode="dark"] {
+  --accent-on-inverse: #FF5D23;
+}
+
+[data-theme="linen"][data-accent="electric"][data-mode="dark"] {
+  --accent-on-inverse: #4D92FF;
+}
+
+[data-theme="linen"][data-accent="violet"][data-mode="dark"] {
+  --accent-on-inverse: #9880FF;
+}
+
+[data-theme="linen"][data-accent="raspberry"][data-mode="dark"] {
+  --accent-on-inverse: #FF528D;
+}

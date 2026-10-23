@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { groupSessions } from "./body";
-import { compareGroups, compareType, composition, minusMonths, periodDates } from "./body-compare";
+import { compareGroups, compareType, composition, minusMonths, periodDates, restoreBodyView } from "./body-compare";
 import type { Measurement, MeasurementType } from "./types";
 
 const type = (id: string, key: string | null, unit: string, computed: MeasurementType["computed"] = null, base: string | null = null) =>
@@ -56,6 +56,24 @@ describe("periodDates", () => {
   it("one session — nothing to compare with", () => {
     expect(periodDates(sessions.slice(0, 1), "last")).toEqual({ a: null, b: "2026-09-29" });
     expect(periodDates([], "all")).toEqual({ a: null, b: null });
+  });
+});
+
+describe("restoreBodyView", () => {
+  it("keeps a saved period and the «Даты» pair while their sessions exist", () => {
+    expect(restoreBodyView(sessions, "3m", null)).toEqual({ period: "3m", custom: null });
+    const pair = { a: "2026-06-16", b: "2026-09-08" };
+    expect(restoreBodyView(sessions, "custom", pair)).toEqual({ period: "custom", custom: pair });
+    expect(restoreBodyView(sessions, "all", pair)).toEqual({ period: "all", custom: pair });
+    expect(restoreBodyView(sessions, "custom", { a: null, b: "2026-09-08" })).toEqual({ period: "custom", custom: { a: null, b: "2026-09-08" } });
+  });
+
+  it("an unknown or missing period means «Прошлый»; a pair with a deleted session or reversed dates is dropped", () => {
+    expect(restoreBodyView(sessions, undefined, undefined)).toEqual({ period: "last", custom: null });
+    expect(restoreBodyView(sessions, "week", null)).toEqual({ period: "last", custom: null });
+    expect(restoreBodyView(sessions, "custom", { a: "2026-06-01", b: "2026-09-08" }).custom).toBeNull();
+    expect(restoreBodyView(sessions, "custom", { a: "2026-09-29", b: "2026-09-08" }).custom).toBeNull();
+    expect(restoreBodyView([], "custom", { a: null, b: "2026-09-08" })).toEqual({ period: "custom", custom: null });
   });
 });
 

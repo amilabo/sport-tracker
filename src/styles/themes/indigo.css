@@ -1,0 +1,119 @@
+/*
+ * Theme "indigo" — Индиго: лаванда и глубокий индиго.
+ * One block of semantic tokens per mode; the accent tokens here are the theme's default accent («Солнце»).
+ * Generated with the contrast numbers in mind: scripts/check-contrast.mjs checks every pair, values must be hex.
+ */
+
+[data-theme="indigo"][data-mode="light"] {
+  --bg: #E4E7FF;
+  --surface: #F3F4FF;
+  --surface-raised: #FFFFFF;
+  --surface-done: #D6DAF8;
+  --surface-inverse: #23206B;
+  --ink: #15133D;
+  --ink-muted: #47457C;
+  --ink-faint: #636294;
+  --on-inverse: #F1F0FF;
+  --on-inverse-muted: #C6C4F0;
+  --line: #C9CDF1;
+  --line-strong: #989DD6;
+  --line-inverse: #413E92;
+  --accent: #FFD23F;
+  --on-accent: #17140F;
+  --accent-text: #735400;
+  --accent-line: #9C812D;
+  --accent-on-inverse: #FFD23F;
+  --danger: #C2321A;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #9FE8B8;
+  --focus: #1F5FCC;
+  --chart-line: #FFD23F;
+  --chart-grid: #484586;
+  --chart-label: #C6C4F0;
+  color-scheme: light;
+}
+
+[data-theme="indigo"][data-mode="dark"] {
+  --bg: #100E2E;
+  --surface: #1A1840;
+  --surface-raised: #25234F;
+  --surface-done: #23214B;
+  --surface-inverse: #2D2A66;
+  --ink: #F1F0FF;
+  --ink-muted: #B8B6E6;
+  --ink-faint: #8482AD;
+  --on-inverse: #F1F0FF;
+  --on-inverse-muted: #CAC8F2;
+  --line: #302D5F;
+  --line-strong: #4F4C8C;
+  --line-inverse: #4B4895;
+  --accent: #FFD23F;
+  --on-accent: #17140F;
+  --accent-text: #FFD23F;
+  --accent-line: #FFD23F;
+  --accent-on-inverse: #FFD23F;
+  --danger: #FF8A70;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #9FE8B8;
+  --focus: #7FB0FF;
+  --chart-line: #FFD23F;
+  --chart-grid: #504E82;
+  --chart-label: #CAC8F2;
+  color-scheme: dark;
+}
+
+/* Accent shades adjusted for this theme: the generic ones (../accents.css) fail here. */
+
+[data-theme="indigo"][data-accent="signal"][data-mode="light"] {
+  --accent-line: #E6521F;
+}
+
+[data-theme="indigo"][data-accent="sun"][data-mode="light"] {
+  --accent-line: #9C812D;
+}
+
+[data-theme="indigo"][data-accent="acid"][data-mode="light"] {
+  --accent-line: #7F8B09;
+}
+
+[data-theme="indigo"][data-accent="court"][data-mode="light"] {
+  --accent-line: #1D9660;
+}
+
+[data-theme="indigo"][data-accent="lagoon"][data-mode="light"] {
+  --accent-line: #069488;
+}
+
+[data-theme="indigo"][data-accent="aqua"][data-mode="light"] {
+  --accent-line: #419184;
+}
+
+[data-theme="indigo"][data-accent="electric"][data-mode="light"] {
+  --accent-on-inverse: #4A91FF;
+}
+
+[data-theme="indigo"][data-accent="violet"][data-mode="light"] {
+  --accent-line: #886FF2;
+  --accent-on-inverse: #977FFF;
+}
+
+[data-theme="indigo"][data-accent="raspberry"][data-mode="light"] {
+  --accent-line: #EF3A79;
+  --accent-on-inverse: #FF528D;
+}
+
+[data-theme="indigo"][data-accent="signal"][data-mode="dark"] {
+  --accent-on-inverse: #FF6C38;
+}
+
+[data-theme="indigo"][data-accent="electric"][data-mode="dark"] {
+  --accent-on-inverse: #5B9AFF;
+}
+
+[data-theme="indigo"][data-accent="violet"][data-mode="dark"] {
+  --accent-on-inverse: #9F8AFF;
+}
+
+[data-theme="indigo"][data-accent="raspberry"][data-mode="dark"] {
+  --accent-on-inverse: #FF6399;
+}

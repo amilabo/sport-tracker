@@ -4,6 +4,7 @@ import { getDb, resetDbForTests } from "./client";
 import { demoRepo } from "./repos/demo";
 import { workoutsRepo } from "./repos/workouts";
 import { exerciseSeedId } from "./seed";
+import { SEED_EXERCISES } from "./seed/catalog";
 
 beforeEach(resetDbForTests);
 afterEach(resetDbForTests);
@@ -35,7 +36,7 @@ describe("demo data", () => {
     expect(await demoRepo.isLoaded()).toBe(false);
     const db = await getDb();
     expect((await db.getAll("workouts")).map((w) => w.id)).toEqual([r.id]);
-    expect(await db.count("exercises")).toBe(44);
+    expect(await db.count("exercises")).toBe(SEED_EXERCISES.length);
     expect(await db.count("measurements")).toBe(0);
   });
 });

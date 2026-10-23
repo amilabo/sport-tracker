@@ -1,0 +1,58 @@
+[
+  {
+    "id": "card",
+    "name": "Тренировочная карточка",
+    "description": "Бумага, чернила и цветной сигнал",
+    "defaultAccent": "signal",
+    "excludedAccents": []
+  },
+  {
+    "id": "midnight",
+    "name": "Полночь",
+    "description": "Чёрный экран и холодный графит",
+    "defaultAccent": "acid",
+    "excludedAccents": []
+  },
+  {
+    "id": "air",
+    "name": "Воздух",
+    "description": "Белый фон и светлые плашки",
+    "defaultAccent": "electric",
+    "excludedAccents": [
+      "signal",
+      "sun",
+      "acid",
+      "court",
+      "lagoon",
+      "aqua"
+    ]
+  },
+  {
+    "id": "indigo",
+    "name": "Индиго",
+    "description": "Лаванда и глубокий индиго",
+    "defaultAccent": "sun",
+    "excludedAccents": []
+  },
+  {
+    "id": "peony",
+    "name": "Пион",
+    "description": "Пудрово-розовый и цвет листвы",
+    "defaultAccent": "raspberry",
+    "excludedAccents": []
+  },
+  {
+    "id": "lemonade",
+    "name": "Лимонад",
+    "description": "Сливочно-жёлтый и виноград",
+    "defaultAccent": "raspberry",
+    "excludedAccents": []
+  },
+  {
+    "id": "linen",
+    "name": "Лён",
+    "description": "Спокойные чистые серые",
+    "defaultAccent": "lagoon",
+    "excludedAccents": []
+  }
+]

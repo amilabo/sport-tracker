@@ -11,6 +11,7 @@ import { progressionsRepo } from "./repos/progressions";
 import { settingsRepo } from "./repos/settings";
 import { workoutsRepo } from "./repos/workouts";
 import { exerciseSeedId, planSeedId } from "./seed";
+import { SEED_EXERCISES } from "./seed/catalog";
 
 const LEGS = planSeedId("plan_legs_chest_arms");
 
@@ -72,7 +73,7 @@ describe("backupRepo", () => {
     await measurementsRepo.saveSession("2026-10-05", new Map([[weight.id, 69.4], [own.id, 31]]));
     const variant = await exercisesRepo.create({ name: "Гравитрон узким хватом", muscle_group: "back", equipment: "machine", log_type: "bodyweight_plus" });
     await progressionsRepo.link(exerciseSeedId("assisted_pull_ups"), variant.id, "harder", "Подтягивания");
-    await settingsRepo.update({ height_cm: 164 });
+    await settingsRepo.update({ height_cm: 164, body_period: "custom", body_custom: { a: null, b: "2026-10-05" } });
     const before = await backupRepo.exportAll();
     for (const name of STORE_NAMES) expect(before.data[name]?.length, `${name} has records`).toBeGreaterThan(0);
 
@@ -86,15 +87,21 @@ describe("backupRepo", () => {
         if (name === "settings") continue;
         expect(after.data[name], `${mode}: ${name}`).toEqual(before.data[name]);
       }
-      expect((await settingsRepo.get()).height_cm, `${mode}: height`).toBe(164);
+      const settings = await settingsRepo.get();
+      expect(settings.height_cm, `${mode}: height`).toBe(164);
+      expect([settings.body_period, settings.body_custom], `${mode}: «Тело» switch`).toEqual(["custom", { a: null, b: "2026-10-05" }]);
     }
   });
 
-  it("«Объединить» keeps the phone's own height", async () => {
-    await settingsRepo.update({ height_cm: 170 });
-    const file = roundTrip({ app: "sport-tracker", format: 1, schema_version: 1, exported_at: "", data: { settings: [{ ...(await settingsRepo.get()), height_cm: 164 }] } });
+  it("«Объединить» keeps the phone's own height and «Тело» switch", async () => {
+    await settingsRepo.update({ height_cm: 170, body_period: "all" });
+    const file = roundTrip({
+      app: "sport-tracker", format: 1, schema_version: 1, exported_at: "",
+      data: { settings: [{ ...(await settingsRepo.get()), height_cm: 164, body_period: "3m" }] },
+    });
     await backupRepo.import(file, "merge");
-    expect((await settingsRepo.get()).height_cm).toBe(170);
+    const settings = await settingsRepo.get();
+    expect([settings.height_cm, settings.body_period]).toEqual([170, "all"]);
   });
 
   it("«Объединить» adds missing workouts and keeps the newer version of shared records", async () => {
@@ -140,7 +147,7 @@ describe("backupRepo", () => {
   });
 
   it("renames an imported exercise whose name is taken by another exercise on the phone", async () => {
-    await exercisesRepo.create({ name: "Берпи", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps" });
+    await exercisesRepo.create({ name: "Прыжки на тумбу", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps" });
     const theirs: Exercise = newEntity({
       name: "берпи", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps",
       is_builtin: false, archived_at: null, progression_id: null, progression_level: null,
@@ -191,7 +198,7 @@ describe("backupRepo", () => {
 
   it("«Удалить все данные» leaves only the starter set and keeps the theme", async () => {
     await finishedWorkout();
-    await exercisesRepo.create({ name: "Берпи", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps" });
+    await exercisesRepo.create({ name: "Прыжки на тумбу", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps" });
     const { settingsRepo } = await import("./repos/settings");
     await settingsRepo.update({ theme_mode: "dark", height_cm: 164, last_export_at: "2026-10-10T10:00:00.000Z" });
 
@@ -199,7 +206,7 @@ describe("backupRepo", () => {
     const db = await getDb();
     expect(await db.count("workouts")).toBe(0);
     expect(await db.count("workout_sets")).toBe(0);
-    expect(await db.count("exercises")).toBe(44);
+    expect(await db.count("exercises")).toBe(SEED_EXERCISES.length);
     expect(await db.count("plans")).toBe(2);
     const settings = await settingsRepo.get();
     expect([settings.theme_mode, settings.height_cm, settings.last_export_at]).toEqual(["dark", null, null]);

@@ -1,7 +1,7 @@
 import { deleteDB, openDB, type IDBPTransaction, type StoreNames } from "idb";
 import { emitChange } from "./events";
 import { DB_NAME, DB_VERSION, upgradeSchema, type TrackerDatabase, type TrackerDB } from "./schema";
-import { seedIfNeeded } from "./seed";
+import { seedIfNeeded, syncCatalog } from "./seed";
 
 let dbPromise: Promise<TrackerDatabase> | null = null;
 
@@ -16,7 +16,7 @@ async function open(): Promise<TrackerDatabase> {
       dbPromise = null;
     },
   });
-  await seedIfNeeded(db);
+  if (!(await seedIfNeeded(db))) await syncCatalog(db);
   return db;
 }
 

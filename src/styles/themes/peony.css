@@ -1,0 +1,116 @@
+/*
+ * Theme "peony" — Пион: пудрово-розовый и цвет листвы.
+ * One block of semantic tokens per mode; the accent tokens here are the theme's default accent («Малина»).
+ * Generated with the contrast numbers in mind: scripts/check-contrast.mjs checks every pair, values must be hex.
+ */
+
+[data-theme="peony"][data-mode="light"] {
+  --bg: #F8E7EA;
+  --surface: #FFF6F7;
+  --surface-raised: #FFFFFF;
+  --surface-done: #EFD7DC;
+  --surface-inverse: #263C2E;
+  --ink: #2A1419;
+  --ink-muted: #6A4951;
+  --ink-faint: #7F6168;
+  --on-inverse: #FBEFF1;
+  --on-inverse-muted: #CFE0D3;
+  --line: #EBCDD3;
+  --line-strong: #C99CA6;
+  --line-inverse: #4A6553;
+  --accent: #FF3D7F;
+  --on-accent: #17140F;
+  --accent-text: #B5104A;
+  --accent-line: #F43B7A;
+  --accent-on-inverse: #FF71A2;
+  --danger: #C4321A;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #B7E4C2;
+  --focus: #1F5FCC;
+  --chart-line: #FF3D7F;
+  --chart-grid: #4C5C51;
+  --chart-label: #CFE0D3;
+  color-scheme: light;
+}
+
+[data-theme="peony"][data-mode="dark"] {
+  --bg: #1A1013;
+  --surface: #26181C;
+  --surface-raised: #322126;
+  --surface-done: #2F1E23;
+  --surface-inverse: #22342A;
+  --ink: #FBEFF1;
+  --ink-muted: #D4B6BD;
+  --ink-faint: #977F85;
+  --on-inverse: #FBEFF1;
+  --on-inverse-muted: #C9DCCD;
+  --line: #3E2B31;
+  --line-strong: #644A51;
+  --line-inverse: #3D5547;
+  --accent: #FF3D7F;
+  --on-accent: #17140F;
+  --accent-text: #FF6B9A;
+  --accent-line: #FF3D7F;
+  --accent-on-inverse: #FF5E95;
+  --danger: #FF8A70;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #A8DDB5;
+  --focus: #7FB0FF;
+  --chart-line: #FF3D7F;
+  --chart-grid: #49564E;
+  --chart-label: #C9DCCD;
+  color-scheme: dark;
+}
+
+/* Accent shades adjusted for this theme: the generic ones (../accents.css) fail here. */
+
+[data-theme="peony"][data-accent="signal"][data-mode="light"] {
+  --accent-line: #E9531E;
+  --accent-on-inverse: #FF794A;
+}
+
+[data-theme="peony"][data-accent="sun"][data-mode="light"] {
+  --accent-line: #9E832B;
+}
+
+[data-theme="peony"][data-accent="acid"][data-mode="light"] {
+  --accent-line: #808C08;
+}
+
+[data-theme="peony"][data-accent="court"][data-mode="light"] {
+  --accent-line: #1D9860;
+}
+
+[data-theme="peony"][data-accent="lagoon"][data-mode="light"] {
+  --accent-line: #069689;
+}
+
+[data-theme="peony"][data-accent="electric"][data-mode="light"] {
+  --accent-on-inverse: #65A1FF;
+}
+
+[data-theme="peony"][data-accent="violet"][data-mode="light"] {
+  --accent-line: #8A70F3;
+  --accent-on-inverse: #A591FF;
+}
+
+[data-theme="peony"][data-accent="raspberry"][data-mode="light"] {
+  --accent-line: #F43B7A;
+  --accent-on-inverse: #FF71A2;
+}
+
+[data-theme="peony"][data-accent="signal"][data-mode="dark"] {
+  --accent-on-inverse: #FF6933;
+}
+
+[data-theme="peony"][data-accent="electric"][data-mode="dark"] {
+  --accent-on-inverse: #5597FF;
+}
+
+[data-theme="peony"][data-accent="violet"][data-mode="dark"] {
+  --accent-on-inverse: #9C86FF;
+}
+
+[data-theme="peony"][data-accent="raspberry"][data-mode="dark"] {
+  --accent-on-inverse: #FF5E95;
+}

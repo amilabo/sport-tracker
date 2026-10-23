@@ -1,7 +1,7 @@
 import { BACKUP_APP, BACKUP_FORMAT, BACKUP_REFS, type BackupData, type BackupFile } from "@/domain/backup";
 import { cleanName, searchKey } from "@/domain/text";
 import { nowIso } from "@/domain/time";
-import { DomainError, SETTINGS_ID, STORE_NAMES, type BaseEntity, type Exercise, type StoreName, type Workout, type WorkoutSet } from "@/domain/types";
+import { DomainError, SETTINGS_ID, STORE_NAMES, type BaseEntity, type Exercise, type Settings, type StoreName, type Workout, type WorkoutSet } from "@/domain/types";
 import { lastActivity } from "@/domain/workout";
 import { withTx } from "../client";
 import { SCHEMA_VERSION } from "../schema";
@@ -132,12 +132,19 @@ export const backupRepo = {
       // «Заменить всё» with a file without settings would re-run the first-launch seed: keep this phone's.
       if (!(await store("settings").get(SETTINGS_ID)) && phoneSettings) await store("settings").put(phoneSettings);
 
-      // Height is the user's data, not a phone setting: «Объединить» brings it when the phone has none (BMI needs it).
-      const fileHeight = (file.data.settings ?? []).find((s) => s.id === SETTINGS_ID)?.height_cm ?? null;
-      if (mode === "merge" && fileHeight !== null) {
+      // Height and the «Тело» switch are the user's choices, not phone settings: «Объединить» brings them
+      // when the phone has none (BMI needs the height).
+      const fileSettings = (file.data.settings ?? []).find((s) => s.id === SETTINGS_ID);
+      if (mode === "merge" && fileSettings) {
         const current = await store("settings").get(SETTINGS_ID);
-        if (current && current.height_cm == null) {
-          await store("settings").put({ ...current, height_cm: fileHeight, updated_at: nowIso() });
+        const patch: Partial<Settings> = {};
+        if (current?.height_cm == null && fileSettings.height_cm != null) patch.height_cm = fileSettings.height_cm;
+        if (current?.body_period === undefined && fileSettings.body_period !== undefined) {
+          patch.body_period = fileSettings.body_period;
+          patch.body_custom = fileSettings.body_custom ?? null;
+        }
+        if (current && Object.keys(patch).length) {
+          await store("settings").put({ ...current, ...patch, updated_at: nowIso() });
           result.updated++;
         }
       }

@@ -18,7 +18,15 @@
 
 Цвет задаётся только семантическими токенами (`bg-surface`, `text-ink`, `bg-accent`…). Палитра Tailwind по умолчанию отключена, hex/rgb в коде запрещены — это проверяет `scripts/check-colors.mjs`.
 
-Тема — один файл в `src/styles/themes/` с блоками `[data-theme="…"][data-mode="light|dark"]` и запись в `THEMES` (`src/lib/theme.ts`). `scripts/check-contrast.mjs` проверяет, что у темы есть все токены и ключевые пары проходят WCAG AA.
+Тема — один файл в `src/styles/themes/` с блоками `[data-theme="…"][data-mode="light|dark"]` (импорт в `src/app/globals.css`) и запись в `src/styles/themes/themes.json`: название, акцент по умолчанию, недоступные акценты. Тем семь: `card` (по умолчанию), `midnight`, `air`, `indigo`, `peony`, `lemonade`, `linen`. Если общий оттенок акцента не проходит контраст на теме, в файле темы есть блок `[data-theme][data-accent][data-mode]` с подправленными акцентными токенами.
+
+Акцент — отдельная ось поверх темы: `src/styles/accents.css` с блоками `[data-accent="…"][data-mode="light|dark"]`, которые переопределяют только акцентные токены (`ACCENT_TOKENS`: `accent`, `on-accent`, `accent-text`, `accent-line`, `accent-on-inverse`, `chart-line`). Список — `ACCENTS` в `src/lib/theme.ts`, 9 вариантов, по умолчанию `signal`. Ошибки красятся `danger` / `danger-on-inverse` и от акцента не зависят. Режим, тема и акцент ставятся на `<html>` inline-скриптом до отрисовки (`localStorage`) и хранятся в настройках — попадают в копию.
+
+`scripts/check-contrast.mjs` проверяет, что у темы есть все токены и ключевые пары проходят WCAG AA для каждой комбинации «тема × режим × акцент».
+
+## Документация
+
+Требования, план сборки, заметки о выпусках и лог решений лежат рядом с проектом, вне этого репозитория (в нём только код и демо-данные).
 
 ## PWA и офлайн
 

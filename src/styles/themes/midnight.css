@@ -1,0 +1,104 @@
+/*
+ * Theme "midnight" — Полночь: чёрный экран и холодный графит.
+ * One block of semantic tokens per mode; the accent tokens here are the theme's default accent («Кислота»).
+ * Generated with the contrast numbers in mind: scripts/check-contrast.mjs checks every pair, values must be hex.
+ */
+
+[data-theme="midnight"][data-mode="light"] {
+  --bg: #DCE0E4;
+  --surface: #EAECEF;
+  --surface-raised: #F7F8F9;
+  --surface-done: #CFD4D9;
+  --surface-inverse: #0B0C0E;
+  --ink: #0B0C0E;
+  --ink-muted: #454B53;
+  --ink-faint: #5C6169;
+  --on-inverse: #F4F5F6;
+  --on-inverse-muted: #B9BEC5;
+  --line: #C3C8CE;
+  --line-strong: #959CA5;
+  --line-inverse: #33373C;
+  --accent: #DCF500;
+  --on-accent: #17140F;
+  --accent-text: #596600;
+  --accent-line: #798508;
+  --accent-on-inverse: #DCF500;
+  --danger: #B72F19;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #8FE3A6;
+  --focus: #1F5FCC;
+  --chart-line: #DCF500;
+  --chart-grid: #353638;
+  --chart-label: #B9BEC5;
+  color-scheme: light;
+}
+
+[data-theme="midnight"][data-mode="dark"] {
+  --bg: #000000;
+  --surface: #0E0F11;
+  --surface-raised: #191B1E;
+  --surface-done: #1A1D21;
+  --surface-inverse: #15171A;
+  --ink: #F4F5F6;
+  --ink-muted: #A3A9B1;
+  --ink-faint: #797D83;
+  --on-inverse: #F4F5F6;
+  --on-inverse-muted: #B9BEC5;
+  --line: #24272B;
+  --line-strong: #3D4248;
+  --line-inverse: #33373C;
+  --accent: #DCF500;
+  --on-accent: #17140F;
+  --accent-text: #DCF500;
+  --accent-line: #DCF500;
+  --accent-on-inverse: #DCF500;
+  --danger: #FF8A70;
+  --danger-on-inverse: #FF8A70;
+  --positive-on-inverse: #8FE3A6;
+  --focus: #7FB0FF;
+  --chart-line: #DCF500;
+  --chart-grid: #3D3F42;
+  --chart-label: #B9BEC5;
+  color-scheme: dark;
+}
+
+/* Accent shades adjusted for this theme: the generic ones (../accents.css) fail here. */
+
+[data-theme="midnight"][data-accent="signal"][data-mode="light"] {
+  --accent-line: #DA4E1D;
+}
+
+[data-theme="midnight"][data-accent="sun"][data-mode="light"] {
+  --accent-line: #947B29;
+}
+
+[data-theme="midnight"][data-accent="acid"][data-mode="light"] {
+  --accent-line: #798508;
+}
+
+[data-theme="midnight"][data-accent="court"][data-mode="light"] {
+  --accent-text: #0B7142;
+  --accent-line: #1C905A;
+}
+
+[data-theme="midnight"][data-accent="lagoon"][data-mode="light"] {
+  --accent-text: #016F65;
+  --accent-line: #068C80;
+}
+
+[data-theme="midnight"][data-accent="aqua"][data-mode="light"] {
+  --accent-text: #006F69;
+  --accent-line: #3E8A7D;
+}
+
+[data-theme="midnight"][data-accent="electric"][data-mode="light"] {
+  --accent-line: #2D79F1;
+}
+
+[data-theme="midnight"][data-accent="violet"][data-mode="light"] {
+  --accent-line: #816AE5;
+}
+
+[data-theme="midnight"][data-accent="raspberry"][data-mode="light"] {
+  --accent-line: #E53873;
+}

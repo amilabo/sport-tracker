@@ -8,6 +8,7 @@ import { MeasurementSheet } from "@/components/body/MeasurementSheet";
 import { dayLabel, Delta, fullDate, sectionTitle, Sparkline, useBodyData } from "@/components/body/parts";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { settingsRepo } from "@/db/repos/settings";
 import { shortDate, type BodySession } from "@/domain/body";
 import {
   BODY_PERIODS,
@@ -15,7 +16,9 @@ import {
   composition,
   enteredCount,
   periodDates,
+  restoreBodyView,
   type BodyPeriod,
+  type BodyView,
   type CompareRow,
   type PeriodDates,
 } from "@/domain/body-compare";
@@ -51,8 +54,8 @@ function Cell({ point, column, latest, strong }: { point: CompareRow["a"]; colum
 
 export default function BodyPage() {
   const data = useBodyData();
-  const [period, setPeriod] = useState<BodyPeriod>("last");
-  const [custom, setCustom] = useState<PeriodDates | null>(null);
+  // The switch is saved in settings (and so in a backup); this keeps the screen instant until the write lands.
+  const [view, setView] = useState<BodyView | null>(null);
   const [picking, setPicking] = useState<"a" | "b" | null>(null);
   const [editing, setEditing] = useState<BodySession | "new" | null>(null);
   const [heightOpen, setHeightOpen] = useState(false);
@@ -65,6 +68,8 @@ export default function BodyPage() {
   if (!data) return <PageHeader title="Тело" action={addButton} />;
   const { types, sessions, height } = data;
   const latest = sessions[0]?.date ?? null;
+  const current = view ?? { period: data.bodyPeriod, custom: data.bodyCustom };
+  const { period, custom } = restoreBodyView(sessions, current.period, current.custom);
 
   // «Даты» starts from the pair the screen showed last, so switching to it changes nothing at first.
   const shown = periodDates(sessions, period === "custom" ? "last" : period);
@@ -78,9 +83,13 @@ export default function BodyPage() {
   const cap = latest ? caption(dates, latest, period) : "";
   const compared = sessions.length > 1;
 
+  function saveView(next: BodyView) {
+    setView(next);
+    settingsRepo.update({ body_period: next.period, body_custom: next.custom }).catch(console.error);
+  }
+
   function choosePeriod(p: BodyPeriod) {
-    if (p === "custom" && period !== "custom") setCustom(dates);
-    setPeriod(p);
+    saveView({ period: p, custom: p === "custom" && period !== "custom" ? dates : custom });
   }
 
   return (
@@ -314,7 +323,7 @@ export default function BodyPage() {
           .filter((s) => (picking === "a" ? !dates.b || s.date < dates.b : !dates.a || s.date > dates.a))
           .map((s) => ({ date: s.date, note: valuesNote(enteredCount(s)) }))}
         selected={picking ? dates[picking] : null}
-        onPick={(date) => picking && setCustom({ ...dates, [picking]: date })}
+        onPick={(date) => picking && saveView({ period, custom: { ...dates, [picking]: date } })}
       />
       <MeasurementSheet
         open={editing !== null}

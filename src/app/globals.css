@@ -1,5 +1,11 @@
 @import "tailwindcss";
 @import "../styles/themes/card.css";
+@import "../styles/themes/midnight.css";
+@import "../styles/themes/air.css";
+@import "../styles/themes/indigo.css";
+@import "../styles/themes/peony.css";
+@import "../styles/themes/lemonade.css";
+@import "../styles/themes/linen.css";
 /* After the themes: an accent block overrides only the accent tokens of the theme. */
 @import "../styles/accents.css";
 

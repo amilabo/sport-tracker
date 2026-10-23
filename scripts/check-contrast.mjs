@@ -70,32 +70,40 @@ export function contrast(a, b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** Token blocks whose selector has [data-<attr>="…"][data-mode="…"]. */
-function parseBlocks(css, attr) {
+/** Token blocks with their [data-theme], [data-accent] and [data-mode] values (null when absent). */
+function parseBlocks(css) {
   const blocks = [];
   const blockRe = /([^{}]+)\{([^{}]*)\}/g;
-  const idRe = new RegExp(`\\[data-${attr}="([^"]+)"\\]`);
+  const attr = (selector, name) => selector.match(new RegExp(`\\[data-${name}="([^"]+)"\\]`))?.[1] ?? null;
   let m;
   while ((m = blockRe.exec(css))) {
     const selector = m[1].replace(/\/\*[\s\S]*?\*\//g, "").trim();
-    const id = selector.match(idRe)?.[1];
-    const mode = selector.match(/\[data-mode="([^"]+)"\]/)?.[1];
-    if (!id || !mode) continue;
     const tokens = {};
     for (const t of m[2].matchAll(/--([a-z0-9-]+)\s*:\s*([^;]+);/g)) {
       tokens[t[1]] = t[2].trim();
     }
-    blocks.push({ [attr]: id, mode, tokens });
+    blocks.push({ theme: attr(selector, "theme"), accent: attr(selector, "accent"), mode: attr(selector, "mode"), tokens });
   }
-  return blocks;
+  return blocks.filter((b) => b.mode);
 }
 
+/** [data-theme][data-mode] blocks: a theme's full token set. */
 export function parseThemes(css) {
-  return parseBlocks(css, "theme");
+  return parseBlocks(css)
+    .filter((b) => b.theme && !b.accent)
+    .map(({ theme, mode, tokens }) => ({ theme, mode, tokens }));
 }
 
+/** [data-accent][data-mode] blocks: an accent on any theme. */
 export function parseAccents(css) {
-  return parseBlocks(css, "accent");
+  return parseBlocks(css)
+    .filter((b) => b.accent && !b.theme)
+    .map(({ accent, mode, tokens }) => ({ accent, mode, tokens }));
+}
+
+/** [data-theme][data-accent][data-mode] blocks: accent shades adjusted for one theme. */
+export function parseOverrides(css) {
+  return parseBlocks(css).filter((b) => b.theme && b.accent);
 }
 
 const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -135,20 +143,48 @@ export function checkAccents(accents) {
   return errors;
 }
 
+/**
+ * The theme list (src/styles/themes/themes.json, also read by the app) matches the theme files:
+ * every theme has a file, its default accent exists and is not excluded on it.
+ */
+export function checkThemeList(list, themeIds, accentIds) {
+  const errors = [];
+  for (const t of list) {
+    if (!themeIds.includes(t.id)) errors.push(`themes.json: no token file for theme ${t.id}`);
+    if (!accentIds.includes(t.defaultAccent)) errors.push(`themes.json: ${t.id} default accent ${t.defaultAccent} does not exist`);
+    if (t.excludedAccents.includes(t.defaultAccent)) errors.push(`themes.json: ${t.id} excludes its own default accent`);
+  }
+  for (const id of themeIds) if (!list.some((t) => t.id === id)) errors.push(`themes.json: theme ${id} is missing`);
+  return errors;
+}
+
 function main() {
   const files = readdirSync(themesDir).filter((f) => f.endsWith(".css"));
   const accents = parseAccents(readFileSync(accentsFile, "utf8"));
+  const list = JSON.parse(readFileSync(join(themesDir, "themes.json"), "utf8"));
   const errors = checkAccents(accents);
   let checked = 0;
+  const themeIds = [];
 
   for (const file of files) {
-    const blocks = parseThemes(readFileSync(join(themesDir, file), "utf8"));
+    const css = readFileSync(join(themesDir, file), "utf8");
+    const blocks = parseThemes(css);
+    const overrides = parseOverrides(css);
     if (blocks.length === 0) errors.push(`${file}: no [data-theme][data-mode] blocks`);
+    for (const o of overrides) {
+      for (const name of Object.keys(o.tokens)) {
+        if (!ACCENT_TOKENS.includes(name)) errors.push(`${o.theme} × ${o.accent} × ${o.mode}: --${name} is not an accent token`);
+      }
+    }
 
     for (const { theme, mode, tokens } of blocks) {
+      themeIds.push(theme);
+      // Accents the app does not offer on this theme are not checked on it.
+      const excluded = list.find((t) => t.id === theme)?.excludedAccents ?? [];
       const sets = [[`${theme} × ${mode}`, tokens]];
-      for (const a of accents.filter((x) => x.mode === mode)) {
-        sets.push([`${theme} × ${mode} × ${a.accent}`, { ...tokens, ...a.tokens }]);
+      for (const a of accents.filter((x) => x.mode === mode && !excluded.includes(x.accent))) {
+        const own = overrides.find((o) => o.theme === theme && o.accent === a.accent && o.mode === mode)?.tokens ?? {};
+        sets.push([`${theme} × ${mode} × ${a.accent}`, { ...tokens, ...a.tokens, ...own }]);
       }
       for (const [label, set] of sets) {
         const r = checkTokens(label, set);
@@ -157,6 +193,8 @@ function main() {
       }
     }
   }
+
+  errors.push(...checkThemeList(list, [...new Set(themeIds)], [...new Set(accents.map((a) => a.accent))]));
 
   if (errors.length) {
     console.error("Contrast check failed:\n  " + errors.join("\n  "));

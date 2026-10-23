@@ -16,7 +16,13 @@ export function useBodyData() {
         measurementsRepo.list(),
         settingsRepo.get(),
       ]);
-      return { types, sessions: groupSessions(measurements), height: settings.height_cm };
+      return {
+        types,
+        sessions: groupSessions(measurements),
+        height: settings.height_cm,
+        bodyPeriod: settings.body_period,
+        bodyCustom: settings.body_custom,
+      };
     },
     [],
     ["measurement_types", "measurements", "settings"],

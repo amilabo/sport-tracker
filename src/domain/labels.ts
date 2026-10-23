@@ -16,6 +16,8 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   barbell: "штанга",
   dumbbells: "гантели",
   kettlebell: "гиря",
+  // One exercise whichever the gym has free today: one history and one chart.
+  dumbbells_kettlebell: "гантели / гиря",
   machine: "тренажёр",
   cable: "блок",
   bodyweight: "свой вес",

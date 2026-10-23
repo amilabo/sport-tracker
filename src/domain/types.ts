@@ -22,7 +22,7 @@ export const MUSCLE_GROUPS = [
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
 
 export const EQUIPMENT = [
-  "barbell", "dumbbells", "kettlebell", "machine", "cable", "bodyweight", "band", "cardio_machine", "other",
+  "barbell", "dumbbells", "kettlebell", "dumbbells_kettlebell", "machine", "cable", "bodyweight", "band", "cardio_machine", "other",
 ] as const;
 export type Equipment = (typeof EQUIPMENT)[number];
 
@@ -139,6 +139,10 @@ export interface Settings extends BaseEntity {
   color_theme: string;
   /** Accent color id (lib/theme ACCENTS); absent in records made before stage 21 — means the default. */
   accent?: string;
+  /** The «Тело» comparison switch (domain/body-compare); absent in records made before stage 24 — means «Прошлый». */
+  body_period?: string;
+  /** The two dates of «Даты»; kept while another period is chosen, so switching back restores them. */
+  body_custom?: { a: LocalDate | null; b: LocalDate | null } | null;
 }
 
 export const SETTINGS_ID = "app";

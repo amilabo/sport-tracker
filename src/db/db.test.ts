@@ -9,7 +9,7 @@ import { measurementsRepo } from "./repos/measurements";
 import { plansRepo } from "./repos/plans";
 import { settingsRepo } from "./repos/settings";
 import { SEED_EXERCISES, SEED_MEASUREMENT_TYPES, SEED_PLANS } from "./seed/catalog";
-import { exerciseSeedId, planSeedId, seedIfNeeded } from "./seed";
+import { exerciseSeedId, planSeedId, seedIfNeeded, syncCatalog } from "./seed";
 
 beforeEach(async () => {
   await resetDbForTests();
@@ -84,6 +84,56 @@ describe("seed", () => {
     const names = (await db.getAll("exercises")).map((e) => e.name);
     expect(names).toContain("Мой жим");
     expect(await db.count("exercises")).toBe(SEED_EXERCISES.length + 1);
+  });
+});
+
+describe("catalog update on a phone installed earlier", () => {
+  const NEW = ["dead_bug", "face_pull", "smith_squat"];
+
+  /** Makes the database look like a stage-25 install: no new exercises, old values of the changed ones. */
+  async function asOldInstall() {
+    const db = await getDb();
+    for (const key of NEW) await db.delete("exercises", exerciseSeedId(key));
+    const tri = (await db.get("exercises", exerciseSeedId("cable_triceps_extension")))!;
+    await db.put("exercises", { ...tri, name: "Разгибание рук на верхнем блоке" });
+    const hyper = (await db.get("exercises", exerciseSeedId("back_extension")))!;
+    await db.put("exercises", { ...hyper, log_type: "reps" });
+    const goblet = (await db.get("exercises", exerciseSeedId("goblet_squat")))!;
+    await db.put("exercises", { ...goblet, equipment: "dumbbells" });
+  }
+
+  it("adds missing starter exercises and applies changes to untouched values on the next launch", async () => {
+    await asOldInstall();
+    await closeDb();
+    const db = await getDb();
+    expect(await db.count("exercises")).toBe(SEED_EXERCISES.length);
+    const get = async (key: string) => (await db.get("exercises", exerciseSeedId(key)))!;
+    expect((await get("face_pull")).name).toBe("Тяга каната к лицу");
+    expect((await get("cable_triceps_extension")).name).toBe("Разгибание рук на верхнем блоке (канат или рукоять)");
+    expect((await get("back_extension")).log_type).toBe("bodyweight_plus");
+    expect((await get("goblet_squat")).equipment).toBe("dumbbells_kettlebell");
+  });
+
+  it("keeps the person's own exercise of the same name, their edits and a log type with history", async () => {
+    await asOldInstall();
+    await exercisesRepo.create({ name: "Мёртвый жук", muscle_group: "abs", equipment: "bodyweight", log_type: "time" });
+    await exercisesRepo.update(exerciseSeedId("cable_triceps_extension"), { name: "Трицепс на блоке" });
+    await addHistory(exerciseSeedId("back_extension"));
+    await closeDb();
+    const db = await getDb();
+
+    expect(await db.get("exercises", exerciseSeedId("dead_bug"))).toBeUndefined();
+    expect((await db.getAll("exercises")).filter((e) => e.name === "Мёртвый жук")).toHaveLength(1);
+    expect((await db.get("exercises", exerciseSeedId("cable_triceps_extension")))!.name).toBe("Трицепс на блоке");
+    expect((await db.get("exercises", exerciseSeedId("back_extension")))!.log_type).toBe("reps");
+  });
+
+  it("does not bring an archived starter exercise back and changes nothing on a second run", async () => {
+    await exercisesRepo.archive(exerciseSeedId("face_pull"));
+    const db = await getDb();
+    const before = await db.getAll("exercises");
+    expect(await syncCatalog(db)).toBe(0);
+    expect(await db.getAll("exercises")).toEqual(before);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ACCENTS, DEFAULT_ACCENT, normalizeTheme, themeInitScript } from "./theme";
+import { accentFits, ACCENTS, DEFAULT_ACCENT, normalizeTheme, themeInfo, themeInitScript, THEMES } from "./theme";
 
 describe("normalizeTheme", () => {
   it("keeps a known accent", () => {
@@ -9,6 +9,19 @@ describe("normalizeTheme", () => {
   it("falls back to defaults for records made before accents and for unknown ids", () => {
     expect(normalizeTheme({ mode: "light", theme: "card" }).accent).toBe(DEFAULT_ACCENT);
     expect(normalizeTheme({ accent: "neon", theme: "gone", mode: "sepia" as never })).toEqual({ mode: "system", theme: "card", accent: "signal" });
+  });
+});
+
+describe("themes", () => {
+  it("each theme offers its own default accent", () => {
+    for (const t of THEMES) expect(accentFits(t.id, t.defaultAccent), t.id).toBe(true);
+  });
+
+  it("an accent a theme does not offer falls back to the theme's own; a missing accent too", () => {
+    expect(accentFits("air", "sun")).toBe(false);
+    expect(normalizeTheme({ mode: "light", theme: "air", accent: "sun" }).accent).toBe(themeInfo("air").defaultAccent);
+    expect(normalizeTheme({ mode: "light", theme: "peony" }).accent).toBe("raspberry");
+    expect(normalizeTheme({ mode: "light", theme: "peony", accent: "aqua" }).accent).toBe("aqua");
   });
 });
 
