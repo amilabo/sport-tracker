@@ -9,6 +9,16 @@ export interface DemoPlan {
   items: { planExercise: PlanExercise; exercise: Exercise; sets: PlanSet[] }[];
 }
 
+/**
+ * One replacement in history, so «Заменить на сегодня» shows «Меняли …» in demo mode (stage 28):
+ * a busy cable row replaced by `to` once, two weeks before the last one.
+ */
+export interface DemoSwap {
+  from: Id;
+  to: Exercise;
+  weight: number;
+}
+
 export interface DemoRecords {
   workouts: Workout[];
   workout_exercises: WorkoutExercise[];
@@ -32,7 +42,7 @@ function weightFor(plan: number | null, week: number): number | null {
   return Math.max(step, Math.round(w / step) * step);
 }
 
-export function buildDemo(plans: DemoPlan[], types: MeasurementType[], now: Date = new Date()): DemoRecords {
+export function buildDemo(plans: DemoPlan[], types: MeasurementType[], now: Date = new Date(), swap?: DemoSwap): DemoRecords {
   const out: DemoRecords = { workouts: [], workout_exercises: [], workout_sets: [], measurements: [] };
   if (!plans.length) return out;
   const demo = { is_demo: true };
@@ -42,6 +52,7 @@ export function buildDemo(plans: DemoPlan[], types: MeasurementType[], now: Date
   start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - 7 * WEEKS);
 
   let n = 0;
+  let swapped = false;
   for (let week = 0; week < WEEKS; week++) {
     for (const day of DAYS) {
       const startedAt = new Date(start);
@@ -69,8 +80,18 @@ export function buildDemo(plans: DemoPlan[], types: MeasurementType[], now: Date
       out.workouts.push(workout);
       let doneIndex = 0;
       items.forEach((item, position) => {
+        const swapHere = !!swap && !swapped && week === WEEKS - 2 && item.exercise.id === swap.from;
+        if (swapHere) swapped = true;
         const we: WorkoutExercise = newEntity(
-          { workout_id: workout.id, exercise_id: item.exercise.id, replaced_exercise_id: null, plan_exercise_id: item.planExercise.id, position, skipped: false, note: null },
+          {
+            workout_id: workout.id,
+            exercise_id: swapHere ? swap.to.id : item.exercise.id,
+            replaced_exercise_id: swapHere ? swap.from : null,
+            plan_exercise_id: item.planExercise.id,
+            position,
+            skipped: false,
+            note: null,
+          },
           { ...demo, at },
         );
         out.workout_exercises.push(we);
@@ -78,7 +99,7 @@ export function buildDemo(plans: DemoPlan[], types: MeasurementType[], now: Date
           // Now and then the last set of an exercise is left undone.
           const skipped = setPos === item.sets.length - 1 && noise(n * 31 + position) > 0.85;
           const values: SetValues = {
-            weight: weightFor(ps.weight, week),
+            weight: swapHere ? swap.weight : weightFor(ps.weight, week),
             reps: ps.reps,
             duration_sec: ps.duration_sec,
             speed_kmh: ps.speed_kmh,
@@ -90,11 +111,12 @@ export function buildDemo(plans: DemoPlan[], types: MeasurementType[], now: Date
                 position: setPos,
                 ...values,
                 done_at: skipped ? null : new Date(startedAt.getTime() + (3 + doneIndex++ * 2) * 60_000).toISOString(),
-                plan_set_id: ps.id,
-                target_weight: ps.weight,
-                target_reps: ps.reps,
-                target_duration_sec: ps.duration_sec,
-                target_speed_kmh: ps.speed_kmh,
+                // A replacement has no plan targets (see replacedExercise).
+                plan_set_id: swapHere ? null : ps.id,
+                target_weight: swapHere ? null : ps.weight,
+                target_reps: swapHere ? null : ps.reps,
+                target_duration_sec: swapHere ? null : ps.duration_sec,
+                target_speed_kmh: swapHere ? null : ps.speed_kmh,
               },
               { ...demo, at },
             ),

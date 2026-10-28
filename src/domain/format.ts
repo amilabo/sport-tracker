@@ -39,6 +39,12 @@ export function formatShortDate(date: Date | string): string {
   return `${WEEKDAYS_SHORT[d.getDay()]}, ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
 }
 
+/** "2 окт" — a date in a hint line, where the weekday adds nothing. */
+export function formatDayMonth(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+}
+
 /** "09:24" in local time. */
 export function formatTime(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;

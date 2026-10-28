@@ -1,4 +1,5 @@
-import { buildDemo, type DemoPlan } from "@/domain/demo";
+import { buildDemo, type DemoPlan, type DemoSwap } from "@/domain/demo";
+import { seedId } from "@/domain/ids";
 import { DomainError, STORE_NAMES, type StoreName } from "@/domain/types";
 import { getDb, withTx } from "../client";
 
@@ -32,7 +33,9 @@ export const demoRepo = {
         }
         demoPlans.push({ plan, items });
       }
-      const records = buildDemo(demoPlans, await tx.objectStore("measurement_types").getAll(), now);
+      const hammer = await tx.objectStore("exercises").get(seedId("exercise:hammer_row"));
+      const swap: DemoSwap | undefined = hammer && !hammer.archived_at ? { from: seedId("exercise:seated_cable_row"), to: hammer, weight: 25 } : undefined;
+      const records = buildDemo(demoPlans, await tx.objectStore("measurement_types").getAll(), now, swap);
       for (const w of records.workouts) await tx.objectStore("workouts").put(w);
       for (const we of records.workout_exercises) await tx.objectStore("workout_exercises").put(we);
       for (const s of records.workout_sets) await tx.objectStore("workout_sets").put(s);

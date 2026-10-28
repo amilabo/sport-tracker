@@ -154,3 +154,14 @@
     transform: translateY(-8px) scale(0.96);
   }
 }
+
+/* Undo message over the bottom edge (components/ui/Snackbar.tsx) */
+.snackbar {
+  animation: snackbar-in 0.18s ease-out;
+}
+@keyframes snackbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}

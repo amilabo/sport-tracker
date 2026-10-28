@@ -1,17 +1,27 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
 import { techniqueOf } from "@/content/technique";
 import { useLive } from "@/db/hooks";
 import { exercisesRepo } from "@/db/repos/exercises";
+import { substituteContext } from "@/db/repos/substitutes";
 import { canCreateFromQuery } from "@/domain/exercise-search";
 import { cleanName } from "@/domain/text";
-import type { Exercise } from "@/domain/types";
+import type { Exercise, Id } from "@/domain/types";
 import { ExerciseBrowser } from "./ExerciseBrowser";
 import { ExerciseForm } from "./ExerciseForm";
+import { replaceSections } from "./substitute-rows";
 import { TechniqueContent } from "./Technique";
+
+/** Suggestions for a replacement: substitutes of `exerciseId` (the plan's one) without today's exercises. */
+export interface SuggestFor {
+  exerciseId: Id;
+  excludeIds: Id[];
+  /** The slot is already replaced: offer the plan's exercise back first. */
+  planned: boolean;
+}
 
 interface ExercisePickerProps {
   open: boolean;
@@ -21,13 +31,23 @@ interface ExercisePickerProps {
   disabledIds?: string[];
   /** The main button under «Как делать»: «Заменить на это», «Добавить»… */
   pickLabel?: string;
+  suggest?: SuggestFor | null;
 }
 
 /** Choose an exercise from the catalog or create a new one right here (PRD §3.2: fast plan entry). */
-export function ExercisePicker({ open, onClose, onPick, title = "Добавить упражнение", disabledIds, pickLabel = "Выбрать" }: ExercisePickerProps) {
+export function ExercisePicker({ open, onClose, onPick, title = "Добавить упражнение", disabledIds, pickLabel = "Выбрать", suggest }: ExercisePickerProps) {
   const [creating, setCreating] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<Exercise | null>(null);
   const { data: exercises = [] } = useLive(() => exercisesRepo.list(), [], ["exercises"]);
+  const suggestFor = open ? (suggest?.exerciseId ?? null) : null;
+  const { data: context } = useLive(() => (suggestFor ? substituteContext(suggestFor) : Promise.resolve(null)), [suggestFor], ["exercises"]);
+  const excludeKey = suggest?.excludeIds.join(",");
+  const sections = useMemo(
+    () => (suggest && context && context.target.id === suggest.exerciseId ? replaceSections(context, suggest.excludeIds, suggest.planned) : null),
+    // excludeKey stands for the ids: the array is new on every render of the workout screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [context, suggest?.exerciseId, excludeKey, suggest?.planned],
+  );
 
   function close() {
     setCreating(null);
@@ -92,7 +112,8 @@ export function ExercisePicker({ open, onClose, onPick, title = "Добавит�
               onSelect={pick}
               onPreview={setPreviewing}
               disabledIds={disabledIds}
-              autoFocus
+              sections={sections}
+              autoFocus={!suggest}
               footer={(query) => (
                 <button
                   type="button"

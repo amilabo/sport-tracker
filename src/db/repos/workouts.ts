@@ -33,6 +33,15 @@ const COMPLETED = new Set<Workout["status"]>(["finished", "auto_finished"]);
 const PLAN_STORES = ["plans", "plan_exercises", "plan_sets", "exercises"] as const;
 
 type PlanReadTx = IDBPTransaction<TrackerDB, (typeof PLAN_STORES)[number][], "readonly" | "readwrite">;
+type WorkoutReadTx = IDBPTransaction<TrackerDB, (typeof WORKOUT_STORES)[number][], "readonly">;
+
+/** Values of the done sets of a workout exercise, in order. */
+async function doneValues(tx: WorkoutReadTx, weId: Id): Promise<SetValues[]> {
+  return (await tx.objectStore("workout_sets").index("workout_exercise_id").getAll(weId))
+    .filter((s) => s.done_at)
+    .sort((a, b) => a.position - b.position)
+    .map(({ weight, reps, duration_sec, speed_kmh }) => ({ weight, reps, duration_sec, speed_kmh }));
+}
 
 /** The plan with its exercises and sets in order — what a new workout copies. */
 async function readPlanSnapshot(tx: PlanReadTx, planId: Id): Promise<{ plan: Plan; items: PlanSnapshotItem[] }> {
@@ -202,7 +211,13 @@ export const workoutsRepo = {
    * and for pre-filling an exercise added on the fly.
    */
   async lastSetsByExercise(exerciseIds: Id[], excludeWorkoutId?: Id): Promise<Map<Id, SetValues[]>> {
-    const result = new Map<Id, SetValues[]>();
+    const results = await workoutsRepo.lastResultByExercise(exerciseIds, excludeWorkoutId);
+    return new Map([...results].map(([id, r]) => [id, r.sets]));
+  },
+
+  /** The same with the workout's start — «Делали 19 окт · 3 × 10 × 40 кг». */
+  async lastResultByExercise(exerciseIds: Id[], excludeWorkoutId?: Id): Promise<Map<Id, { at: IsoDateTime; sets: SetValues[] }>> {
+    const result = new Map<Id, { at: IsoDateTime; sets: SetValues[] }>();
     await withTx([...WORKOUT_STORES], "readonly", async (tx) => {
       for (const exId of exerciseIds) {
         const wes = await tx.objectStore("workout_exercises").index("exercise_id").getAll(exId);
@@ -214,14 +229,28 @@ export const workoutsRepo = {
           if (!best || w.started_at > best.started) best = { started: w.started_at, weId: we.id };
         }
         if (!best) continue;
-        const sets = (await tx.objectStore("workout_sets").index("workout_exercise_id").getAll(best.weId))
-          .filter((s) => s.done_at)
-          .sort((a, b) => a.position - b.position)
-          .map(({ weight, reps, duration_sec, speed_kmh }) => ({ weight, reps, duration_sec, speed_kmh }));
-        if (sets.length) result.set(exId, sets);
+        const sets = await doneValues(tx, best.weId);
+        if (sets.length) result.set(exId, { at: best.started, sets });
       }
     });
     return result;
+  },
+
+  /**
+   * Completed workouts where `exerciseId` was replaced for the day, newest first: by what, when, the done sets.
+   * No index on replaced_exercise_id: the sheet opens rarely and a scan of a few thousand records takes milliseconds.
+   */
+  async replacementsOf(exerciseId: Id): Promise<{ exerciseId: Id; at: IsoDateTime; sets: SetValues[] }[]> {
+    return withTx([...WORKOUT_STORES], "readonly", async (tx) => {
+      const found: { exerciseId: Id; at: IsoDateTime; sets: SetValues[] }[] = [];
+      for (const we of await tx.objectStore("workout_exercises").getAll()) {
+        if (we.replaced_exercise_id !== exerciseId || we.exercise_id === exerciseId) continue;
+        const w = await tx.objectStore("workouts").get(we.workout_id);
+        if (!w || !COMPLETED.has(w.status)) continue;
+        found.push({ exerciseId: we.exercise_id, at: w.started_at, sets: await doneValues(tx, we.id) });
+      }
+      return found.sort((a, b) => b.at.localeCompare(a.at));
+    });
   },
 
   /** Finishes a workout now (or at `finishedAt`). The "update plan weights?" prompt is still pending. */

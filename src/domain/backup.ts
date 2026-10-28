@@ -82,4 +82,5 @@ export const BACKUP_REFS: [StoreName, string, StoreName][] = [
   ["workout_sets", "workout_exercise_id", "workout_exercises"],
   ["measurements", "measurement_type_id", "measurement_types"],
   ["exercises", "progression_id", "progressions"],
+  ["exercises", "substitute_id", "exercises"],
 ];

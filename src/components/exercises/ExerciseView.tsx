@@ -16,6 +16,7 @@ import { ExerciseForm } from "./ExerciseForm";
 import { ExerciseProgress } from "./ExerciseProgress";
 import { LinkVariant } from "./LinkVariant";
 import { ProgressionPanel } from "./ProgressionPanel";
+import { SubstitutesBlock } from "./SubstitutesBlock";
 import { TechniqueBlock } from "./Technique";
 
 /** Exercise card: details, best result, progress chart, set history; edit and archive. */
@@ -100,6 +101,8 @@ export function ExerciseView() {
         defaultOpen={!data.hasHistory}
         onAdd={exercise.is_builtin ? undefined : () => setEditing("description")}
       />
+
+      {!exercise.archived_at && <SubstitutesBlock key={`subs-${exercise.id}`} exercise={exercise} />}
 
       {data.chain && (
         <div role="tablist" aria-label="Вид" className="mx-4 mt-5 grid grid-cols-2 gap-1 rounded-[14px] bg-surface-done p-1">

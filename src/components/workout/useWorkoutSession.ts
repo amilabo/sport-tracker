@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { workoutsRepo, type StartResult, type WorkoutFull } from "@/db/repos/workouts";
+import { workoutsRepo, type StartResult, type WorkoutFull, type WorkoutItem } from "@/db/repos/workouts";
 import { touch } from "@/domain/entity";
 import { nowIso } from "@/domain/time";
 import type { Exercise, Id, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
@@ -231,10 +231,12 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
       });
     },
 
-    replaceExercise: async (index: number, exercise: Exercise) => {
+    /** Returns the item as it was — for `undoReplace`. */
+    replaceExercise: async (index: number, exercise: Exercise): Promise<WorkoutItem | null> => {
       const cur = current.current;
-      if (!cur) return;
-      const weId = cur.items[index].we.id;
+      if (!cur) return null;
+      const before = cur.items[index];
+      const weId = before.we.id;
       const lastSets = await lastFor(exercise.id, cur.workout.id);
       apply((f) => {
         const i = f.items.findIndex((it) => it.we.id === weId);
@@ -248,7 +250,24 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
           records: { exercises: [next.we], sets: next.sets, deleteSetIds: item.sets.map((s) => s.id) },
         };
       });
+      return before;
     },
+
+    /**
+     * «Отменить» after a replacement: the item comes back exactly as it was — the same exercise, values and set ids.
+     * Replacing back would refill the sets from last time and lose what was typed before.
+     */
+    undoReplace: (before: WorkoutItem) =>
+      apply((f) => {
+        const i = f.items.findIndex((it) => it.we.id === before.we.id);
+        if (i < 0) return null;
+        const now = f.items[i];
+        const we = touch(before.we, {});
+        return {
+          next: { ...f, items: f.items.map((it, k) => (k === i ? { ...before, we, planNote: it.planNote } : it)) },
+          records: { exercises: [we], sets: before.sets, deleteSetIds: now.sets.map((s) => s.id) },
+        };
+      }),
 
     /** Draft only: starts the workout as it is on screen now. */
     start: async (): Promise<StartResult | null> => {

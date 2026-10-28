@@ -88,6 +88,21 @@ export const exercisesRepo = {
     });
   },
 
+  /** «Ваша замена»: offered first in the gym; null — none. An archived one stays set but is not offered. */
+  async setSubstitute(id: Id, substituteId: Id | null): Promise<Exercise> {
+    if (substituteId === id) throw new DomainError("Выберите другое упражнение");
+    return withTx(["exercises"], "readwrite", async (tx) => {
+      const store = tx.objectStore("exercises");
+      const current = await store.get(id);
+      if (!current) throw new DomainError("Упражнение не найдено");
+      if (substituteId && !(await store.get(substituteId))) throw new DomainError("Упражнение для замены не найдено");
+      if ((current.substitute_id ?? null) === substituteId) return current;
+      const updated = touch(current, { substitute_id: substituteId });
+      await store.put(updated);
+      return updated;
+    });
+  },
+
   async archive(id: Id): Promise<void> {
     await setArchived(id, nowIso());
   },

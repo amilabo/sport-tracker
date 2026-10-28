@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { ExercisePicker } from "@/components/exercises/ExercisePicker";
 import { TechniqueSheet } from "@/components/exercises/Technique";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Scale5 } from "@/components/ui/Scale5";
 import { Sheet } from "@/components/ui/Sheet";
+import { Snackbar } from "@/components/ui/Snackbar";
 import { techniqueOf } from "@/content/technique";
-import { workoutsRepo } from "@/db/repos/workouts";
+import { exercisesRepo } from "@/db/repos/exercises";
+import { workoutsRepo, type WorkoutItem } from "@/db/repos/workouts";
 import { EXERCISE_FORMS, formatTime, plural } from "@/domain/format";
-import type { Id, Workout } from "@/domain/types";
+import type { Exercise, Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
 import { ExerciseCard } from "./ExerciseCard";
 import { StartConflictSheet } from "./StartConflictSheet";
@@ -86,6 +88,25 @@ function PlayIcon() {
 
 type Picker = { kind: "add" } | { kind: "replace"; index: number } | null;
 
+/** The last replacement while its message is on screen: «Отменить», «Запомнить замену». */
+interface Replaced {
+  before: WorkoutItem;
+  /** The plan's exercise of the slot. */
+  original: Exercise;
+  picked: Exercise;
+  /** The plan's exercise picked back. */
+  back: boolean;
+  /** Picked back, or picked «Ваша замена»: there is nothing to remember. */
+  nothingToRemember: boolean;
+  remembered: boolean;
+}
+
+function replacedMessage(r: Replaced): string {
+  if (r.remembered) return "Запомнили — в следующий раз она будет первой.";
+  if (r.back) return "Вернули упражнение из плана.";
+  return "Заменено на сегодня. План не меняется.";
+}
+
 // «До тренировки» folded: remembered for this workout (the id survives "Начать") while the app is open.
 const BEFORE_KEY = "st-before-collapsed";
 
@@ -123,6 +144,8 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   const [conflict, setConflict] = useState<Workout | null>(null);
   /** Leaving a draft with changes: where to, once confirmed. */
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  const [replaced, setReplaced] = useState<Replaced | null>(null);
+  const hideReplaced = useCallback(() => setReplaced(null), []);
   useMinuteClock();
 
   /** Draft → a stored workout in progress, with today's changes and the start time = now. */
@@ -200,6 +223,23 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   };
   const noteItem = noteFor !== null ? items[noteFor] : null;
   const techExercise = techFor !== null ? (items[techFor]?.exercise ?? null) : null;
+  const replacing = picker?.kind === "replace" ? items[picker.index] : undefined;
+
+  async function replace(index: number, exercise: Exercise) {
+    const item = items[index];
+    const planned = item.replaced ?? item.exercise;
+    // Fresh from the store: «Ваша замена» may have been set after the workout was opened.
+    const original = (await exercisesRepo.get(planned.id)) ?? planned;
+    const before = await actions.replaceExercise(index, exercise);
+    if (!before) return;
+    const back = exercise.id === original.id;
+    setReplaced({ before, original, picked: exercise, back, nothingToRemember: back || original.substitute_id === exercise.id, remembered: false });
+  }
+
+  async function remember(r: Replaced) {
+    await exercisesRepo.setSubstitute(r.original.id, r.picked.id);
+    setReplaced({ ...r, remembered: true });
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -335,7 +375,10 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
             onValue={(s, field, value) => actions.setValue(i, s, field, value)}
             onAddSet={() => actions.addSet(i)}
             onRemoveSet={() => actions.removeLastSet(i)}
-            onReplace={() => setPicker({ kind: "replace", index: i })}
+            onReplace={() => {
+              setReplaced(null);
+              setPicker({ kind: "replace", index: i });
+            }}
             onNote={() => setNoteFor(i)}
             onSkip={() => actions.setSkipped(i, !item.we.skipped)}
             onMove={(dir) => actions.move(i, dir)}
@@ -378,12 +421,17 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         open={picker !== null}
         title={picker?.kind === "replace" ? "Заменить на сегодня" : "Добавить упражнение"}
         pickLabel={picker?.kind === "replace" ? "Заменить на это" : "Добавить"}
-        disabledIds={picker?.kind === "replace" ? [items[picker.index]?.exercise.id] : undefined}
+        disabledIds={replacing ? [replacing.exercise.id] : undefined}
+        suggest={
+          replacing
+            ? { exerciseId: (replacing.replaced ?? replacing.exercise).id, excludeIds: items.map((it) => it.exercise.id), planned: !!replacing.replaced }
+            : null
+        }
         onClose={() => setPicker(null)}
         onPick={async (e) => {
           const p = picker;
           setPicker(null);
-          if (p?.kind === "replace") await actions.replaceExercise(p.index, e);
+          if (p?.kind === "replace") await replace(p.index, e);
           else await actions.addExercise(e);
         }}
       />
@@ -410,6 +458,35 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
           />
         )}
       </Sheet>
+
+      <Snackbar
+        message={replaced && replacedMessage(replaced)}
+        token={replaced?.remembered}
+        ms={replaced?.remembered ? 4000 : 8000}
+        onClose={hideReplaced}
+        actions={
+          replaced &&
+          !replaced.remembered && (
+            <>
+              <button
+                type="button"
+                className="min-h-11 rounded-xl border-[1.5px] border-line-inverse px-4 text-sm font-semibold transition-transform active:scale-[0.98]"
+                onClick={() => {
+                  actions.undoReplace(replaced.before);
+                  setReplaced(null);
+                }}
+              >
+                Отменить
+              </button>
+              {!replaced.nothingToRemember && (
+                <Button variant="accent" size="md" onClick={() => remember(replaced)}>
+                  Запомнить замену
+                </Button>
+              )}
+            </>
+          )
+        }
+      />
 
       <StartConflictSheet active={conflict} onClose={() => setConflict(null)} onFinishAndStart={finishActiveAndBegin} />
       <LeaveDraftSheet to={leaveTo} onClose={() => setLeaveTo(null)} />

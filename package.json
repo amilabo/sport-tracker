@@ -7,6 +7,7 @@
     "check:colors": "node scripts/check-colors.mjs",
     "check:contrast": "node scripts/check-contrast.mjs",
     "gen:descriptions": "node scripts/gen-descriptions.mjs",
+    "gen:substitutes": "node scripts/gen-substitutes.mjs",
     "check": "npm run check:colors && npm run check:contrast",
     "prebuild": "npm run check",
     "build": "next build && node scripts/build-pwa.mjs",

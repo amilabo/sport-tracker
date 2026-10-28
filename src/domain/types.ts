@@ -37,6 +37,8 @@ export interface Exercise extends BaseEntity {
   progression_level: number | null;
   /** «Как делать» in the person's own words — own exercises only (stage 27); catalog ones ship theirs in the app. */
   description?: string | null;
+  /** «Ваша замена»: offered first when the exercise is replaced in the gym (stage 28). Absent — none. */
+  substitute_id?: Id | null;
 }
 
 export interface Progression extends BaseEntity {

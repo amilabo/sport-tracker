@@ -1,4 +1,15 @@
+import type { Relation } from "@/content/exercise-substitutes";
 import type { Equipment, LogType, MuscleGroup } from "./types";
+
+/** First half of a substitute's line: «То же движение · гантели». */
+export const RELATION_LABELS: Record<Relation, string> = {
+  same: "То же движение",
+  angle: "Смещает акцент",
+  muscle: "Та же мышца",
+  easier: "Легче",
+  harder: "Сложнее",
+  load: "Та же нагрузка",
+};
 
 export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
   chest: "грудь",
@@ -11,6 +22,9 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
   cardio: "кардио",
   full_body: "всё тело",
 };
+
+/** After «на»: «Ещё на спину». Only «спина» changes. */
+export const MUSCLE_GROUP_ON: Record<MuscleGroup, string> = { ...MUSCLE_GROUP_LABELS, back: "спину" };
 
 export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   barbell: "штанга",
