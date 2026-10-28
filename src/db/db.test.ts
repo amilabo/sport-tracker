@@ -278,10 +278,10 @@ describe("transactions and change events", () => {
   it("notify subscribers with the written stores", async () => {
     const seen: string[][] = [];
     const off = onChange((stores) => seen.push([...stores].sort()));
-    await settingsRepo.update({ height_cm: 164 });
+    await settingsRepo.update({ height_cm: 166 });
     off();
     expect(seen).toEqual([["settings"]]);
-    expect((await settingsRepo.get()).height_cm).toBe(164);
+    expect((await settingsRepo.get()).height_cm).toBe(166);
   });
 
   it("roll back all writes when the function throws", async () => {

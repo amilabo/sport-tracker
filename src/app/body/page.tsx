@@ -5,7 +5,8 @@ import { useState } from "react";
 import { DatePickSheet } from "@/components/body/DatePickSheet";
 import { HeightSheet } from "@/components/body/HeightSheet";
 import { MeasurementSheet } from "@/components/body/MeasurementSheet";
-import { dayLabel, Delta, fullDate, sectionTitle, Sparkline, useBodyData } from "@/components/body/parts";
+import { dayLabel, Delta, fullDate, periodPoints, sectionTitle, Sparkline, useBodyData } from "@/components/body/parts";
+import { LineChart } from "@/components/charts/LineChart";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { settingsRepo } from "@/db/repos/settings";
@@ -17,6 +18,7 @@ import {
   enteredCount,
   periodDates,
   restoreBodyView,
+  shiftPeriodDate,
   type BodyPeriod,
   type BodyView,
   type CompareRow,
@@ -52,6 +54,47 @@ function Cell({ point, column, latest, strong }: { point: CompareRow["a"]; colum
   );
 }
 
+interface DateStepperProps {
+  label: string;
+  date: LocalDate | null;
+  latest: LocalDate | null;
+  strong: boolean;
+  onPick: () => void;
+  prev: LocalDate | null;
+  next: LocalDate | null;
+  onStep: (date: LocalDate) => void;
+}
+
+/** «Было» / «Стало» of «Даты»: ‹ › step to the neighbouring measurement, a tap on the date opens the list (stage 31). */
+function DateStepper({ label, date, latest, strong, onPick, prev, next, onStep }: DateStepperProps) {
+  const arrow = "flex h-11 w-10 shrink-0 items-center justify-center rounded-[10px] disabled:opacity-30";
+  return (
+    <div className={`flex flex-col rounded-[14px] border-[1.5px] px-0.5 pt-1.5 pb-0.5 ${strong ? "border-ink bg-surface-raised" : "border-line-strong bg-surface"}`}>
+      <span className="text-center text-xs text-ink-muted">{label}</span>
+      <div className="flex items-center">
+        <button type="button" onClick={() => prev && onStep(prev)} disabled={!prev} aria-label={`${label}: замер раньше`} className={arrow}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={onPick}
+          aria-label={`${label}: ${date ? fullDate(date) : "не выбрано"}, выбрать дату`}
+          className="flex h-11 min-w-0 flex-1 items-center justify-center font-mono text-[15px] font-bold whitespace-nowrap"
+        >
+          {date ? dayLabel(date, latest) : "—"}
+        </button>
+        <button type="button" onClick={() => next && onStep(next)} disabled={!next} aria-label={`${label}: замер позже`} className={arrow}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function BodyPage() {
   const data = useBodyData();
   // The switch is saved in settings (and so in a backup); this keeps the screen instant until the write lands.
@@ -80,6 +123,7 @@ export default function BodyPage() {
   const bmi = rows.find((r) => r.type.key === "bmi");
   const bmiType = types.find((t) => t.key === "bmi");
   const comp = composition(types, sessions, dates);
+  const weightPoints = weight?.b ? periodPoints(weight.series, weight.a?.date ?? null, weight.b.date) : [];
   const cap = latest ? caption(dates, latest, period) : "";
   const compared = sessions.length > 1;
 
@@ -136,22 +180,16 @@ export default function BodyPage() {
                       <path d="M5 12h14M13 6l6 6-6 6" />
                     </svg>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setPicking(side)}
-                    aria-label={`${side === "a" ? "Было" : "Стало"}: ${dates[side] ? fullDate(dates[side]!) : "не выбрано"}, выбрать дату`}
-                    className={`flex h-14 flex-col items-start justify-center gap-0.5 rounded-[14px] border-[1.5px] px-3 ${
-                      side === "a" ? "border-line-strong bg-surface" : "border-ink bg-surface-raised"
-                    }`}
-                  >
-                    <span className="text-xs text-ink-muted">{side === "a" ? "Было" : "Стало"}</span>
-                    <span className="flex items-center gap-1.5 font-mono text-[15px] font-bold">
-                      {dates[side] ? fullDate(dates[side]!) : "—"}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-ink-muted">
-                        <path d="M6 9l6 6 6-6" />
-                      </svg>
-                    </span>
-                  </button>
+                  <DateStepper
+                    label={side === "a" ? "Было" : "Стало"}
+                    date={dates[side]}
+                    latest={latest}
+                    strong={side === "b"}
+                    onPick={() => setPicking(side)}
+                    prev={shiftPeriodDate(sessions, dates, side, -1)}
+                    next={shiftPeriodDate(sessions, dates, side, 1)}
+                    onStep={(date) => saveView({ period, custom: { ...dates, [side]: date } })}
+                  />
                 </div>
               ))}
             </div>
@@ -176,10 +214,23 @@ export default function BodyPage() {
                 </span>
               )}
             </span>
-            <span className="mt-1.5">
-              <Sparkline series={weight.series} from={weight.a?.date ?? null} to={weight.b.date} width={132} height={72} tone="inverse" />
-            </span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-0.5 shrink-0 text-on-inverse-muted">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
           </Link>
+          {weightPoints.length > 1 && (
+            <LineChart
+              key={`${weightPoints[0].date}-${weightPoints.at(-1)!.date}`}
+              points={weightPoints.map((p) => ({
+                t: new Date(`${p.date}T12:00:00`).getTime(),
+                y: p.value,
+                xLabel: dayLabel(p.date, latest),
+                detail: `${fullDate(p.date)} · ${formatNumber(p.value)} кг`,
+              }))}
+              formatY={(v) => formatNumber(Math.round(v * 10) / 10)}
+              ariaLabel={`Вес с ${dayLabel(weightPoints[0].date, latest)} по ${dayLabel(weightPoints.at(-1)!.date, latest)}: от ${formatNumber(weightPoints[0].value)} до ${formatNumber(weightPoints.at(-1)!.value)} кг`}
+            />
+          )}
           <div className="flex min-h-11 items-center justify-between gap-2 border-t border-line-inverse pt-3 text-sm">
             {bmi?.b ? (
               <Link href={metricHref(bmi)} className="flex min-h-11 flex-1 items-center justify-between gap-2">
@@ -266,7 +317,7 @@ export default function BodyPage() {
                     {r.type.name}
                     {r.type.unit && <span className="ml-1 text-xs font-normal text-ink-muted">{r.type.unit}</span>}
                   </span>
-                  <Sparkline series={r.series} from={r.a?.date ?? null} to={r.b?.date ?? null} width={44} height={20} tone="paper" />
+                  <Sparkline series={r.series} from={r.a?.date ?? null} to={r.b?.date ?? null} width={44} height={20} />
                   <Cell point={r.a} column={dates.a} latest={latest} />
                   <Cell point={r.b} column={dates.b} latest={latest} strong />
                   <span className="flex justify-end">{r.a && <Delta value={r.delta} unit={r.type.unit} />}</span>

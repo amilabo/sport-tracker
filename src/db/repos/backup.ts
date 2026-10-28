@@ -132,7 +132,7 @@ export const backupRepo = {
       // «Заменить всё» with a file without settings would re-run the first-launch seed: keep this phone's.
       if (!(await store("settings").get(SETTINGS_ID)) && phoneSettings) await store("settings").put(phoneSettings);
 
-      // Height and the «Тело» switch are the user's choices, not phone settings: «Объединить» brings them
+      // Height, the «Тело» switch and the «Ритм» goal are the user's choices, not phone settings: «Объединить» brings them
       // when the phone has none (BMI needs the height).
       const fileSettings = (file.data.settings ?? []).find((s) => s.id === SETTINGS_ID);
       if (mode === "merge" && fileSettings) {
@@ -143,6 +143,7 @@ export const backupRepo = {
           patch.body_period = fileSettings.body_period;
           patch.body_custom = fileSettings.body_custom ?? null;
         }
+        if (current?.weekly_goal === undefined && fileSettings.weekly_goal !== undefined) patch.weekly_goal = fileSettings.weekly_goal;
         if (current && Object.keys(patch).length) {
           await store("settings").put({ ...current, ...patch, updated_at: nowIso() });
           result.updated++;

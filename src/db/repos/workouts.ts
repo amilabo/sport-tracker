@@ -384,6 +384,11 @@ export const workoutsRepo = {
     return { count: done.length, last: done.reduce<IsoDateTime | null>((acc, w) => (!acc || w.started_at > acc ? w.started_at : acc), null) };
   },
 
+  /** Finished and finished-automatically workouts, for «Ритм» (demo ones too). */
+  async listCompleted(): Promise<Workout[]> {
+    return (await (await getDb()).getAll("workouts")).filter((w) => COMPLETED.has(w.status));
+  },
+
   async lastStartedByPlan(): Promise<Map<Id, IsoDateTime>> {
     const all = await (await getDb()).getAll("workouts");
     const last = new Map<Id, IsoDateTime>();

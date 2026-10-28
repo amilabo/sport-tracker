@@ -12,12 +12,12 @@ const WAIST = measurementTypeSeedId("waist");
 
 describe("measurementsRepo sessions", () => {
   it("saves, edits (emptied field removes the value), moves and deletes a date", async () => {
-    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 68.5], [WAIST, 72.5]]));
-    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 68.4], [WAIST, null]]));
+    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 64.5], [WAIST, 71.5]]));
+    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 64.4], [WAIST, null]]));
     let all = await measurementsRepo.list();
-    expect(all.map((m) => [m.date, m.value])).toEqual([["2026-09-29", 68.4]]);
+    expect(all.map((m) => [m.date, m.value])).toEqual([["2026-09-29", 64.4]]);
 
-    await measurementsRepo.saveSession("2026-09-28", new Map([[W, 68.4]]), "2026-09-29");
+    await measurementsRepo.saveSession("2026-09-28", new Map([[W, 64.4]]), "2026-09-29");
     all = await measurementsRepo.list();
     expect(all.map((m) => m.date)).toEqual(["2026-09-28"]);
 
@@ -28,8 +28,8 @@ describe("measurementsRepo sessions", () => {
   it("refuses an empty session, a future date and moving onto a taken date", async () => {
     await expect(measurementsRepo.saveSession("2026-09-29", new Map([[W, null]]))).rejects.toThrow("хотя бы одно");
     await expect(measurementsRepo.saveSession("2999-01-01", new Map([[W, 70]]))).rejects.toThrow("в будущем");
-    await measurementsRepo.saveSession("2026-09-08", new Map([[W, 68.9]]));
-    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 68.5]]));
+    await measurementsRepo.saveSession("2026-09-08", new Map([[W, 64.9]]));
+    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 64.5]]));
     await expect(measurementsRepo.saveSession("2026-09-08", new Map([[W, 70]]), "2026-09-29")).rejects.toThrow("уже есть замер");
   });
 });

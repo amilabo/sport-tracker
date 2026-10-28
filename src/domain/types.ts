@@ -147,6 +147,8 @@ export interface Settings extends BaseEntity {
   body_period?: string;
   /** The two dates of «Даты»; kept while another period is chosen, so switching back restores them. */
   body_custom?: { a: LocalDate | null; b: LocalDate | null } | null;
+  /** «Ритм», workouts a week (1–6). Absent — never asked; null — «Не сейчас» or the goal was removed (stage 32). */
+  weekly_goal?: number | null;
 }
 
 export const SETTINGS_ID = "app";

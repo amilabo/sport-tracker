@@ -10,7 +10,7 @@ export interface LinePoint {
   label?: string | null;
   /** Date under the dot ("07.10"). */
   xLabel: string;
-  /** Shown in a callout when the dot is tapped ("16.10.2026 · 68,5 кг"). */
+  /** Shown in a callout when the dot is tapped ("16.10.2026 · 64,5 кг"). */
   detail?: string;
 }
 

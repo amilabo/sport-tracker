@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { groupSessions } from "./body";
-import { compareGroups, compareType, composition, minusMonths, periodDates, restoreBodyView } from "./body-compare";
+import { compareGroups, compareType, composition, minusMonths, periodDates, restoreBodyView, shiftPeriodDate } from "./body-compare";
 import type { Measurement, MeasurementType } from "./types";
 
 const type = (id: string, key: string | null, unit: string, computed: MeasurementType["computed"] = null, base: string | null = null) =>
@@ -19,11 +19,11 @@ const m = (date: string, typeId: string, value: number) => ({ date, measurement_
 
 // Like the club history: scales on most dates, the tape only on some.
 const sessions = groupSessions([
-  m("2026-05-12", "w", 69.1), m("2026-05-12", "fat", 21), m("2026-05-12", "mus", 26.6),
-  m("2026-06-16", "w", 68.9), m("2026-06-16", "fat", 20.5), m("2026-06-16", "mus", 26.7),
-  m("2026-07-21", "w", 69.5), m("2026-07-21", "waist", 74),
-  m("2026-09-08", "w", 68.9), m("2026-09-08", "fat", 19.3), m("2026-09-08", "mus", 27.4),
-  m("2026-09-29", "w", 68.5), m("2026-09-29", "fat", 20.1), m("2026-09-29", "mus", 26.7), m("2026-09-29", "waist", 72.5),
+  m("2026-05-12", "w", 64.9), m("2026-05-12", "fat", 19.2), m("2026-05-12", "mus", 24.1),
+  m("2026-06-16", "w", 64.6), m("2026-06-16", "fat", 18.8), m("2026-06-16", "mus", 24.2),
+  m("2026-07-21", "w", 65), m("2026-07-21", "waist", 73),
+  m("2026-09-08", "w", 64.2), m("2026-09-08", "fat", 18.1), m("2026-09-08", "mus", 24.6),
+  m("2026-09-29", "w", 64), m("2026-09-29", "fat", 18.5), m("2026-09-29", "mus", 24.3), m("2026-09-29", "waist", 71.5),
 ]);
 
 describe("minusMonths", () => {
@@ -59,6 +59,28 @@ describe("periodDates", () => {
   });
 });
 
+describe("shiftPeriodDate", () => {
+  const dates = { a: "2026-06-16", b: "2026-09-08" };
+  it("moves «было» and «стало» to the neighbouring session", () => {
+    expect(shiftPeriodDate(sessions, dates, "a", -1)).toBe("2026-05-12");
+    expect(shiftPeriodDate(sessions, dates, "a", 1)).toBe("2026-07-21");
+    expect(shiftPeriodDate(sessions, dates, "b", 1)).toBe("2026-09-29");
+    expect(shiftPeriodDate(sessions, dates, "b", -1)).toBe("2026-07-21");
+  });
+
+  it("stops at the edges of the history and where «было» would reach «стало»", () => {
+    expect(shiftPeriodDate(sessions, { a: "2026-05-12", b: "2026-09-29" }, "a", -1)).toBeNull();
+    expect(shiftPeriodDate(sessions, { a: "2026-05-12", b: "2026-09-29" }, "b", 1)).toBeNull();
+    expect(shiftPeriodDate(sessions, { a: "2026-07-21", b: "2026-09-08" }, "a", 1)).toBeNull();
+    expect(shiftPeriodDate(sessions, { a: "2026-07-21", b: "2026-09-08" }, "b", -1)).toBeNull();
+  });
+
+  it("without «было» › takes the first session", () => {
+    expect(shiftPeriodDate(sessions, { a: null, b: "2026-09-08" }, "a", 1)).toBe("2026-05-12");
+    expect(shiftPeriodDate(sessions, { a: null, b: "2026-09-08" }, "a", -1)).toBeNull();
+  });
+});
+
 describe("restoreBodyView", () => {
   it("keeps a saved period and the «Даты» pair while their sessions exist", () => {
     expect(restoreBodyView(sessions, "3m", null)).toEqual({ period: "3m", custom: null });
@@ -79,40 +101,40 @@ describe("restoreBodyView", () => {
 
 describe("compareType", () => {
   it("weight between the period dates", () => {
-    const r = compareType(W, sessions, TYPES, 164, periodDates(sessions, "all"));
-    expect(r.a).toMatchObject({ value: 69.1, date: "2026-05-12" });
-    expect(r.b).toMatchObject({ value: 68.5, date: "2026-09-29" });
-    expect(r.delta).toBe(-0.6);
+    const r = compareType(W, sessions, TYPES, 166, periodDates(sessions, "all"));
+    expect(r.a).toMatchObject({ value: 64.9, date: "2026-05-12" });
+    expect(r.b).toMatchObject({ value: 64, date: "2026-09-29" });
+    expect(r.delta).toBe(-0.9);
     expect(r.series).toHaveLength(5);
   });
 
   it("a type measured later than «было» starts from its first value", () => {
-    const r = compareType(WAIST, sessions, TYPES, 164, periodDates(sessions, "all"));
-    expect(r.a).toMatchObject({ value: 74, date: "2026-07-21" });
+    const r = compareType(WAIST, sessions, TYPES, 166, periodDates(sessions, "all"));
+    expect(r.a).toMatchObject({ value: 73, date: "2026-07-21" });
     expect(r.delta).toBe(-1.5);
   });
 
   it("a type missing on «стало» takes its last value before it", () => {
-    const r = compareType(FAT, sessions, TYPES, 164, { a: "2026-05-12", b: "2026-07-21" });
-    expect(r.b).toMatchObject({ value: 20.5, date: "2026-06-16" });
-    expect(r.delta).toBe(-0.5);
+    const r = compareType(FAT, sessions, TYPES, 166, { a: "2026-05-12", b: "2026-07-21" });
+    expect(r.b).toMatchObject({ value: 18.8, date: "2026-06-16" });
+    expect(r.delta).toBe(-0.4);
   });
 
   it("no change when both sides fall on the same value", () => {
-    const r = compareType(WAIST, sessions, TYPES, 164, { a: "2026-07-21", b: "2026-09-08" });
+    const r = compareType(WAIST, sessions, TYPES, 166, { a: "2026-07-21", b: "2026-09-08" });
     expect(r.a).toBeNull();
     expect(r.delta).toBeNull();
   });
 
   it("BMI is computed and marked so; none without height", () => {
-    expect(compareType(BMI, sessions, TYPES, 164, periodDates(sessions, "last")).b).toEqual({ value: 25.5, date: "2026-09-29", computed: true });
+    expect(compareType(BMI, sessions, TYPES, 166, periodDates(sessions, "last")).b).toEqual({ value: 23.2, date: "2026-09-29", computed: true });
     expect(compareType(BMI, sessions, TYPES, null, periodDates(sessions, "last")).b).toBeNull();
   });
 });
 
 describe("compareGroups", () => {
   it("built-in groups in screen order, only types that have values", () => {
-    const groups = compareGroups(TYPES, sessions, 164, periodDates(sessions, "last"));
+    const groups = compareGroups(TYPES, sessions, 166, periodDates(sessions, "last"));
     expect(groups.map((g) => [g.title, g.rows.map((r) => r.type.id)])).toEqual([
       ["Масса", ["w", "bmi"]],
       ["Состав", ["fat", "fatp", "mus"]],
@@ -124,11 +146,11 @@ describe("compareGroups", () => {
 describe("composition", () => {
   it("weight = fat + muscle + the rest, with changes in kg", () => {
     const c = composition(TYPES, sessions, periodDates(sessions, "last"))!;
-    expect(c.weight).toBe(68.5);
+    expect(c.weight).toBe(64);
     expect(c.parts.map((p) => [p.key, p.kg, Math.round(p.pct * 10) / 10, p.delta])).toEqual([
-      ["fat", 20.1, 29.3, 0.8],
-      ["muscle", 26.7, 39, -0.7],
-      ["rest", 21.7, 31.7, -0.5],
+      ["fat", 18.5, 28.9, 0.4],
+      ["muscle", 24.3, 38, -0.3],
+      ["rest", 21.2, 33.1, -0.3],
     ]);
   });
 

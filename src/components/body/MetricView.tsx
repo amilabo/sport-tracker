@@ -2,11 +2,14 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { HistoryStrip } from "@/components/charts/HistoryStrip";
 import { LineChart } from "@/components/charts/LineChart";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { shortDate, valueOf, type BodySession } from "@/domain/body";
-import { compareType, minusMonths, periodDates, type BodyPeriod } from "@/domain/body-compare";
+import { compareType, periodDates, type BodyPeriod } from "@/domain/body-compare";
+import { moveEdge, presetWindow, stepEdge, windowOf, type ChartWindow } from "@/domain/chart-window";
 import { formatNumber } from "@/domain/format";
+import type { LocalDate } from "@/domain/types";
 import { HeightSheet } from "./HeightSheet";
 import { MeasurementSheet } from "./MeasurementSheet";
 import { dayLabel, Delta, fullDate, sectionTitle, useBodyData } from "./parts";
@@ -18,11 +21,36 @@ const SPANS: { id: Span; label: string; months: number | null }[] = [
   { id: "all", label: "Всё", months: null },
 ];
 
-/** One measurement type (PRD §3.10, mockup 7Г): totals, chart and every value by date. */
+/** «С ‹ 13.07 ›» on the dark card: moves one edge of the chart's window by one measurement. */
+function EdgeStepper({ label, date, onPrev, onNext, name }: { label: string; date: string; onPrev: (() => void) | null; onNext: (() => void) | null; name: string }) {
+  const arrow = "flex h-11 w-10 shrink-0 items-center justify-center rounded-[10px] disabled:opacity-30";
+  return (
+    <div className="flex items-center rounded-[14px] border-[1.5px] border-line-inverse pl-3">
+      <span className="text-xs text-on-inverse-muted">{label}</span>
+      <button type="button" onClick={onPrev ?? undefined} disabled={!onPrev} aria-label={`${name}: замер раньше`} className={`${arrow} ml-auto`}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M15 6l-6 6 6 6" />
+        </svg>
+      </button>
+      <span className="font-mono text-[15px] font-bold whitespace-nowrap">{date}</span>
+      <button type="button" onClick={onNext ?? undefined} disabled={!onNext} aria-label={`${name}: замер позже`} className={arrow}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * One measurement type (PRD §3.10, mockup 7Г): totals, chart and every value by date.
+ * Stage 31 (mockup 31): the chart shows a window of the history — «3 мес / Год / Всё», ‹ › on its edges, or dragging on the strip.
+ */
 export function MetricView() {
   const id = useSearchParams().get("type");
   const data = useBodyData();
-  const [span, setSpan] = useState<Span>("all");
+  // The window as dates of its edges, so a new measurement does not shift it; per type.
+  const [win, setWin] = useState<{ type: string; from: LocalDate; to: LocalDate } | null>(null);
   const [editing, setEditing] = useState<BodySession | null>(null);
   const [heightOpen, setHeightOpen] = useState(false);
 
@@ -44,10 +72,17 @@ export function MetricView() {
   const last = series.at(-1) ?? null;
   const label = (p: BodyPeriod, a: string | undefined) => (p === "3m" ? "за 3 мес." : a ? `${p === "last" ? "к" : "с"} ${dayLabel(a, last?.date ?? null)}` : p === "last" ? "к прошлому" : "с начала");
 
-  const months = SPANS.find((s) => s.id === span)!.months;
-  const edge = months && last ? minusMonths(last.date, months) : null;
-  const shown = edge ? series.filter((p) => p.date >= edge) : series;
+  const dates = series.map((p) => p.date);
+  const w = win && win.type === type.id ? windowOf(dates, win.from, win.to) : presetWindow(dates, null);
+  const shown = series.slice(w.a, w.b + 1);
   const values = shown.map((p) => p.value);
+  const setWindow = (next: ChartWindow | null) => next && setWin({ type: type.id, from: dates[next.a], to: dates[next.b] });
+  // Equal windows (a short history): the widest one is marked.
+  const span = [...SPANS].reverse().find((s) => {
+    const p = presetWindow(dates, s.months);
+    return p.a === w.a && p.b === w.b;
+  })?.id;
+  const day = (i: number) => dayLabel(dates[i], last?.date ?? null);
 
   // Newest first, each with the change against the type's previous value.
   const history = [...series].reverse().map((p, i, list) => {
@@ -104,7 +139,7 @@ export function MetricView() {
                     type="button"
                     role="radio"
                     aria-checked={span === s.id}
-                    onClick={() => setSpan(s.id)}
+                    onClick={() => setWindow(presetWindow(dates, s.months))}
                     className={`h-11 min-w-12 rounded-[10px] border-[1.5px] border-line-inverse px-2.5 text-[13px] font-semibold ${
                       span === s.id ? "bg-on-inverse text-surface-inverse" : "text-on-inverse-muted"
                     }`}
@@ -115,7 +150,7 @@ export function MetricView() {
               </span>
             </div>
             <LineChart
-              key={`${type.id}-${span}`}
+              key={`${type.id}-${w.a}-${w.b}`}
               points={shown.map((p) => ({
                 t: new Date(`${p.date}T12:00:00`).getTime(),
                 y: p.value,
@@ -123,8 +158,36 @@ export function MetricView() {
                 detail: `${fullDate(p.date)} · ${formatNumber(p.value)}${unit}`,
               }))}
               formatY={(v) => formatNumber(v)}
-              ariaLabel={`График: ${type.name} по датам`}
+              ariaLabel={`График: ${type.name} с ${day(w.a)} по ${day(w.b)}`}
             />
+            {series.length > 1 && (
+              <div className="flex flex-col gap-2.5 border-t border-line-inverse pt-3">
+                <span className="text-xs text-on-inverse-muted">
+                  Вся история · {day(0)} — {day(series.length - 1)}
+                </span>
+                <HistoryStrip
+                  points={series.map((p) => ({ t: new Date(`${p.date}T12:00:00`).getTime(), y: p.value }))}
+                  win={w}
+                  onMove={(edge, index) => setWindow(moveEdge(w, edge, index, series.length))}
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <EdgeStepper
+                    label="С"
+                    name="Начало графика"
+                    date={day(w.a)}
+                    onPrev={stepEdge(w, "a", -1, series.length) ? () => setWindow(stepEdge(w, "a", -1, series.length)) : null}
+                    onNext={stepEdge(w, "a", 1, series.length) ? () => setWindow(stepEdge(w, "a", 1, series.length)) : null}
+                  />
+                  <EdgeStepper
+                    label="По"
+                    name="Конец графика"
+                    date={day(w.b)}
+                    onPrev={stepEdge(w, "b", -1, series.length) ? () => setWindow(stepEdge(w, "b", -1, series.length)) : null}
+                    onNext={stepEdge(w, "b", 1, series.length) ? () => setWindow(stepEdge(w, "b", 1, series.length)) : null}
+                  />
+                </div>
+              </div>
+            )}
           </section>
 
           <h2 className={`${sectionTitle} px-5 pt-1.5`}>По датам</h2>

@@ -31,7 +31,7 @@ export function HeightSheet({ open, onClose, current }: { open: boolean; onClose
       }
     >
       <div className="flex flex-col gap-3">
-        <Field label="Рост, см" inputMode="numeric" value={text} onChange={(e) => (setText(e.target.value), setError(null))} placeholder="164" />
+        <Field label="Рост, см" inputMode="numeric" value={text} onChange={(e) => (setText(e.target.value), setError(null))} placeholder="170" />
         <p className="text-[13px] leading-snug text-ink-muted">Нужен, чтобы считать ИМТ по весу. ИМТ пересчитается для всех замеров.</p>
         <FormError message={error} />
       </div>

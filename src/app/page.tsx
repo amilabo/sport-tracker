@@ -5,19 +5,22 @@ import { useState } from "react";
 import { BackupReminder } from "@/components/home/BackupReminder";
 import { InstallHint } from "@/components/home/InstallHint";
 import { SavedWorkout } from "@/components/home/SavedWorkout";
+import { GoalCard, WeekStrip } from "@/components/rhythm/Rhythm";
 import { TodayLabel } from "@/components/TodayLabel";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
 import { useLive } from "@/db/hooks";
 import { plansRepo } from "@/db/repos/plans";
+import { settingsRepo } from "@/db/repos/settings";
 import { workoutsRepo } from "@/db/repos/workouts";
-import { EXERCISE_FORMS, formatShortDate, formatTime, plural } from "@/domain/format";
+import { EXERCISE_FORMS, formatHeaderDate, formatShortDate, formatTime, plural } from "@/domain/format";
 import { pickNextPlan } from "@/domain/next-plan";
 import { planChanges } from "@/domain/plan-diff";
 import { PlanUpdateList } from "@/components/workout/PlanUpdateList";
 import type { Plan, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
+import { currentWeek, doneByDay } from "@/domain/rhythm";
 
 interface PlanRow {
   plan: Plan;
@@ -134,11 +137,13 @@ export default function HomePage() {
 
   const { data } = useLive(
     async () => {
-      const [plans, counts, last, activeWorkout] = await Promise.all([
+      const [plans, counts, last, activeWorkout, settings, completed] = await Promise.all([
         plansRepo.list(),
         plansRepo.exerciseCounts(),
         workoutsRepo.lastStartedByPlan(),
         workoutsRepo.getActive(),
+        settingsRepo.get(),
+        workoutsRepo.listCompleted(),
       ]);
       const rows: PlanRow[] = plans.map((plan) => ({ plan, count: counts.get(plan.id) ?? 0, last: last.get(plan.id) ?? null }));
       const next = pickNextPlan(plans, last);
@@ -147,14 +152,19 @@ export default function HomePage() {
         const full = await workoutsRepo.getFull(activeWorkout.id);
         if (full) active = { workout: full.workout, title: full.plan?.name ?? "Без плана", ...progress(full.items) };
       }
+      // «Ритм» (stage 32): with a goal the week replaces the date line; not asked yet — after the first workout, ask.
+      const goal = settings.weekly_goal;
+      const now = new Date();
       return {
         active,
         next: rows.find((r) => r.plan.id === next?.id) ?? null,
         others: rows.filter((r) => r.plan.id !== next?.id),
+        rhythm: typeof goal === "number" ? { goal, today: formatHeaderDate(now).replace(" · ", ", "), ...currentWeek(doneByDay(completed), now) } : null,
+        askGoal: goal === undefined && completed.length > 0,
       };
     },
     [],
-    ["plans", "plan_exercises", "workouts", "workout_exercises", "workout_sets"],
+    ["plans", "plan_exercises", "workouts", "workout_exercises", "workout_sets", "settings"],
   );
 
   // «Обновить веса в плане?» for a workout finished without the finish screen (PRD §3.13).
@@ -190,8 +200,17 @@ export default function HomePage() {
   return (
     <div className="flex flex-1 flex-col gap-5 px-5 pb-5">
       <div className="-mx-5">
-        <PageHeader title="Тренировки" eyebrow={<TodayLabel />} />
+        {data?.rhythm ? (
+          <header className="flex flex-col gap-2 px-5 pt-[22px]">
+            <WeekStrip days={data.rhythm.days} count={data.rhythm.count} goal={data.rhythm.goal} today={data.rhythm.today} />
+            <h1 className="m-0 font-display text-[34px] leading-none font-extrabold tracking-[-0.02em]">Тренировки</h1>
+          </header>
+        ) : (
+          <PageHeader title="Тренировки" eyebrow={<TodayLabel />} />
+        )}
       </div>
+
+      {data?.askGoal && <GoalCard />}
 
       <SavedWorkout />
       <InstallHint />

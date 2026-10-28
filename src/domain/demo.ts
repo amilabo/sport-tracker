@@ -127,13 +127,13 @@ export function buildDemo(plans: DemoPlan[], types: MeasurementType[], now: Date
     }
   }
 
-  // Four weekly measurements, slowly changing.
+  // Four weekly measurements, slowly changing: a made-up average woman (~166 cm, ~29% fat), not anyone's real data.
   const series: Record<string, number[]> = {
-    weight: [70.2, 69.9, 69.5, 69.4],
-    fat_kg: [21.0, 20.7, 20.4, 20.2],
-    muscle_kg: [26.8, 26.9, 27.1, 27.2],
-    waist: [76, 75.5, 75, 74.5],
-    hips: [101, 100.5, 100.5, 100],
+    weight: [64.6, 64.3, 64.1, 63.8],
+    fat_kg: [18.9, 18.7, 18.4, 18.2],
+    muscle_kg: [24.1, 24.2, 24.3, 24.5],
+    waist: [73, 72.5, 72.5, 72],
+    hips: [99, 98.5, 98.5, 98],
   };
   for (let week = 0; week < WEEKS; week++) {
     const d = new Date(start);

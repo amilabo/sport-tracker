@@ -70,7 +70,7 @@ describe("backupRepo", () => {
     const own = await measurementsRepo.createType({ name: "Плечо", unit: "см" });
     const types = await measurementsRepo.listTypes();
     const weight = types.find((t) => t.key === "weight")!;
-    await measurementsRepo.saveSession("2026-10-05", new Map([[weight.id, 69.4], [own.id, 31]]));
+    await measurementsRepo.saveSession("2026-10-05", new Map([[weight.id, 64.2], [own.id, 31]]));
     const variant = await exercisesRepo.create({
       name: "Гравитрон узким хватом",
       muscle_group: "back",
@@ -79,7 +79,7 @@ describe("backupRepo", () => {
       description: "Хват уже плеч.\nВажно: локти вдоль корпуса.",
     });
     await progressionsRepo.link(exerciseSeedId("assisted_pull_ups"), variant.id, "harder", "Подтягивания");
-    await settingsRepo.update({ height_cm: 164, body_period: "custom", body_custom: { a: null, b: "2026-10-05" } });
+    await settingsRepo.update({ height_cm: 166, body_period: "custom", body_custom: { a: null, b: "2026-10-05" } });
     const before = await backupRepo.exportAll();
     for (const name of STORE_NAMES) expect(before.data[name]?.length, `${name} has records`).toBeGreaterThan(0);
 
@@ -95,7 +95,7 @@ describe("backupRepo", () => {
       }
       expect((await exercisesRepo.get(variant.id))?.description, `${mode}: own description`).toBe("Хват уже плеч.\nВажно: локти вдоль корпуса.");
       const settings = await settingsRepo.get();
-      expect(settings.height_cm, `${mode}: height`).toBe(164);
+      expect(settings.height_cm, `${mode}: height`).toBe(166);
       expect([settings.body_period, settings.body_custom], `${mode}: «Тело» switch`).toEqual(["custom", { a: null, b: "2026-10-05" }]);
     }
   });
@@ -104,11 +104,22 @@ describe("backupRepo", () => {
     await settingsRepo.update({ height_cm: 170, body_period: "all" });
     const file = roundTrip({
       app: "sport-tracker", format: 1, schema_version: 1, exported_at: "",
-      data: { settings: [{ ...(await settingsRepo.get()), height_cm: 164, body_period: "3m" }] },
+      data: { settings: [{ ...(await settingsRepo.get()), height_cm: 166, body_period: "3m" }] },
     });
     await backupRepo.import(file, "merge");
     const settings = await settingsRepo.get();
     expect([settings.height_cm, settings.body_period]).toEqual([170, "all"]);
+  });
+
+  it("«Ритм»: «Объединить» brings the goal only when the phone was never asked; «Заменить всё» takes the file's", async () => {
+    const file = async (goal: number | null) =>
+      roundTrip({ app: "sport-tracker", format: 1, schema_version: 1, exported_at: "", data: { settings: [{ ...(await settingsRepo.get()), weekly_goal: goal }] } });
+    await backupRepo.import(await file(3), "merge");
+    expect((await settingsRepo.get()).weekly_goal).toBe(3);
+    await backupRepo.import(await file(5), "merge");
+    expect((await settingsRepo.get()).weekly_goal).toBe(3);
+    await backupRepo.import(await file(null), "replace");
+    expect((await settingsRepo.get()).weekly_goal).toBeNull();
   });
 
   it("«Объединить» adds missing workouts and keeps the newer version of shared records", async () => {
@@ -143,14 +154,14 @@ describe("backupRepo", () => {
     });
     const file = roundTrip({
       app: "sport-tracker", format: 1, schema_version: 1, exported_at: "",
-      data: { measurements: [m("weight", 70.6), m("fat_kg", 20.9), m("waist", 74, "2000-01-01T00:00:00.000Z")] },
+      data: { measurements: [m("weight", 64.6), m("fat_kg", 18.9), m("waist", 74, "2000-01-01T00:00:00.000Z")] },
     });
 
     const r = await backupRepo.import(file, "merge");
     expect([r.added, r.updated, r.kept]).toEqual([1, 1, 1]);
     const day = (await measurementsRepo.list()).filter((x) => x.date === "2026-09-01");
     const byKey = Object.fromEntries(types.filter((t) => day.some((x) => x.measurement_type_id === t.id)).map((t) => [t.key, day.filter((x) => x.measurement_type_id === t.id).map((x) => x.value)]));
-    expect(byKey).toEqual({ weight: [70.6], fat_kg: [20.9], waist: [75] });
+    expect(byKey).toEqual({ weight: [64.6], fat_kg: [18.9], waist: [75] });
   });
 
   it("renames an imported exercise whose name is taken by another exercise on the phone", async () => {
@@ -207,7 +218,7 @@ describe("backupRepo", () => {
     await finishedWorkout();
     await exercisesRepo.create({ name: "Прыжки на тумбу", muscle_group: "full_body", equipment: "bodyweight", log_type: "reps" });
     const { settingsRepo } = await import("./repos/settings");
-    await settingsRepo.update({ theme_mode: "dark", height_cm: 164, last_export_at: "2026-10-10T10:00:00.000Z" });
+    await settingsRepo.update({ theme_mode: "dark", height_cm: 166, last_export_at: "2026-10-10T10:00:00.000Z", weekly_goal: 2 });
 
     await backupRepo.wipe();
     const db = await getDb();
@@ -217,5 +228,6 @@ describe("backupRepo", () => {
     expect(await db.count("plans")).toBe(2);
     const settings = await settingsRepo.get();
     expect([settings.theme_mode, settings.height_cm, settings.last_export_at]).toEqual(["dark", null, null]);
+    expect(settings.weekly_goal).toBeUndefined();
   });
 });

@@ -52,54 +52,42 @@ export function Delta({ value, unit, size = 13, className = "" }: { value: numbe
 
 const time = (date: LocalDate) => new Date(`${date}T12:00:00`).getTime();
 
+/** The values from … to (all up to `to` when there is no «было»): the compared stretch only. */
+export function periodPoints(series: SeriesPoint[], from: LocalDate | null, to: LocalDate | null): SeriesPoint[] {
+  return series.filter((p) => (!from || p.date >= from) && (!to || p.date <= to)).slice(from ? 0 : -1);
+}
+
 /**
- * A tiny line of all values with the compared stretch (from … to) in the accent.
- * `tone` — the surface under it: paper (lines of the accent-line shade) or a dark panel (chart tokens).
+ * A tiny line of the compared stretch only, scaled to its own values (stage 31, mockup 30):
+ * a small change over a short period is as visible as over the whole history.
  */
-export function Sparkline({
-  series,
-  from,
-  to,
-  width,
-  height,
-  tone,
-}: {
-  series: SeriesPoint[];
-  from: LocalDate | null;
-  to: LocalDate | null;
-  width: number;
-  height: number;
-  tone: "paper" | "inverse";
-}) {
-  if (!series.length) return <svg width={width} height={height} aria-hidden="true" />;
-  const pad = tone === "inverse" ? 6 : 2.5;
-  const ys = series.map((p) => p.value);
+export function Sparkline({ series, from, to, width, height }: { series: SeriesPoint[]; from: LocalDate | null; to: LocalDate | null; width: number; height: number }) {
+  const part = periodPoints(series, from, to);
+  if (!part.length) return <svg width={width} height={height} aria-hidden="true" />;
+  const pad = 2.5;
+  const ys = part.map((p) => p.value);
   const min = Math.min(...ys);
-  const span = Math.max(...ys) - min || 1;
-  const t0 = time(series[0].date);
-  const t1 = time(series.at(-1)!.date);
-  const pts = series.map((p) => ({
-    date: p.date,
+  const span = Math.max(...ys) - min;
+  const t0 = time(part[0].date);
+  const t1 = time(part.at(-1)!.date);
+  const pts = part.map((p) => ({
     x: t1 === t0 ? width / 2 : pad + ((time(p.date) - t0) / (t1 - t0)) * (width - 2 * pad),
-    y: series.length === 1 ? height / 2 : height - pad - ((p.value - min) / span) * (height - 2 * pad),
+    y: span === 0 ? height / 2 : height - pad - ((p.value - min) / span) * (height - 2 * pad),
   }));
-  const line = (list: typeof pts) => list.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const part = pts.filter((p) => (!from || p.date >= from) && (!to || p.date <= to));
-  const end = part.at(-1) ?? pts.at(-1)!;
-  const start = from ? part[0] : null;
-  const base = tone === "inverse" ? "stroke-line-inverse" : "stroke-line-strong";
-  const accent = tone === "inverse" ? "stroke-chart-line" : "stroke-accent-line";
-  const dot = tone === "inverse" ? "fill-chart-line" : "fill-accent-line";
+  const end = pts.at(-1)!;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" className="shrink-0 overflow-visible">
-      <polyline points={line(pts)} fill="none" className={base} strokeWidth={tone === "inverse" ? 2 : 1.5} strokeLinejoin="round" strokeLinecap="round" />
-      {part.length > 1 && (
-        <polyline points={line(part)} fill="none" className={accent} strokeWidth={tone === "inverse" ? 3 : 2} strokeLinejoin="round" strokeLinecap="round" />
+      {pts.length > 1 && (
+        <polyline
+          points={pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}
+          fill="none"
+          className="stroke-accent-line"
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
       )}
-      {tone === "inverse" && start && start !== end && (
-        <circle cx={start.x} cy={start.y} r="3.5" className="fill-surface-inverse stroke-chart-line" strokeWidth="2" />
-      )}
-      <circle cx={end.x} cy={end.y} r={tone === "inverse" ? 4.5 : 2.5} className={dot} />
+      <circle cx={end.x} cy={end.y} r={2.5} className="fill-accent-line" />
     </svg>
   );
 }

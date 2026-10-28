@@ -47,7 +47,7 @@ function AccentPreview() {
           <span className="flex flex-col gap-1">
             <span className="text-xs text-on-inverse-muted">Вес</span>
             <span className="font-display text-[28px] leading-none font-extrabold">
-              68,5<span className="ml-1 font-sans text-[13px] font-semibold">кг</span>
+              64,5<span className="ml-1 font-sans text-[13px] font-semibold">кг</span>
             </span>
           </span>
           <svg width="140" height="48" viewBox="0 0 140 48" className="text-chart-line">

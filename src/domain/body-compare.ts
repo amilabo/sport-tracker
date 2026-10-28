@@ -47,6 +47,21 @@ export function periodDates(sessions: BodySession[], period: BodyPeriod, custom?
   return { a: older[0].date, b };
 }
 
+/**
+ * «Даты»: ‹ › move «было» or «стало» to the neighbouring session, one earlier (−1) or later (+1).
+ * null at the edge of the history or when «было» would not stay earlier than «стало».
+ * Without «было» (nothing to compare with) › takes the first session.
+ */
+export function shiftPeriodDate(sessions: BodySession[], dates: PeriodDates, side: "a" | "b", dir: -1 | 1): LocalDate | null {
+  const asc = sessions.map((s) => s.date).reverse();
+  const cur = dates[side];
+  const next = cur === null ? (dir === 1 ? asc[0] : undefined) : asc[asc.indexOf(cur) + dir];
+  if (!next) return null;
+  if (side === "a" && dates.b !== null && next >= dates.b) return null;
+  if (side === "b" && dates.a !== null && next <= dates.a) return null;
+  return next;
+}
+
 export interface BodyView {
   period: BodyPeriod;
   /** null — «Даты» starts from the pair «Прошлый» shows. */
