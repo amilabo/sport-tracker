@@ -34,7 +34,8 @@ export function parseBackup(text: string): BackupFile {
     throw new DomainError("Это не файл копии: не получается прочитать содержимое");
   }
   if (!isObject(raw) || raw.app !== BACKUP_APP || !isObject(raw.data)) {
-    throw new DomainError("Это не файл копии «Спорт трекера»");
+    // Old copies stay valid after the rename: the check is by BACKUP_APP, not by the visible name.
+    throw new DomainError("Это не файл копии приложения «На подходе»");
   }
   if (typeof raw.format !== "number" || raw.format > BACKUP_FORMAT) {
     throw new DomainError("Файл сделан в более новой версии приложения. Обновите приложение и попробуйте снова");

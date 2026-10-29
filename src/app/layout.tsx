@@ -15,7 +15,7 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin", "cyrillic"], variable: "--
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 export const metadata: Metadata = {
-  title: "Спорт трекер",
+  title: "На подходе",
   description: "Личный дневник тренировок и замеров. Данные хранятся только на телефоне.",
   // Written by scripts/build-pwa.mjs after `next build` (absent in `npm run dev`).
   manifest: `${base}/manifest.webmanifest`,
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     icon: [{ url: `${base}/icons/favicon-32.png`, sizes: "32x32", type: "image/png" }],
     apple: [{ url: `${base}/icons/apple-touch-icon.png`, sizes: "180x180" }],
   },
-  appleWebApp: { capable: true, title: "Спорт трекер", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "На подходе", statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 

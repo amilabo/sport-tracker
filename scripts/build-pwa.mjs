@@ -18,8 +18,8 @@ const token = (name) => {
 };
 
 const manifest = {
-  name: "Спорт трекер",
-  short_name: "Спорт трекер",
+  name: "На подходе",
+  short_name: "На подходе",
   description: "Личный дневник тренировок и замеров. Данные хранятся только на телефоне.",
   lang: "ru",
   id: `${base}/`,
