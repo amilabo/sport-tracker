@@ -16,6 +16,8 @@ export interface EditorRow {
   error: string | null;
   /** Own rest between sets; null — the plan's. */
   rest: number | null;
+  /** Circuit group (stage 36); null — none. */
+  circuit_id: string | null;
 }
 
 interface PlanItemCardProps {

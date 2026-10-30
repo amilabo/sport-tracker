@@ -166,6 +166,8 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
         const item = f.items[index];
         if (!item.sets.length) return null;
         const done = isExerciseDone(item.sets);
+        // In a circuit ✓ means «this round is done»: one set, then the next exercise of the round (stage 36).
+        if (item.we.circuit_id && f.workout.rest && !done) return markSetDone(f, index, item.sets.findIndex((s) => !s.done_at));
         const at = nowIso();
         const sets = item.sets.map((s) => (done ? touch(s, { done_at: null }) : s.done_at ? s : touch(s, { done_at: at })));
         const change = withItem(f, index, item.we, sets, { sets: sets.filter((s, i) => s !== item.sets[i]) });

@@ -112,3 +112,61 @@ describe("rollback safety", () => {
     expect(full.items[0].planExercise.rest_set_sec).toBe(45);
   });
 });
+
+describe("circuits (stage 36)", () => {
+  const C = { id: "g1", rounds: 2, rest_inside_sec: 15, rest_round_sec: 60 };
+
+  it("a group of «С отдыхом» is saved, copied and goes into the workout snapshot", async () => {
+    const id = await plansRepo.save({
+      name: "Круг",
+      rest: REST,
+      circuits: [C, { id: "unused", rounds: 3, rest_inside_sec: 0, rest_round_sec: 0 }],
+      items: [
+        { exercise_id: squat, note: null, sets: sets(2), circuit_id: "g1" },
+        { exercise_id: bench, note: null, sets: sets(2), circuit_id: "g1" },
+        { exercise_id: exerciseSeedId("forearm_plank"), note: null, sets: sets(1) },
+      ],
+    });
+    const full = (await plansRepo.getFull(id))!;
+    expect(full.plan.circuits).toEqual([C]);
+    expect(full.items.map((i) => i.planExercise.circuit_id ?? null)).toEqual(["g1", "g1", null]);
+
+    const copy = (await plansRepo.getFull(await plansRepo.copy(id)))!;
+    expect(copy.plan.circuits).toEqual([C]);
+
+    const w = await started(id);
+    expect(w.workout.rest?.circuits).toEqual([C]);
+    expect(w.items.map((i) => i.we.circuit_id ?? null)).toEqual(["g1", "g1", null]);
+  });
+
+  it("«Круговая» puts every exercise into the whole-plan circuit", async () => {
+    const id = await plansRepo.save({
+      name: "Круговая",
+      rest: { ...REST, format: "circuit" },
+      circuits: [{ id: "all", rounds: 2, rest_inside_sec: 10, rest_round_sec: 90 }],
+      items: [
+        { exercise_id: squat, note: null, sets: sets(2) },
+        { exercise_id: bench, note: null, sets: sets(2) },
+      ],
+    });
+    const w = await started(id);
+    expect(w.workout.rest?.circuits?.map((c) => c.id)).toEqual(["all"]);
+    expect(w.items.every((i) => i.we.circuit_id === "all")).toBe(true);
+  });
+
+  it("circuits are kept but not used in «Силовая»", async () => {
+    const id = await plansRepo.save({
+      name: "Был круг",
+      rest: { ...REST, format: "strength" },
+      circuits: [C],
+      items: [
+        { exercise_id: squat, note: null, sets: sets(2), circuit_id: "g1" },
+        { exercise_id: bench, note: null, sets: sets(2), circuit_id: "g1" },
+      ],
+    });
+    expect((await plansRepo.get(id))!.circuits).toEqual([C]);
+    const w = await started(id);
+    expect("rest" in w.workout).toBe(false);
+    expect(w.items.some((i) => "circuit_id" in i.we)).toBe(false);
+  });
+});

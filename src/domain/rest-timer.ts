@@ -3,32 +3,68 @@ import { setRestFor } from "./rest";
 import type { Id, IsoDateTime, RestSnapshot, RestTimer, WorkoutExercise, WorkoutSet } from "./types";
 
 type TimerItem = {
-  we: Pick<WorkoutExercise, "id" | "skipped" | "rest_set_sec">;
+  we: Pick<WorkoutExercise, "id" | "skipped" | "rest_set_sec" | "circuit_id">;
   sets: Pick<WorkoutSet, "id" | "done_at">[];
 };
 
 export interface NextSet {
   index: number;
   setIndex: number;
-  /** Same exercise — rest between sets; another one — rest between exercises. */
-  kind: "set" | "exercise";
+  /** Same exercise; another exercise; next exercise of the same circuit round; a new round. */
+  kind: RestTimer["kind"];
+}
+
+/** Undone sets of a circuit, round by round: round 1 of every member, then round 2… Skipped members are passed over. */
+function circuitOrder(items: TimerItem[], circuitId: Id): { index: number; setIndex: number }[] {
+  const members = items.map((it, index) => ({ it, index })).filter(({ it }) => it.we.circuit_id === circuitId && !it.we.skipped);
+  const rounds = Math.max(0, ...members.map(({ it }) => it.sets.length));
+  const out: { index: number; setIndex: number }[] = [];
+  for (let r = 0; r < rounds; r++) {
+    for (const { it, index } of members) if (it.sets[r] && !it.sets[r].done_at) out.push({ index, setIndex: r });
+  }
+  return out;
 }
 
 /**
- * The set to do after exercise `fromIndex`: an undone set of the same exercise first, then the next exercises
- * in order, then the ones left behind above. Skipped exercises are passed over. null — everything is done.
+ * The set to do after set `fromSetIndex` of exercise `fromIndex` (-1 — the exercise as a whole).
+ * In a circuit — the next member of the round, then the next round. Otherwise an undone set of the same exercise,
+ * then the next exercises in order, then the ones left behind above. Skipped exercises are passed over.
+ * null — everything is done.
  */
-export function nextSet(items: TimerItem[], fromIndex: number): NextSet | null {
-  const firstUndone = (i: number) => items[i].sets.findIndex((s) => !s.done_at);
-  const own = items[fromIndex] && !items[fromIndex].we.skipped ? firstUndone(fromIndex) : -1;
-  if (own >= 0) return { index: fromIndex, setIndex: own, kind: "set" };
+export function nextSet(items: TimerItem[], fromIndex: number, fromSetIndex = -1): NextSet | null {
+  const from = items[fromIndex];
+  if (!from) return null;
+  let after = fromIndex;
+  const cid = from.we.circuit_id;
+  if (cid) {
+    const next = circuitOrder(items, cid)[0];
+    if (next) return { ...next, kind: fromSetIndex >= 0 && next.setIndex === fromSetIndex ? "inside" : "round" };
+    after = items.reduce((last, it, i) => (it.we.circuit_id === cid ? i : last), fromIndex);
+  } else if (!from.we.skipped) {
+    const own = from.sets.findIndex((s) => !s.done_at);
+    if (own >= 0) return { index: fromIndex, setIndex: own, kind: "set" };
+  }
   for (let step = 1; step < items.length; step++) {
-    const i = (fromIndex + step) % items.length;
-    if (items[i].we.skipped) continue;
-    const s = firstUndone(i);
+    const i = (after + step) % items.length;
+    const it = items[i];
+    if (it.we.skipped || (cid && it.we.circuit_id === cid)) continue;
+    if (it.we.circuit_id) {
+      const first = circuitOrder(items, it.we.circuit_id)[0];
+      if (first) return { ...first, kind: "exercise" };
+      continue;
+    }
+    const s = it.sets.findIndex((x) => !x.done_at);
     if (s >= 0) return { index: i, setIndex: s, kind: "exercise" };
   }
   return null;
+}
+
+function targetFor(snapshot: RestSnapshot, item: TimerItem, kind: RestTimer["kind"]): number {
+  if (kind === "set") return setRestFor(snapshot, item.we.rest_set_sec);
+  if (kind === "exercise") return snapshot.rest_exercise_sec;
+  const circuit = snapshot.circuits?.find((c) => c.id === item.we.circuit_id);
+  if (!circuit) return snapshot.rest_exercise_sec;
+  return kind === "inside" ? circuit.rest_inside_sec : circuit.rest_round_sec;
 }
 
 /**
@@ -42,10 +78,11 @@ export function restAfter(
   at: IsoDateTime,
   fromSetId: Id | null,
 ): RestTimer | null {
-  const next = nextSet(items, fromIndex);
+  const fromSetIndex = fromSetId ? (items[fromIndex]?.sets.findIndex((s) => s.id === fromSetId) ?? -1) : -1;
+  const next = nextSet(items, fromIndex, fromSetIndex);
   if (!next) return null;
   const item = items[next.index];
-  const target = next.kind === "set" ? setRestFor(snapshot, item.we.rest_set_sec) : snapshot.rest_exercise_sec;
+  const target = targetFor(snapshot, item, next.kind);
   if (target <= 0) return null;
   return {
     phase: "rest",

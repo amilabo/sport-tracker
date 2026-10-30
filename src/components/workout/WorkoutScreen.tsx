@@ -18,6 +18,8 @@ import type { Exercise, Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
 import { primeSignal } from "@/lib/signal";
 import { useWakeLock } from "@/lib/wake-lock";
+import { circuitCurrent } from "@/domain/circuit";
+import { CircuitHeader } from "./CircuitHeader";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestPanel } from "./RestPanel";
 import { StartConflictSheet } from "./StartConflictSheet";
@@ -238,6 +240,52 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   const techExercise = techFor !== null ? (items[techFor]?.exercise ?? null) : null;
   const replacing = picker?.kind === "replace" ? items[picker.index] : undefined;
 
+  // Exercises of one circuit (stage 36) are drawn together under «Круг 2 из 3»; the one to do now is outlined.
+  const blocks: { cid: string | null; indices: number[] }[] = [];
+  items.forEach((item, i) => {
+    const cid = item.we.circuit_id ?? null;
+    const last = blocks.at(-1);
+    if (cid && last?.cid === cid) last.indices.push(i);
+    else blocks.push({ cid, indices: [i] });
+  });
+  const current = new Set(isDraft ? [] : blocks.filter((b) => b.cid).map((b) => circuitCurrent(items, b.cid!)).filter((i) => i >= 0));
+
+  const renderCard = (i: number) => {
+    const item = items[i];
+    return (
+      <ExerciseCard
+        key={item.we.id}
+        item={item}
+        index={i}
+        total={items.length}
+        open={open === item.we.id}
+        current={current.has(i)}
+        planning={isDraft}
+        last={last.get(item.exercise.id)}
+        onToggleOpen={() => setOpen(open === item.we.id ? null : item.we.id)}
+        onToggleDone={() => {
+          primeSignal();
+          actions.toggleExercise(i);
+        }}
+        onToggleSet={(s) => {
+          primeSignal();
+          actions.toggleSet(i, s);
+        }}
+        onValue={(s, field, value) => actions.setValue(i, s, field, value)}
+        onAddSet={() => actions.addSet(i)}
+        onRemoveSet={() => actions.removeLastSet(i)}
+        onReplace={() => {
+          setReplaced(null);
+          setPicker({ kind: "replace", index: i });
+        }}
+        onNote={() => setNoteFor(i)}
+        onSkip={() => actions.setSkipped(i, !item.we.skipped)}
+        onMove={(dir) => actions.move(i, dir)}
+        onTechnique={() => setTechFor(i)}
+      />
+    );
+  };
+
   async function replace(index: number, exercise: Exercise) {
     const item = items[index];
     const planned = item.replaced ?? item.exercise;
@@ -373,37 +421,16 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         {items.length === 0 && (
           <p className="py-4 text-[15px] text-ink-muted">Добавьте первое упражнение — из каталога или новое.</p>
         )}
-        {items.map((item, i) => (
-          <ExerciseCard
-            key={item.we.id}
-            item={item}
-            index={i}
-            total={items.length}
-            open={open === item.we.id}
-            planning={isDraft}
-            last={last.get(item.exercise.id)}
-            onToggleOpen={() => setOpen(open === item.we.id ? null : item.we.id)}
-            onToggleDone={() => {
-              primeSignal();
-              actions.toggleExercise(i);
-            }}
-            onToggleSet={(s) => {
-              primeSignal();
-              actions.toggleSet(i, s);
-            }}
-            onValue={(s, field, value) => actions.setValue(i, s, field, value)}
-            onAddSet={() => actions.addSet(i)}
-            onRemoveSet={() => actions.removeLastSet(i)}
-            onReplace={() => {
-              setReplaced(null);
-              setPicker({ kind: "replace", index: i });
-            }}
-            onNote={() => setNoteFor(i)}
-            onSkip={() => actions.setSkipped(i, !item.we.skipped)}
-            onMove={(dir) => actions.move(i, dir)}
-            onTechnique={() => setTechFor(i)}
-          />
-        ))}
+        {blocks.map((b) =>
+          b.cid ? (
+            <section key={`circuit-${b.cid}`} aria-label="Круг" className="flex flex-col gap-2 rounded-[22px] border-[1.5px] border-ink p-2">
+              <CircuitHeader circuitId={b.cid} circuit={workout.rest?.circuits?.find((c) => c.id === b.cid)} items={items} />
+              {b.indices.map((i) => renderCard(i))}
+            </section>
+          ) : (
+            renderCard(b.indices[0])
+          ),
+        )}
       </div>
 
       <div className="flex flex-col gap-2.5 px-4 pt-3 pb-8">

@@ -31,13 +31,21 @@ interface RestPanelProps {
   onStop: () => void;
 }
 
-/** What comes next: «Подход 3 из 6 · Рывок гири · 24 кг × 10». */
+const KIND_LABELS: Record<RestTimer["kind"], string> = {
+  set: "Отдых между подходами",
+  exercise: "Отдых между упражнениями",
+  inside: "Отдых в круге",
+  round: "Отдых между кругами",
+};
+
+/** What comes next: «Подход 3 из 6 · Рывок гири · 24 кг × 10»; in a circuit — «Круг 2 из 3 · Гоблет-присед · 16 кг × 15». */
 function nextLine(timer: RestTimer, items: WorkoutItem[]): string {
   const item = items.find((it) => it.we.id === timer.we_id);
   const si = item?.sets.findIndex((s) => s.id === timer.set_id) ?? -1;
   if (!item || si < 0) return "";
   const values = formatSet(item.exercise.log_type, item.sets[si]);
-  return `Подход ${si + 1} из ${item.sets.length} · ${item.exercise.name}${values ? ` · ${values}` : ""}`;
+  const where = item.we.circuit_id ? `Круг ${si + 1} из ${item.sets.length}` : `Подход ${si + 1} из ${item.sets.length}`;
+  return `${where} · ${item.exercise.name}${values ? ` · ${values}` : ""}`;
 }
 
 /**
@@ -65,7 +73,7 @@ export function RestPanel({ timer, items, screenOn, onAdjust, onStartSet, onFini
   }, [rest, left, timer.since, timer.target_sec]);
 
   const next = nextLine(timer, items);
-  const label = !rest ? "Подход идёт" : due ? "Пора" : timer.kind === "set" ? "Отдых между подходами" : "Отдых между упражнениями";
+  const label = !rest ? "Подход идёт" : due ? "Пора" : KIND_LABELS[timer.kind];
   const muted = due ? "text-on-accent" : "text-on-inverse-muted";
   const lineColor = due ? "border-on-accent" : "border-line-inverse";
   const tap = (fn: () => void) => () => {

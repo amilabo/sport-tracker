@@ -1,5 +1,6 @@
 import { newEntity, touch } from "./entity";
 import { parseDecimal } from "./format";
+import { circuitIdFor, cleanCircuits, wholeCircuit } from "./circuit";
 import { ownRest, restSnapshot } from "./rest";
 import { toLocalDate } from "./time";
 import type {
@@ -150,7 +151,13 @@ export function newWorkoutSet(workoutExerciseId: Id, position: number, values: S
   });
 }
 
-export function newWorkoutExercise(workoutId: Id, exerciseId: Id, position: number, planExercise?: PlanExercise): WorkoutExercise {
+export function newWorkoutExercise(
+  workoutId: Id,
+  exerciseId: Id,
+  position: number,
+  planExercise?: PlanExercise,
+  circuitId?: Id | null,
+): WorkoutExercise {
   const own = ownRest(planExercise);
   return newEntity({
     workout_id: workoutId,
@@ -161,6 +168,7 @@ export function newWorkoutExercise(workoutId: Id, exerciseId: Id, position: numb
     skipped: false,
     note: null,
     ...(own !== null ? { rest_set_sec: own } : {}),
+    ...(circuitId ? { circuit_id: circuitId } : {}),
   });
 }
 
@@ -170,6 +178,15 @@ export function newWorkoutExercise(workoutId: Id, exerciseId: Id, position: numb
  */
 export function buildWorkout(planId: Id | null, items: PlanSnapshotItem[], at: IsoDateTime, plan?: Plan | null): NewWorkoutRecords {
   const rest = restSnapshot(plan);
+  // Circuits in use: the whole plan for «Круговая», the groups for «С отдыхом» (stage 36).
+  let circuitOf: (pe: PlanExercise) => Id | null = () => null;
+  if (rest) {
+    const stored = cleanCircuits(plan?.circuits);
+    const circuits = rest.format === "circuit" ? [wholeCircuit(stored, items.map((i) => i.sets.length))] : stored;
+    circuitOf = (pe) => circuitIdFor(rest.format, pe.circuit_id, circuits);
+    const used = circuits.filter((c) => items.some((i) => circuitOf(i.planExercise) === c.id));
+    if (used.length) rest.circuits = used;
+  }
   const workout: Workout = newEntity(
     {
       plan_id: planId,
@@ -189,7 +206,7 @@ export function buildWorkout(planId: Id | null, items: PlanSnapshotItem[], at: I
   const exercises: WorkoutExercise[] = [];
   const sets: WorkoutSet[] = [];
   items.forEach((item, position) => {
-    const we = newWorkoutExercise(workout.id, item.exercise.id, position, item.planExercise);
+    const we = newWorkoutExercise(workout.id, item.exercise.id, position, item.planExercise, circuitOf(item.planExercise));
     exercises.push(we);
     item.sets.forEach((ps, i) => sets.push(newWorkoutSet(we.id, i, ps, ps)));
   });

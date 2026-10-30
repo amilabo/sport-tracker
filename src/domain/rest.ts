@@ -14,8 +14,8 @@ export const FORMAT_LABELS: Record<PlanFormat, string> = {
   circuit: "Круговая",
 };
 
-/** Plan types offered in the editor. «Круговая» comes with circuits (stage 36). */
-export const EDITOR_FORMATS: PlanFormat[] = ["strength", "rest"];
+/** Plan types offered in the editor. */
+export const EDITOR_FORMATS: PlanFormat[] = ["strength", "rest", "circuit"];
 
 export interface RestSettings {
   format: PlanFormat;

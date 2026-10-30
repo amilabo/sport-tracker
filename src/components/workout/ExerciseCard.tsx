@@ -30,6 +30,8 @@ interface ExerciseCardProps {
   onMove: (dir: -1 | 1) => void;
   /** Opens «Как делать»; the row is shown only when the exercise has a description. */
   onTechnique: () => void;
+  /** The circuit exercise to do now (stage 36): outlined. */
+  current?: boolean;
 }
 
 function unitOf(logType: LogType, field: SetField) {
@@ -105,9 +107,10 @@ export function ExerciseCard(props: ExerciseCardProps) {
   return (
     <article
       aria-label={exercise.name}
-      className={`overflow-hidden rounded-[18px] border-[1.5px] border-ink transition-colors duration-300 ${
-        done ? "bg-surface-done" : "bg-surface"
-      }`}
+      aria-current={props.current ? "step" : undefined}
+      className={`overflow-hidden rounded-[18px] border-ink transition-colors duration-300 ${
+        props.current ? "border-[3px]" : "border-[1.5px]"
+      } ${done ? "bg-surface-done" : "bg-surface"}`}
     >
       <div className="flex items-stretch">
         <button
@@ -150,7 +153,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
             onClick={props.onToggleDone}
             disabled={skipped || sets.length === 0}
             aria-pressed={done}
-            aria-label={`Выполнено: ${exercise.name}`}
+            aria-label={`Выполнено: ${exercise.name}${we.circuit_id && !done ? " — этот круг" : ""}`}
             className="flex w-[76px] shrink-0 items-center justify-center border-l-[1.5px] border-line disabled:opacity-50"
           >
             <span

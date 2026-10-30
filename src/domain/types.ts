@@ -62,6 +62,18 @@ export interface Plan extends BaseEntity {
   rest_set_sec?: number;
   /** Rest between exercises, seconds. */
   rest_exercise_sec?: number;
+  /** Circuits of the plan (stage 36): groups of «С отдыхом», or the whole-plan circuit of «Круговая». */
+  circuits?: PlanCircuit[];
+}
+
+/** Exercises done round by round; each member has `rounds` sets, set i is round i. */
+export interface PlanCircuit {
+  id: Id;
+  rounds: number;
+  /** Rest between exercises inside a round. */
+  rest_inside_sec: number;
+  /** Rest between rounds. */
+  rest_round_sec: number;
 }
 
 export interface PlanExercise extends BaseEntity {
@@ -71,6 +83,8 @@ export interface PlanExercise extends BaseEntity {
   note: string | null;
   /** Own rest between sets; null or absent — the plan's. */
   rest_set_sec?: number | null;
+  /** The circuit group of a «С отдыхом» plan (stage 36); null or absent — none. */
+  circuit_id?: Id | null;
 }
 
 /** Rest settings of the plan at workout start; absent on «Силовая» workouts. */
@@ -78,6 +92,8 @@ export interface RestSnapshot {
   format: PlanFormat;
   rest_set_sec: number;
   rest_exercise_sec: number;
+  /** Circuits in use at start (stage 36). */
+  circuits?: PlanCircuit[];
 }
 
 /** Values of one set. Which fields are used depends on the exercise log type; the rest stay null. */
@@ -122,8 +138,8 @@ export interface RestTimer {
   since: IsoDateTime;
   /** Planned rest with today's −/+; 0 in the work phase. */
   target_sec: number;
-  /** Rest between sets of one exercise or between exercises. */
-  kind: "set" | "exercise";
+  /** Between sets of one exercise, between exercises, inside a circuit round, between rounds. */
+  kind: "set" | "exercise" | "inside" | "round";
   we_id: Id;
   set_id: Id;
   /** What started the rest: a set (its square) or a whole exercise (big ✓, set_id null). */
@@ -141,6 +157,8 @@ export interface WorkoutExercise extends BaseEntity {
   note: string | null;
   /** Snapshot of the plan exercise's own rest between sets (stage 34); absent — the plan's. */
   rest_set_sec?: number | null;
+  /** The circuit it is done in (stage 36), from `workout.rest.circuits`; absent — none. */
+  circuit_id?: Id;
 }
 
 export interface WorkoutSet extends BaseEntity, SetValues {

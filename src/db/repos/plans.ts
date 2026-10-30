@@ -1,4 +1,5 @@
 import { newEntity, touch } from "@/domain/entity";
+import { cleanCircuits, usedCircuits } from "@/domain/circuit";
 import { cleanRest, hasRestSettings, ownRest, restSettings, type RestSettings } from "@/domain/rest";
 import { cleanName } from "@/domain/text";
 import { nowIso } from "@/domain/time";
@@ -8,6 +9,7 @@ import {
   type Exercise,
   type Id,
   type Plan,
+  type PlanCircuit,
   type PlanExercise,
   type PlanSet,
   type SetValues,
@@ -36,6 +38,8 @@ export interface PlanDraftItem {
   sets: PlanDraftSet[];
   /** Own rest between sets; null — the plan's. */
   rest_set_sec?: number | null;
+  /** Circuit group (stage 36); null — none. */
+  circuit_id?: Id | null;
 }
 export interface PlanDraft {
   id?: Id;
@@ -43,6 +47,8 @@ export interface PlanDraft {
   items: PlanDraftItem[];
   /** Type and rest defaults. Omitted — a «Силовая» plan stays without rest fields (as before stage 34). */
   rest?: RestSettings;
+  /** Circuits (stage 36). Omitted — the plan keeps none; groups no exercise uses are dropped. */
+  circuits?: PlanCircuit[];
 }
 
 const PLAN_STORES = ["plans", "plan_exercises", "plan_sets"] as const;
@@ -115,11 +121,16 @@ export const plansRepo = {
       const rest = draft.rest
         ? { format: draft.rest.format, rest_set_sec: cleanRest(draft.rest.rest_set_sec) ?? 0, rest_exercise_sec: cleanRest(draft.rest.rest_exercise_sec) ?? 0 }
         : {};
+      const circuits = draft.circuits
+        ? usedCircuits(cleanCircuits(draft.circuits), draft.items.map((i) => i.circuit_id ?? null))
+        : undefined;
+      const sameCircuits = JSON.stringify(circuits ?? []) === JSON.stringify(existingPlan?.circuits ?? []);
       const plan = upsert<Plan>(existingPlan, {
         name,
         source: existingPlan?.source ?? "self",
         archived_at: existingPlan?.archived_at ?? null,
         ...rest,
+        ...(circuits && !sameCircuits ? { circuits } : {}),
       });
       await plans.put(plan);
 
@@ -135,6 +146,7 @@ export const plansRepo = {
       for (const [position, item] of draft.items.entries()) {
         const prevPe = item.id ? oldPeById.get(item.id) : undefined;
         const own = cleanRest(item.rest_set_sec);
+        const circuitId = item.circuit_id ?? null;
         const pe = upsert<PlanExercise>(prevPe, {
           plan_id: plan.id,
           exercise_id: item.exercise_id,
@@ -142,6 +154,7 @@ export const plansRepo = {
           note: item.note ? cleanName(item.note) || null : null,
           // Written only when there is (or was) an own value: plain plans keep their records unchanged.
           ...(own !== null || prevPe?.rest_set_sec != null ? { rest_set_sec: own } : {}),
+          ...(circuitId !== null || prevPe?.circuit_id != null ? { circuit_id: circuitId } : {}),
         });
         keptPe.add(pe.id);
         if (pe !== prevPe) await peStore.put(pe);
@@ -177,8 +190,10 @@ export const plansRepo = {
         note: i.planExercise.note,
         sets: i.sets.map(({ weight, reps, duration_sec, speed_kmh }) => ({ weight, reps, duration_sec, speed_kmh })),
         rest_set_sec: ownRest(i.planExercise),
+        circuit_id: i.planExercise.circuit_id ?? null,
       })),
       rest: hasRestSettings(full.plan) ? restSettings(full.plan) : undefined,
+      circuits: full.plan.circuits ? cleanCircuits(full.plan.circuits) : undefined,
     });
   },
 
