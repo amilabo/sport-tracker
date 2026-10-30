@@ -4,6 +4,7 @@ import { TechniqueHintButton } from "@/components/exercises/Technique";
 import { techniqueOf } from "@/content/technique";
 import type { WorkoutItem } from "@/db/repos/workouts";
 import { formatNumber, parseDecimal, parseDurationInput } from "@/domain/format";
+import { formatRest } from "@/domain/rest";
 import { formatCardioDuration, formatClock, formatSetsSummary } from "@/domain/sets";
 import type { LogType, SetValues } from "@/domain/types";
 import { fieldsFor, isExerciseDone, isFieldChanged, lastTimeDiffers, parseSignedWeight, stepValue, type SetField } from "@/domain/workout";
@@ -64,6 +65,22 @@ function CheckIcon({ className = "" }: { className?: string }) {
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
       <path d="M5 12.5l4.5 4.5L19 7.5" />
     </svg>
+  );
+}
+
+/** Rest before a set (stage 35): «отдых 2:05», «≈» without «Начать подход»; over the plan by 30 s+ — accent. */
+function RestLine({ sec, target, approx }: { sec: number; target: number | undefined; approx: boolean }) {
+  const long = target !== undefined && sec > target + 30;
+  return (
+    <div className="flex items-center gap-2 pl-[52px]">
+      <span aria-hidden="true" className="h-0 flex-1 border-t-[1.5px] border-dashed border-line-strong" />
+      <span className={`font-mono text-xs ${long ? "font-bold text-accent-text" : "text-ink-muted"}`}>
+        отдых {approx ? "≈" : ""}
+        {formatRest(sec)}
+        {long && target !== undefined ? ` · план ${formatRest(target)}` : ""}
+      </span>
+      <span aria-hidden="true" className="h-0 flex-1 border-t-[1.5px] border-dashed border-line-strong" />
+    </div>
   );
 }
 
@@ -153,7 +170,9 @@ export function ExerciseCard(props: ExerciseCardProps) {
           {technique && <TechniqueHintButton technique={technique} onClick={props.onTechnique} />}
           {showLast && <p className="text-[13px] text-ink-muted">В прошлый раз: {formatSetsSummary(logType, last!)}</p>}
           {sets.map((s, si) => (
-            <div key={s.id} className="flex items-center gap-2">
+            <div key={s.id} className="flex flex-col gap-2">
+            {!planning && s.rest_sec !== undefined && <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} />}
+            <div className="flex items-center gap-2">
               {planning ? (
                 <span className="flex h-12 w-11 shrink-0 items-center justify-center font-mono text-sm font-bold text-ink-muted">{si + 1}</span>
               ) : (
@@ -185,6 +204,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
                   }}
                 />
               ))}
+            </div>
             </div>
           ))}
           <div className="grid grid-cols-4 gap-1.5 pt-0.5">

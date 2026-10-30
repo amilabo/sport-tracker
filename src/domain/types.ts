@@ -108,6 +108,27 @@ export interface Workout extends BaseEntity {
   plan_update_prompted: boolean;
   /** Snapshot of the plan's rest settings at start (stage 34); absent — no rest timer. */
   rest?: RestSnapshot;
+  /** The rest timer on screen (stage 35): kept with the workout, so it survives a reload. */
+  timer?: RestTimer | null;
+}
+
+/**
+ * The rest timer of a workout with rest. It keeps moments, not ticks: what is left is counted from the clock,
+ * so a locked screen or a closed tab does not break it.
+ * `rest` — resting before set `set_id` since `since`; `work` — set `set_id` is being done since `since`.
+ */
+export interface RestTimer {
+  phase: "rest" | "work";
+  since: IsoDateTime;
+  /** Planned rest with today's −/+; 0 in the work phase. */
+  target_sec: number;
+  /** Rest between sets of one exercise or between exercises. */
+  kind: "set" | "exercise";
+  we_id: Id;
+  set_id: Id;
+  /** What started the rest: a set (its square) or a whole exercise (big ✓, set_id null). */
+  from_we_id: Id | null;
+  from_set_id: Id | null;
 }
 
 export interface WorkoutExercise extends BaseEntity {
@@ -133,6 +154,15 @@ export interface WorkoutSet extends BaseEntity, SetValues {
   target_reps: number | null;
   target_duration_sec: number | null;
   target_speed_kmh: number | null;
+  // Rest before this set (stage 35); absent — not recorded (a «Силовая» workout, or big ✓).
+  /** Actual rest before the set, seconds. */
+  rest_sec?: number;
+  /** Planned rest before the set (with today's −/+). */
+  rest_target_sec?: number;
+  /** «≈»: the set was ticked without «Начать подход», so the rest includes the set itself. */
+  rest_approx?: boolean;
+  /** When «Начать подход» was pressed. */
+  started_at?: IsoDateTime;
 }
 
 export type MeasurementComputed = "bmi" | "percent_of_weight";

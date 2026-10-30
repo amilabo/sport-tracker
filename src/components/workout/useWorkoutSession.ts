@@ -5,6 +5,7 @@ import { workoutsRepo, type StartResult, type WorkoutFull, type WorkoutItem } fr
 import { touch } from "@/domain/entity";
 import { nowIso } from "@/domain/time";
 import type { Exercise, Id, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
+import { adjustRest, restAfter, restRecord, startWork } from "@/domain/rest-timer";
 import { addedExercise, isExerciseDone, isStale, newWorkoutSet, replacedExercise, type SetField } from "@/domain/workout";
 
 type Records = Parameters<typeof workoutsRepo.put>[0];
@@ -133,6 +134,31 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
     records,
   });
 
+  /**
+   * The rest timer after a change (workouts with rest only, stage 35): a new rest after a done set or exercise,
+   * or none when what started it was undone. Returns the change with the workout record added.
+   */
+  const withTimer = (change: Change, timer: Workout["timer"] | undefined): Change => {
+    const w = change.next.workout;
+    if (timer === undefined || !w.rest || (w.timer ?? null) === timer) return change;
+    const workout = touch(w, { timer });
+    return { next: { ...change.next, workout }, records: { ...change.records, workout } };
+  };
+
+  /** Ticks set `setIndex` done. The rest before it is recorded; «≈» when «Начать подход» was not pressed. */
+  const markSetDone = (f: WorkoutFull, index: number, setIndex: number): Change => {
+    const item = f.items[index];
+    const s = item.sets[setIndex];
+    const at = nowIso();
+    const t = f.workout.timer;
+    const rest = f.workout.rest && t?.phase === "rest" ? restRecord(t, at, true) : {};
+    const updated = touch(s, { done_at: at, ...rest });
+    const sets = item.sets.map((x, i) => (i === setIndex ? updated : x));
+    const change = withItem(f, index, item.we, sets, { sets: [updated] });
+    const snap = f.workout.rest;
+    return withTimer(change, snap ? restAfter(snap, change.next.items, index, at, s.id) : undefined);
+  };
+
   const actions = {
     /** ✓ on the card: all sets done with their current values; a second tap undoes. */
     toggleExercise: (index: number) =>
@@ -142,17 +168,61 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
         const done = isExerciseDone(item.sets);
         const at = nowIso();
         const sets = item.sets.map((s) => (done ? touch(s, { done_at: null }) : s.done_at ? s : touch(s, { done_at: at })));
-        return withItem(f, index, item.we, sets, { sets: sets.filter((s, i) => s !== item.sets[i]) });
+        const change = withItem(f, index, item.we, sets, { sets: sets.filter((s, i) => s !== item.sets[i]) });
+        const snap = f.workout.rest;
+        const t = f.workout.timer;
+        if (!snap) return change;
+        if (!done) return withTimer(change, restAfter(snap, change.next.items, index, at, null));
+        return withTimer(change, t?.from_we_id === item.we.id ? null : undefined);
       }),
 
     toggleSet: (index: number, setIndex: number) =>
       apply((f) => {
         const item = f.items[index];
         const s = item.sets[setIndex];
-        const updated = touch(s, { done_at: s.done_at ? null : nowIso() });
+        if (!s.done_at) return markSetDone(f, index, setIndex);
+        const updated = touch(s, { done_at: null });
         const sets = item.sets.map((x, i) => (i === setIndex ? updated : x));
-        return withItem(f, index, item.we, sets, { sets: [updated] });
+        const change = withItem(f, index, item.we, sets, { sets: [updated] });
+        // Undone the set that started the rest — the rest is gone too.
+        return withTimer(change, f.workout.timer?.from_set_id === s.id ? null : undefined);
       }),
+
+    /** −/+ 15 s to the rest on screen: today only. */
+    adjustRest: (dir: 1 | -1) =>
+      apply((f) => {
+        const t = f.workout.timer;
+        if (!t || t.phase !== "rest") return null;
+        return withTimer({ next: f, records: {} }, adjustRest(t, dir));
+      }),
+
+    /** «Начать подход»: the rest before the set is recorded exactly, the set is being done. */
+    startSet: () =>
+      apply((f) => {
+        const t = f.workout.timer;
+        if (!t || t.phase !== "rest") return null;
+        const index = f.items.findIndex((it) => it.we.id === t.we_id);
+        const s = f.items[index]?.sets.find((x) => x.id === t.set_id);
+        const at = nowIso();
+        if (!s || s.done_at) return withTimer({ next: f, records: {} }, null);
+        const updated = touch(s, { ...restRecord(t, at, false), started_at: at });
+        const change = withItem(f, index, f.items[index].we, f.items[index].sets.map((x) => (x.id === s.id ? updated : x)), { sets: [updated] });
+        return withTimer(change, startWork(t, at));
+      }),
+
+    /** «Готово» on the panel while a set is being done. */
+    finishSet: () =>
+      apply((f) => {
+        const t = f.workout.timer;
+        if (!t || t.phase !== "work") return null;
+        const index = f.items.findIndex((it) => it.we.id === t.we_id);
+        const setIndex = f.items[index]?.sets.findIndex((x) => x.id === t.set_id) ?? -1;
+        if (setIndex < 0 || f.items[index].sets[setIndex].done_at) return withTimer({ next: f, records: {} }, null);
+        return markSetDone(f, index, setIndex);
+      }),
+
+    /** «×» on the panel: no timer until the next set is ticked. */
+    stopTimer: () => apply((f) => (f.workout.timer ? withTimer({ next: f, records: {} }, null) : null)),
 
     setValue: (index: number, setIndex: number, field: SetField, value: number | null) =>
       apply((f) => {

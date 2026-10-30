@@ -16,7 +16,10 @@ import { workoutsRepo, type WorkoutItem } from "@/db/repos/workouts";
 import { EXERCISE_FORMS, formatTime, plural } from "@/domain/format";
 import type { Exercise, Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
+import { primeSignal } from "@/lib/signal";
+import { useWakeLock } from "@/lib/wake-lock";
 import { ExerciseCard } from "./ExerciseCard";
+import { RestPanel } from "./RestPanel";
 import { StartConflictSheet } from "./StartConflictSheet";
 import { FREE_DRAFT, useWorkoutSession } from "./useWorkoutSession";
 
@@ -147,6 +150,16 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   const [replaced, setReplaced] = useState<Replaced | null>(null);
   const hideReplaced = useCallback(() => setReplaced(null), []);
   useMinuteClock();
+
+  // A workout with rest (stage 35): the screen stays on, the card of the next set opens by itself.
+  const running = full && full !== "missing" && full.workout.status === "in_progress" && !isDraft ? full.workout : null;
+  const screenOn = useWakeLock(!!running?.rest);
+  const timerWe = running?.rest ? running.timer?.we_id : undefined;
+  const [seenTimerWe, setSeenTimerWe] = useState(timerWe);
+  if (timerWe !== seenTimerWe) {
+    setSeenTimerWe(timerWe);
+    if (timerWe) setOpen(timerWe);
+  }
 
   /** Draft → a stored workout in progress, with today's changes and the start time = now. */
   async function begin() {
@@ -370,8 +383,14 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
             planning={isDraft}
             last={last.get(item.exercise.id)}
             onToggleOpen={() => setOpen(open === item.we.id ? null : item.we.id)}
-            onToggleDone={() => actions.toggleExercise(i)}
-            onToggleSet={(s) => actions.toggleSet(i, s)}
+            onToggleDone={() => {
+              primeSignal();
+              actions.toggleExercise(i);
+            }}
+            onToggleSet={(s) => {
+              primeSignal();
+              actions.toggleSet(i, s);
+            }}
             onValue={(s, field, value) => actions.setValue(i, s, field, value)}
             onAddSet={() => actions.addSet(i)}
             onRemoveSet={() => actions.removeLastSet(i)}
@@ -487,6 +506,18 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
           )
         }
       />
+
+      {!isDraft && workout.rest && workout.timer && (
+        <RestPanel
+          timer={workout.timer}
+          items={items}
+          screenOn={screenOn}
+          onAdjust={actions.adjustRest}
+          onStartSet={actions.startSet}
+          onFinishSet={actions.finishSet}
+          onStop={actions.stopTimer}
+        />
+      )}
 
       <StartConflictSheet active={conflict} onClose={() => setConflict(null)} onFinishAndStart={finishActiveAndBegin} />
       <LeaveDraftSheet to={leaveTo} onClose={() => setLeaveTo(null)} />
