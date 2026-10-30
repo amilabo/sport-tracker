@@ -15,6 +15,7 @@ import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { touch } from "@/domain/entity";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { fieldText, formatSetDetail, parseField } from "@/domain/history";
+import { formatRest } from "@/domain/rest";
 import { durationMinutes, formatDurationLong, formatKg, summarize } from "@/domain/summary";
 import { isWorkoutDate, parseTime24, toLocalDate, workoutMoments } from "@/domain/time";
 import type { Exercise, Id, LogType, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
@@ -416,6 +417,12 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                       <span className="w-5 font-mono text-[13px] text-ink-muted">{i + 1}</span>
                       <span className={`font-mono text-[15px] font-bold ${s.done_at ? "" : "text-ink-muted"}`}>{formatSetDetail(logType, s)}</span>
                       {!s.done_at && <span className="ml-auto text-[13px] text-ink-muted">не выполнен</span>}
+                      {s.done_at && s.rest_sec !== undefined && (
+                        <span className="ml-auto font-mono text-xs text-ink-muted">
+                          отдых {s.rest_approx ? "≈" : ""}
+                          {formatRest(s.rest_sec)}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ol>

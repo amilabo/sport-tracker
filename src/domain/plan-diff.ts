@@ -18,6 +18,8 @@ export interface PlanChange {
   from: string;
   to: string;
   updates: PlanSetUpdate[];
+  /** «Отдых между подходами» of a plan exercise (stage 37); no set updates then. */
+  rest?: { planExerciseId: Id; sec: number };
 }
 
 export interface DiffItem {

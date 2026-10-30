@@ -170,3 +170,16 @@ describe("circuits (stage 36)", () => {
     expect(w.items.some((i) => "circuit_id" in i.we)).toBe(false);
   });
 });
+
+describe("«Обновить отдых в плане?» (stage 37)", () => {
+  it("sets the exercise's own rest; the plan's value clears it", async () => {
+    const id = await plansRepo.save({
+      name: "Гири",
+      rest: REST,
+      items: [{ exercise_id: squat, note: null, sets: sets(3), rest_set_sec: 120 }, { exercise_id: bench, note: null, sets: sets(3) }],
+    });
+    const [a, b] = (await plansRepo.getFull(id))!.items.map((i) => i.planExercise.id);
+    expect(await plansRepo.applyRestUpdates([{ planExerciseId: a, sec: 90 }, { planExerciseId: b, sec: 135 }, { planExerciseId: "gone", sec: 60 }])).toBe(2);
+    expect((await plansRepo.getFull(id))!.items.map((i) => i.planExercise.rest_set_sec ?? null)).toEqual([null, 135]);
+  });
+});

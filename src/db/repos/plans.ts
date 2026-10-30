@@ -213,6 +213,24 @@ export const plansRepo = {
     });
   },
 
+  /** «Обновить отдых в плане?» (stage 37): own rest between sets; the plan's own value clears it. */
+  async applyRestUpdates(updates: { planExerciseId: Id; sec: number }[]): Promise<number> {
+    if (!updates.length) return 0;
+    return withTx(["plans", "plan_exercises"], "readwrite", async (tx) => {
+      let n = 0;
+      for (const u of updates) {
+        const pe = await tx.objectStore("plan_exercises").get(u.planExerciseId);
+        if (!pe) continue;
+        const plan = await tx.objectStore("plans").get(pe.plan_id);
+        const sec = cleanRest(u.sec);
+        if (sec === null) continue;
+        await tx.objectStore("plan_exercises").put(touch(pe, { rest_set_sec: sec === restSettings(plan).rest_set_sec ? null : sec }));
+        n++;
+      }
+      return n;
+    });
+  },
+
   async archive(id: Id): Promise<void> {
     await setArchived(id, nowIso());
   },
