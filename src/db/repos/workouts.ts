@@ -72,8 +72,8 @@ export const workoutsRepo = {
         const active = await tx.objectStore("workouts").index("status").get("in_progress");
         if (active) return { status: "conflict", active } as const;
         // The transaction covers the plan stores too; idb's types cannot narrow it to them.
-        const items = planId ? (await readPlanSnapshot(tx as unknown as PlanReadTx, planId)).items : [];
-        const rec = buildWorkout(planId, items, nowIso());
+        const snap = planId ? await readPlanSnapshot(tx as unknown as PlanReadTx, planId) : null;
+        const rec = buildWorkout(planId, snap?.items ?? [], nowIso(), snap?.plan);
         await tx.objectStore("workouts").put(rec.workout);
         await Promise.all(rec.exercises.map((r) => tx.objectStore("workout_exercises").put(r)));
         await Promise.all(rec.sets.map((r) => tx.objectStore("workout_sets").put(r)));
@@ -90,7 +90,7 @@ export const workoutsRepo = {
     if (planId === null) return { workout: buildWorkout(null, [], nowIso()).workout, plan: null, items: [] };
     return withTx([...PLAN_STORES], "readonly", async (tx) => {
       const { plan, items } = await readPlanSnapshot(tx, planId);
-      const rec = buildWorkout(planId, items, nowIso());
+      const rec = buildWorkout(planId, items, nowIso(), plan);
       return {
         workout: rec.workout,
         plan,

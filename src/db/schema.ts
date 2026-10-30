@@ -14,10 +14,17 @@ import type {
 } from "@/domain/types";
 
 export const DB_NAME = "sport-tracker";
-/** IndexedDB structure version (stores and indexes). */
+/**
+ * IndexedDB structure version (stores and indexes). Keep it at 1: an older app version cannot open
+ * a database of a newer version at all, so raising it would break rolling the site back.
+ * New data goes into optional fields of existing stores instead (stage 34+).
+ */
 export const DB_VERSION = 1;
-/** Data format version, written to settings and to backup files. */
-export const SCHEMA_VERSION = 1;
+/**
+ * Data format version, written to settings and to backup files.
+ * 2 — optional rest fields on plans, plan exercises and workouts (stage 34); files of version 1 read as is.
+ */
+export const SCHEMA_VERSION = 2;
 
 // Booleans and nulls are not valid IndexedDB keys, so is_demo / archived_at are filtered in memory.
 export interface TrackerDB extends DBSchema {

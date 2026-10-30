@@ -1,11 +1,13 @@
 import { newEntity, touch } from "./entity";
 import { parseDecimal } from "./format";
+import { ownRest, restSnapshot } from "./rest";
 import { toLocalDate } from "./time";
 import type {
   Exercise,
   Id,
   IsoDateTime,
   LogType,
+  Plan,
   PlanExercise,
   PlanSet,
   SetValues,
@@ -149,6 +151,7 @@ export function newWorkoutSet(workoutExerciseId: Id, position: number, values: S
 }
 
 export function newWorkoutExercise(workoutId: Id, exerciseId: Id, position: number, planExercise?: PlanExercise): WorkoutExercise {
+  const own = ownRest(planExercise);
   return newEntity({
     workout_id: workoutId,
     exercise_id: exerciseId,
@@ -157,11 +160,16 @@ export function newWorkoutExercise(workoutId: Id, exerciseId: Id, position: numb
     position,
     skipped: false,
     note: null,
+    ...(own !== null ? { rest_set_sec: own } : {}),
   });
 }
 
-/** A new workout: from a plan (sets pre-filled with plan values, targets snapshotted) or empty. */
-export function buildWorkout(planId: Id | null, items: PlanSnapshotItem[], at: IsoDateTime): NewWorkoutRecords {
+/**
+ * A new workout: from a plan (sets pre-filled with plan values, targets snapshotted) or empty.
+ * A plan with rest («С отдыхом») also leaves its rest settings on the workout; «Силовая» leaves nothing.
+ */
+export function buildWorkout(planId: Id | null, items: PlanSnapshotItem[], at: IsoDateTime, plan?: Plan | null): NewWorkoutRecords {
+  const rest = restSnapshot(plan);
   const workout: Workout = newEntity(
     {
       plan_id: planId,
@@ -174,6 +182,7 @@ export function buildWorkout(planId: Id | null, items: PlanSnapshotItem[], at: I
       mood_after: null,
       note: null,
       plan_update_prompted: false,
+      ...(rest ? { rest } : {}),
     },
     { at },
   );

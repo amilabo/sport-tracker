@@ -47,10 +47,21 @@ export interface Progression extends BaseEntity {
 
 export type PlanSource = "self" | "coach";
 
+/** «Силовая» (no timers) / «С отдыхом» / «Круговая» (stage 34+). */
+export const PLAN_FORMATS = ["strength", "rest", "circuit"] as const;
+export type PlanFormat = (typeof PLAN_FORMATS)[number];
+
+// Rest fields (stage 34+) are optional: a record without them is a «Силовая» plan, as before.
+// They never need a migration, and an older app version simply ignores them (rollback-safe).
 export interface Plan extends BaseEntity {
   name: string;
   source: PlanSource;
   archived_at: IsoDateTime | null;
+  format?: PlanFormat;
+  /** Rest between sets, seconds. */
+  rest_set_sec?: number;
+  /** Rest between exercises, seconds. */
+  rest_exercise_sec?: number;
 }
 
 export interface PlanExercise extends BaseEntity {
@@ -58,6 +69,15 @@ export interface PlanExercise extends BaseEntity {
   exercise_id: Id;
   position: number;
   note: string | null;
+  /** Own rest between sets; null or absent — the plan's. */
+  rest_set_sec?: number | null;
+}
+
+/** Rest settings of the plan at workout start; absent on «Силовая» workouts. */
+export interface RestSnapshot {
+  format: PlanFormat;
+  rest_set_sec: number;
+  rest_exercise_sec: number;
 }
 
 /** Values of one set. Which fields are used depends on the exercise log type; the rest stay null. */
@@ -86,6 +106,8 @@ export interface Workout extends BaseEntity {
   mood_after: number | null;
   note: string | null;
   plan_update_prompted: boolean;
+  /** Snapshot of the plan's rest settings at start (stage 34); absent — no rest timer. */
+  rest?: RestSnapshot;
 }
 
 export interface WorkoutExercise extends BaseEntity {
@@ -96,6 +118,8 @@ export interface WorkoutExercise extends BaseEntity {
   position: number;
   skipped: boolean;
   note: string | null;
+  /** Snapshot of the plan exercise's own rest between sets (stage 34); absent — the plan's. */
+  rest_set_sec?: number | null;
 }
 
 export interface WorkoutSet extends BaseEntity, SetValues {

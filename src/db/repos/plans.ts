@@ -1,4 +1,5 @@
 import { newEntity, touch } from "@/domain/entity";
+import { cleanRest, hasRestSettings, ownRest, restSettings, type RestSettings } from "@/domain/rest";
 import { cleanName } from "@/domain/text";
 import { nowIso } from "@/domain/time";
 import {
@@ -33,11 +34,15 @@ export interface PlanDraftItem {
   exercise_id: Id;
   note: string | null;
   sets: PlanDraftSet[];
+  /** Own rest between sets; null — the plan's. */
+  rest_set_sec?: number | null;
 }
 export interface PlanDraft {
   id?: Id;
   name: string;
   items: PlanDraftItem[];
+  /** Type and rest defaults. Omitted — a «Силовая» plan stays without rest fields (as before stage 34). */
+  rest?: RestSettings;
 }
 
 const PLAN_STORES = ["plans", "plan_exercises", "plan_sets"] as const;
@@ -45,7 +50,7 @@ const PLAN_STORES = ["plans", "plan_exercises", "plan_sets"] as const;
 const SET_FIELDS = ["weight", "reps", "duration_sec", "speed_kmh"] as const;
 
 /** Keeps created_at and updated_at of a row whose fields did not change. */
-function upsert<T extends BaseEntity>(existing: T | undefined, fields: Omit<T, keyof BaseEntity>): T {
+function upsert<T extends BaseEntity>(existing: T | undefined, fields: Partial<Omit<T, keyof BaseEntity>>): T {
   if (!existing) return newEntity(fields) as unknown as T;
   const changed = (Object.keys(fields) as (keyof typeof fields)[]).some((k) => existing[k as keyof T] !== fields[k]);
   return changed ? touch(existing, fields as Partial<Omit<T, keyof BaseEntity>>) : existing;
@@ -107,10 +112,14 @@ export const plansRepo = {
 
       const existingPlan = draft.id ? await plans.get(draft.id) : undefined;
       if (draft.id && !existingPlan) throw new DomainError("План не найден");
+      const rest = draft.rest
+        ? { format: draft.rest.format, rest_set_sec: cleanRest(draft.rest.rest_set_sec) ?? 0, rest_exercise_sec: cleanRest(draft.rest.rest_exercise_sec) ?? 0 }
+        : {};
       const plan = upsert<Plan>(existingPlan, {
         name,
         source: existingPlan?.source ?? "self",
         archived_at: existingPlan?.archived_at ?? null,
+        ...rest,
       });
       await plans.put(plan);
 
@@ -125,11 +134,14 @@ export const plansRepo = {
 
       for (const [position, item] of draft.items.entries()) {
         const prevPe = item.id ? oldPeById.get(item.id) : undefined;
+        const own = cleanRest(item.rest_set_sec);
         const pe = upsert<PlanExercise>(prevPe, {
           plan_id: plan.id,
           exercise_id: item.exercise_id,
           position,
           note: item.note ? cleanName(item.note) || null : null,
+          // Written only when there is (or was) an own value: plain plans keep their records unchanged.
+          ...(own !== null || prevPe?.rest_set_sec != null ? { rest_set_sec: own } : {}),
         });
         keptPe.add(pe.id);
         if (pe !== prevPe) await peStore.put(pe);
@@ -164,7 +176,9 @@ export const plansRepo = {
         exercise_id: i.exercise.id,
         note: i.planExercise.note,
         sets: i.sets.map(({ weight, reps, duration_sec, speed_kmh }) => ({ weight, reps, duration_sec, speed_kmh })),
+        rest_set_sec: ownRest(i.planExercise),
       })),
+      rest: hasRestSettings(full.plan) ? restSettings(full.plan) : undefined,
     });
   },
 

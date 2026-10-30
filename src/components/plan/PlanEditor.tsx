@@ -10,9 +10,11 @@ import { Sheet } from "@/components/ui/Sheet";
 import { plansRepo, type PlanFull } from "@/db/repos/plans";
 import { uuid } from "@/domain/ids";
 import { parseQuickInput, QUICK_INPUT_EXAMPLES } from "@/domain/quick-input";
+import { EDITOR_FORMATS, FORMAT_LABELS, formatRest, hasRestSettings, ownRest, restSettings, setRestFor, usesRest, type RestSettings } from "@/domain/rest";
 import { emptySet, MAX_SETS, toQuickInput } from "@/domain/sets";
 import { DomainError, type Exercise, type SetValues } from "@/domain/types";
 import { PlanItemCard, type EditorRow } from "./PlanItemCard";
+import { RestSheet } from "./RestSheet";
 import { SetEditorSheet } from "./SetEditorSheet";
 import { moveItem, useDragSort } from "./useDragSort";
 
@@ -26,7 +28,12 @@ interface Loaded {
   name: string;
   rows: EditorRow[];
   archived: boolean;
+  rest: RestSettings;
+  /** The plan record already has a type and rest settings (it was switched from «Силовая» once). */
+  hadRest: boolean;
 }
+
+const NEW_PLAN: Loaded = { name: "", rows: [], archived: false, rest: restSettings(null), hadRest: false };
 
 function rowsFromPlan(full: PlanFull): EditorRow[] {
   return full.items.map((i) => {
@@ -39,21 +46,32 @@ function rowsFromPlan(full: PlanFull): EditorRow[] {
       sets,
       text: toQuickInput(i.exercise.log_type, sets),
       error: null,
+      rest: ownRest(i.planExercise),
     };
   });
 }
 
-function snapshot(name: string, rows: EditorRow[]) {
-  return JSON.stringify([name.trim(), rows.map((r) => [r.exercise.id, r.note, r.sets, r.text])]);
+function snapshot(name: string, rows: EditorRow[], rest: RestSettings) {
+  return JSON.stringify([name.trim(), rest, rows.map((r) => [r.exercise.id, r.note, r.sets, r.text, r.rest])]);
 }
 
 function PlanEditorInner({ id }: { id: string | null }) {
-  const [loaded, setLoaded] = useState<Loaded | null | "missing">(id ? null : { name: "", rows: [], archived: false });
+  const [loaded, setLoaded] = useState<Loaded | null | "missing">(id ? null : NEW_PLAN);
 
   useEffect(() => {
     if (!id) return;
     plansRepo.getFull(id).then((full) =>
-      setLoaded(full ? { name: full.plan.name, rows: rowsFromPlan(full), archived: !!full.plan.archived_at } : "missing"),
+      setLoaded(
+        full
+          ? {
+              name: full.plan.name,
+              rows: rowsFromPlan(full),
+              archived: !!full.plan.archived_at,
+              rest: restSettings(full.plan),
+              hadRest: hasRestSettings(full.plan),
+            }
+          : "missing",
+      ),
     );
   }, [id]);
 
@@ -72,12 +90,15 @@ function PlanEditorInner({ id }: { id: string | null }) {
 }
 
 type Picker = { kind: "add" } | { kind: "replace"; index: number } | null;
+type RestEdit = { kind: "set" } | { kind: "exercise" } | { kind: "row"; index: number } | null;
 
 function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
   const router = useRouter();
   const [name, setName] = useState(initial.name);
   const [rows, setRows] = useState<EditorRow[]>(initial.rows);
-  const [saved, setSaved] = useState(() => snapshot(initial.name, initial.rows));
+  const [rest, setRest] = useState<RestSettings>(initial.rest);
+  const [restEdit, setRestEdit] = useState<RestEdit>(null);
+  const [saved, setSaved] = useState(() => snapshot(initial.name, initial.rows, initial.rest));
   const [picker, setPicker] = useState<Picker>(null);
   const [menu, setMenu] = useState<number | null>(null);
   const [setEdit, setSetEdit] = useState<{ row: number; set: number } | null>(null);
@@ -86,7 +107,11 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const dirty = snapshot(name, rows) !== saved;
+  const dirty = snapshot(name, rows, rest) !== saved;
+  const withRest = usesRest(rest.format);
+  // A plan that never left «Силовая» is saved without rest fields, exactly as before stage 34.
+  const keepsRest =
+    initial.hadRest || JSON.stringify(rest) !== JSON.stringify(initial.rest) || rows.some((r) => r.rest !== null);
   const onMove = useCallback((from: number, to: number) => setRows((r) => moveItem(r, from, to)), []);
   const drag = useDragSort(onMove);
 
@@ -120,7 +145,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
   function addExercise(exercise: Exercise) {
     const key = uuid();
     setFormError(null);
-    setRows((list) => [...list, { key, exercise, note: null, sets: [], text: "", error: null }]);
+    setRows((list) => [...list, { key, exercise, note: null, sets: [], text: "", error: null, rest: null }]);
     setFocusKey(key);
     setPicker(null);
   }
@@ -152,9 +177,10 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
       await plansRepo.save({
         id: id ?? undefined,
         name,
-        items: rows.map((r) => ({ id: r.id, exercise_id: r.exercise.id, note: r.note, sets: r.sets })),
+        items: rows.map((r) => ({ id: r.id, exercise_id: r.exercise.id, note: r.note, sets: r.sets, rest_set_sec: r.rest })),
+        rest: keepsRest ? rest : undefined,
       });
-      setSaved(snapshot(name, rows));
+      setSaved(snapshot(name, rows, rest));
       // Back where it was opened from: the home screen or the workout before "Начать".
       router.back();
     } catch (err) {
@@ -219,6 +245,44 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
         </label>
         {initial.archived && <p className="text-[13px] text-ink-muted">План в архиве. Вернуть можно в «Ещё → Архив».</p>}
 
+        <div className="flex flex-col gap-1.5">
+          <span id="plan-format" className="text-xs text-ink-muted">
+            Тип тренировки
+          </span>
+          <div role="radiogroup" aria-labelledby="plan-format" className="grid grid-cols-2 gap-1 rounded-[13px] bg-surface-done p-[3px]">
+            {EDITOR_FORMATS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="radio"
+                aria-checked={rest.format === f}
+                onClick={() => setRest((r) => ({ ...r, format: f }))}
+                className={`h-11 rounded-[10px] text-sm font-semibold transition-colors ${
+                  rest.format === f ? "bg-surface-raised text-ink" : "text-ink-muted"
+                }`}
+              >
+                {FORMAT_LABELS[f]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {!withRest && keepsRest && (
+          <p className="rounded-[14px] border-[1.5px] border-dashed border-line-strong px-3.5 py-3 text-[13px] leading-snug text-ink-muted">
+            В силовой таймеров нет. Настройки отдыха сохранены — вернутся, если снова выбрать «С отдыхом».
+          </p>
+        )}
+
+        {withRest && (
+          <section aria-labelledby="rest-h" className="rounded-[18px] border-[1.5px] border-line bg-surface px-3.5 pt-3 pb-1">
+            <h2 id="rest-h" className="font-display text-xs font-bold tracking-[0.04em] uppercase">
+              Отдых
+            </h2>
+            <RestRow label="Между подходами" value={rest.rest_set_sec} onClick={() => setRestEdit({ kind: "set" })} />
+            <RestRow label="Между упражнениями" value={rest.rest_exercise_sec} onClick={() => setRestEdit({ kind: "exercise" })} border />
+          </section>
+        )}
+
         <div className="flex items-baseline justify-between pt-1.5">
           <h2 className="font-display text-xs font-bold tracking-[0.04em] uppercase">Упражнения</h2>
           <span className="font-mono text-[13px] text-ink-muted">{rows.length}</span>
@@ -245,6 +309,8 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
                 if (!last) setSetEdit({ row: i, set: 0 });
               }}
               onMenu={() => setMenu(i)}
+              rest={withRest && row.sets.length > 1 ? { value: setRestFor(rest, row.rest), own: row.rest !== null } : undefined}
+              onRest={() => setRestEdit({ kind: "row", index: i })}
             />
           ))}
         </div>
@@ -299,6 +365,30 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
           onDelete={() => {
             setSets(setEdit.row, editRow.sets.filter((_, j) => j !== setEdit.set));
             setSetEdit(null);
+          }}
+        />
+      )}
+
+      {restEdit && (restEdit.kind !== "row" || rows[restEdit.index]) && (
+        <RestSheet
+          open
+          key={JSON.stringify(restEdit)}
+          title={restEdit.kind === "exercise" ? "Между упражнениями" : "Между подходами"}
+          subject={restEdit.kind === "row" ? rows[restEdit.index].exercise.name : "Весь план. У упражнения можно задать своё значение."}
+          value={
+            restEdit.kind === "set"
+              ? rest.rest_set_sec
+              : restEdit.kind === "exercise"
+                ? rest.rest_exercise_sec
+                : setRestFor(rest, rows[restEdit.index].rest)
+          }
+          planValue={restEdit.kind === "row" ? rest.rest_set_sec : undefined}
+          onClose={() => setRestEdit(null)}
+          onSave={(v) => {
+            if (restEdit.kind === "set") setRest((r) => ({ ...r, rest_set_sec: v ?? r.rest_set_sec }));
+            else if (restEdit.kind === "exercise") setRest((r) => ({ ...r, rest_exercise_sec: v ?? r.rest_exercise_sec }));
+            else updateRow(restEdit.index, (r) => ({ ...r, rest: v === null || v === rest.rest_set_sec ? null : v }));
+            setRestEdit(null);
           }}
         />
       )}
@@ -358,6 +448,23 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
         </p>
       </Sheet>
     </div>
+  );
+}
+
+function RestRow({ label, value, onClick, border }: { label: string; value: number; onClick: () => void; border?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Отдых ${label.toLowerCase()}: ${formatRest(value)}. Изменить`}
+      className={`flex min-h-12 w-full items-center gap-2.5 text-left ${border ? "border-t-[1.5px] border-line" : ""}`}
+    >
+      <span className="flex-1 text-[15px]">{label}</span>
+      <span className="font-mono text-[17px] font-bold">{formatRest(value)}</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-ink-muted" aria-hidden="true">
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </button>
   );
 }
 

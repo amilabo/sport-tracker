@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useRef } from "react";
 import { QUICK_INPUT_EXAMPLES, QUICK_INPUT_LABELS } from "@/domain/quick-input";
+import { formatRest } from "@/domain/rest";
 import { formatSet, formatSetsSummary } from "@/domain/sets";
 import type { Exercise, SetValues } from "@/domain/types";
 
@@ -13,6 +14,8 @@ export interface EditorRow {
   sets: (SetValues & { id?: string })[];
   text: string;
   error: string | null;
+  /** Own rest between sets; null — the plan's. */
+  rest: number | null;
 }
 
 interface PlanItemCardProps {
@@ -27,10 +30,13 @@ interface PlanItemCardProps {
   onAddSet: () => void;
   onMenu: () => void;
   autoFocus?: boolean;
+  /** Rest between sets, shown on plans with rest; `own` — set on this exercise. */
+  rest?: { value: number; own: boolean };
+  onRest?: () => void;
 }
 
 export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(function PlanItemCard(
-  { row, index, compact, lifted, handleProps, style, onText, onEditSet, onAddSet, onMenu, autoFocus },
+  { row, index, compact, lifted, handleProps, style, onText, onEditSet, onAddSet, onMenu, autoFocus, rest, onRest },
   ref,
 ) {
   const logType = row.exercise.log_type;
@@ -139,6 +145,22 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
             <p id={`${inputId}-err`} className="text-[13px] font-semibold text-danger">
               {row.error}
             </p>
+          )}
+          {rest && (
+            <button
+              type="button"
+              onClick={onRest}
+              aria-label={`Отдых между подходами: ${formatRest(rest.value)}${rest.own ? ", своё" : ", как в плане"}. Изменить`}
+              className="flex min-h-11 items-center gap-2 rounded-[10px] bg-bg px-2.5 text-left"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="12" cy="13" r="8" />
+                <path d="M12 9v4l2.5 2M9.5 3h5" />
+              </svg>
+              <span className="flex-1 text-sm">Отдых между подходами</span>
+              <span className={`font-mono text-[15px] font-bold ${rest.own ? "text-ink" : "text-ink-muted"}`}>{formatRest(rest.value)}</span>
+              <span className="w-12 text-xs text-ink-muted">{rest.own ? "своё" : "в плане"}</span>
+            </button>
           )}
           {row.note && <p className="rounded-[10px] bg-bg px-2.5 py-2 text-[13px] text-ink-muted">Заметка: {row.note}</p>}
         </>
