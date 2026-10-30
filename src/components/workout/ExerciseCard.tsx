@@ -34,6 +34,8 @@ interface ExerciseCardProps {
   current?: boolean;
   /** A circuit exercise done in the current round (stage 38): its ✓ and card show done until the next round. */
   roundDone?: boolean;
+  /** «в плане 45 кг» under weights lowered after a break (stage 44). */
+  planWeight?: string | null;
 }
 
 function unitOf(logType: LogType, field: SetField) {
@@ -86,6 +88,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
   const technique = techniqueOf(exercise);
 
   const tags: { text: string; accent: boolean }[] = [];
+  if (props.planWeight) tags.push({ text: props.planWeight, accent: true });
   if (item.replaced) tags.push({ text: `вместо: ${item.replaced.name}`, accent: true });
   if (item.planNote) tags.push({ text: item.planNote, accent: false });
   if (we.note) tags.push({ text: `заметка: ${we.note}`, accent: true });

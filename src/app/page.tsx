@@ -16,6 +16,7 @@ import { settingsRepo } from "@/db/repos/settings";
 import { workoutsRepo } from "@/db/repos/workouts";
 import { EXERCISE_FORMS, formatHeaderDate, formatShortDate, formatTime, plural } from "@/domain/format";
 import { pickNextPlan } from "@/domain/next-plan";
+import { daysSinceLast, isComeback } from "@/domain/analytics/comeback";
 import { planChanges } from "@/domain/plan-diff";
 import { PlanUpdateList } from "@/components/workout/PlanUpdateList";
 import type { Plan, Workout } from "@/domain/types";
@@ -173,7 +174,9 @@ export default function HomePage() {
       const w = await workoutsRepo.pendingPlanPrompt();
       if (!w) return null;
       const full = w.plan_id ? await workoutsRepo.getFull(w.id) : undefined;
-      const changes = full?.plan && !full.plan.archived_at ? planChanges(full.items) : [];
+      // After a break (stage 44) the lowered weights are not offered to the plan, as on the finish screen.
+      const comeback = full?.plan ? isComeback(daysSinceLast(await workoutsRepo.listCompleted(), new Date(w.started_at), w.id)) : false;
+      const changes = full?.plan && !full.plan.archived_at ? planChanges(full.items, { comeback }) : [];
       if (!full?.plan || changes.length === 0) {
         // Nothing to ask: settle it silently (the query re-runs and checks the next one).
         await workoutsRepo.markPlanPrompted(w.id);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ExercisePicker } from "@/components/exercises/ExercisePicker";
 import { TechniqueSheet } from "@/components/exercises/Technique";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -11,9 +11,11 @@ import { Scale5 } from "@/components/ui/Scale5";
 import { Sheet } from "@/components/ui/Sheet";
 import { Snackbar } from "@/components/ui/Snackbar";
 import { techniqueOf } from "@/content/technique";
+import { daysSinceLast, isComeback, planWeightNote } from "@/domain/analytics/comeback";
+import { COMEBACK_DEFAULT, COMEBACK_OPTIONS } from "@/domain/analytics/thresholds";
 import { exercisesRepo } from "@/db/repos/exercises";
 import { workoutsRepo, type WorkoutItem } from "@/db/repos/workouts";
-import { EXERCISE_FORMS, formatTime, plural } from "@/domain/format";
+import { EXERCISE_FORMS, formatNumber, formatTime, plural } from "@/domain/format";
 import type { Exercise, Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
 import { primeSignal } from "@/lib/signal";
@@ -161,7 +163,24 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
   const [replaced, setReplaced] = useState<Replaced | null>(null);
   const hideReplaced = useCallback(() => setReplaced(null), []);
+  /** Back after a break (stage 44): days without workouts and the lowering picked; null — no card. */
+  const [comeback, setComeback] = useState<{ days: number; pct: number } | null>(null);
+  const comebackChecked = useRef(false);
   useMinuteClock();
+
+  // A plan's draft after 14+ days without workouts opens with weights lowered by 15 % — for this workout only.
+  const draftLoaded = isDraft && !!full && full !== "missing" && !!full.plan;
+  const { lowerWeights } = actions;
+  useEffect(() => {
+    if (!draftLoaded || comebackChecked.current) return;
+    comebackChecked.current = true;
+    workoutsRepo.listCompleted().then((completed) => {
+      const days = daysSinceLast(completed, new Date());
+      if (!isComeback(days)) return;
+      setComeback({ days, pct: COMEBACK_DEFAULT });
+      lowerWeights(COMEBACK_DEFAULT, true);
+    });
+  }, [draftLoaded, lowerWeights]);
 
   // A workout with rest (stage 35): the screen stays on, the card of the next set opens by itself.
   const running = full && full !== "missing" && full.workout.status === "in_progress" && !isDraft ? full.workout : null;
@@ -294,6 +313,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         current={current.has(i)}
         roundDone={roundDone(i)}
         planning={isDraft}
+        planWeight={comeback?.pct ? planWeightNote(item.sets, (kg) => formatNumber(kg, 2)) : null}
         last={last.get(item.exercise.id)}
         onToggleOpen={() => setOpen(open === item.we.id ? null : item.we.id)}
         onToggleDone={() => {
@@ -408,6 +428,17 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         </div>
         )}
       </header>
+
+      {isDraft && comeback && (
+        <ComebackCard
+          days={comeback.days}
+          pct={comeback.pct}
+          onPick={(pct) => {
+            setComeback({ ...comeback, pct });
+            actions.lowerWeights(pct);
+          }}
+        />
+      )}
 
       <section className="mx-4 mt-3.5 flex flex-col rounded-2xl border-[1.5px] border-line bg-surface">
         <h2>
@@ -582,6 +613,38 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
       <StartConflictSheet active={conflict} onClose={() => setConflict(null)} onFinishAndStart={finishActiveAndBegin} />
       <LeaveDraftSheet to={leaveTo} onClose={() => setLeaveTo(null)} />
     </div>
+  );
+}
+
+const DAY_FORMS: [string, string, string] = ["день", "дня", "дней"];
+
+/** А5: «18 дней без тренировок» and «−15 % / −10 % / Как в плане». */
+function ComebackCard({ days, pct, onPick }: { days: number; pct: number; onPick: (pct: number) => void }) {
+  return (
+    <section aria-labelledby="comeback-h" className="mx-4 mt-3.5 flex flex-col gap-2.5 rounded-[18px] border-[1.5px] border-ink bg-surface px-4 py-3.5">
+      <h2 id="comeback-h" className="text-[17px] font-bold">
+        {days} {plural(days, DAY_FORMS)} без тренировок
+      </h2>
+      <p className="text-sm leading-[1.45] text-ink-muted">После перерыва обычно начинают полегче. Снизить веса на эту тренировку?</p>
+      <div role="radiogroup" aria-label="Насколько снизить" className="grid grid-cols-3 gap-1.5">
+        {COMEBACK_OPTIONS.map((o) => {
+          const on = o === pct;
+          return (
+            <button
+              key={o}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onPick(o)}
+              className={`h-12 rounded-xl border-[1.5px] border-ink text-[15px] font-bold transition-colors ${on ? "bg-ink text-surface" : "text-ink"}`}
+            >
+              {o ? `−${o} %` : "Как в плане"}
+            </button>
+          );
+        })}
+      </div>
+      <span className="text-[13px] text-ink-muted">План не меняется — только эта тренировка.</span>
+    </section>
   );
 }
 

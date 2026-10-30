@@ -59,11 +59,19 @@ function whereText(positions: number[], planSetCount: number): string {
   return consecutive ? `подходы ${positions[0]}–${positions.at(-1)}` : `подходы ${positions.join(", ")}`;
 }
 
+export interface PlanChangesOptions {
+  /**
+   * The first workout after a break (stage 44): weights were lowered on purpose, so a lower weight is not
+   * offered to the plan — only a higher one.
+   */
+  comeback?: boolean;
+}
+
 /**
  * Differences between what was done and the plan (PRD §3.5). Only done sets that came from the plan count;
  * replaced and skipped exercises are left out. Consecutive sets with the same change form one line.
  */
-export function planChanges(items: DiffItem[]): PlanChange[] {
+export function planChanges(items: DiffItem[], options: PlanChangesOptions = {}): PlanChange[] {
   const changes: PlanChange[] = [];
   for (const item of items) {
     if (item.replaced || item.we.skipped) continue;
@@ -90,7 +98,8 @@ export function planChanges(items: DiffItem[]): PlanChange[] {
         const from = s[TARGET[field]] as number | null;
         const to = s[field];
         const position = idx + 1;
-        const differs = s.done_at !== null && to !== null && to !== from;
+        const lowered = options.comeback && field === "weight" && from !== null && to !== null && to < from;
+        const differs = s.done_at !== null && to !== null && to !== from && !lowered;
         if (!differs) return flush();
         const g = group as { from: number | null; to: number | null; positions: number[]; updates: PlanSetUpdate[] } | null;
         if (g && g.from === from && g.to === to && g.positions.at(-1) === position - 1) {

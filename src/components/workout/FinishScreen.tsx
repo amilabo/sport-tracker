@@ -9,6 +9,7 @@ import { Scale5 } from "@/components/ui/Scale5";
 import { DateField, TimeField } from "@/components/ui/TimeField";
 import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
+import { daysSinceLast, isComeback } from "@/domain/analytics/comeback";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { planChanges, type PlanChange } from "@/domain/plan-diff";
 import { formatRest } from "@/domain/rest";
@@ -37,9 +38,15 @@ export function FinishRoute() {
 
 function FinishLoader({ id }: { id: Id }) {
   const [full, setFull] = useState<WorkoutFull | null | "missing">(null);
+  const [comeback, setComeback] = useState(false);
   useEffect(() => {
     let alive = true;
-    workoutsRepo.getFull(id).then((f) => alive && setFull(f ?? "missing"));
+    Promise.all([workoutsRepo.getFull(id), workoutsRepo.listCompleted()]).then(([f, completed]) => {
+      if (!alive) return;
+      // The first workout after a break (stage 44): its lower weights are not offered to the plan.
+      if (f) setComeback(isComeback(daysSinceLast(completed, new Date(f.workout.started_at), f.workout.id)));
+      setFull(f ?? "missing");
+    });
     return () => {
       alive = false;
     };
@@ -57,10 +64,10 @@ function FinishLoader({ id }: { id: Id }) {
       </div>
     );
   }
-  return <FinishForm full={full} />;
+  return <FinishForm full={full} comeback={comeback} />;
 }
 
-function FinishForm({ full }: { full: WorkoutFull }) {
+function FinishForm({ full, comeback }: { full: WorkoutFull; comeback: boolean }) {
   const router = useRouter();
   const { workout, plan, items } = full;
   const [energy, setEnergy] = useState<number | null>(null);
@@ -89,8 +96,8 @@ function FinishForm({ full }: { full: WorkoutFull }) {
       updates: [],
       rest: { planExerciseId: u.planExerciseId, sec: u.toSec },
     }));
-    return [...planChanges(items), ...rest];
-  }, [plan, items, workout.rest]);
+    return [...planChanges(items, { comeback }), ...rest];
+  }, [plan, items, workout.rest, comeback]);
   const rest = useMemo(() => restSummary(items), [items]);
 
   // Date and times: an entry made later can move the workout to the day it happened.

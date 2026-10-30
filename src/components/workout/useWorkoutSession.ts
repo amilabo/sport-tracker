@@ -5,6 +5,7 @@ import { workoutsRepo, type StartResult, type WorkoutFull, type WorkoutItem } fr
 import { touch } from "@/domain/entity";
 import { nowIso } from "@/domain/time";
 import type { Exercise, Id, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
+import { comebackSets } from "@/domain/analytics/comeback";
 import { circuitProgress } from "@/domain/circuit";
 import { adjustRest, restAfter, restRecord, startWork } from "@/domain/rest-timer";
 import { addedExercise, isExerciseDone, isStale, newWorkoutSet, replacedExercise, type SetField } from "@/domain/workout";
@@ -347,6 +348,20 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
           records: { exercises: [we], sets: before.sets, deleteSetIds: now.sets.map((s) => s.id) },
         };
       }),
+
+    /**
+     * Draft only, after a break (stage 44): weights `pct` % below the plan, 0 — as in the plan. Replaced exercises
+     * keep theirs. `initial` — the default the screen opens with: not a change of the person's, leaving asks nothing.
+     */
+    lowerWeights: (pct: number, initial = false) => {
+      const cur = current.current;
+      if (!isDraft || !cur) return;
+      const items = cur.items.map((it) => (it.replaced ? it : { ...it, sets: comebackSets(it.exercise, it.sets, pct) }));
+      const next = { ...cur, items };
+      current.current = next;
+      setFull(next);
+      if (!initial) setDirty(true);
+    },
 
     /** Draft only: starts the workout as it is on screen now. */
     start: async (): Promise<StartResult | null> => {
