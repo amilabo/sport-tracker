@@ -1,4 +1,5 @@
 import { touch } from "@/domain/entity";
+import type { PreviousItem } from "@/domain/analytics/double-progression";
 import type { ExerciseSession } from "@/domain/chart-series";
 import type { HistoryEntry } from "@/domain/history";
 import { summarize } from "@/domain/summary";
@@ -382,6 +383,39 @@ export const workoutsRepo = {
   async planStats(planId: Id): Promise<{ count: number; last: IsoDateTime | null }> {
     const done = (await (await getDb()).getAllFromIndex("workouts", "plan_id", planId)).filter((w) => COMPLETED.has(w.status));
     return { count: done.length, last: done.reduce<IsoDateTime | null>((acc, w) => (!acc || w.started_at > acc ? w.started_at : acc), null) };
+  },
+
+  /**
+   * «Пора добавить вес» (stage 41): the plan lines of the latest completed workout by the same plan, started before
+   * this one — keyed by `plan_exercise_id`. Empty without a plan or before the first such workout.
+   */
+  async previousPlanItems(workout: Workout): Promise<Map<Id, PreviousItem>> {
+    const out = new Map<Id, PreviousItem>();
+    if (!workout.plan_id) return out;
+    return withTx([...WORKOUT_STORES], "readonly", async (tx) => {
+      const byPlan = await tx.objectStore("workouts").index("plan_id").getAll(workout.plan_id!);
+      const prev = byPlan
+        .filter((w) => w.id !== workout.id && COMPLETED.has(w.status) && w.started_at < workout.started_at)
+        .sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
+      if (!prev) return out;
+      for (const we of await tx.objectStore("workout_exercises").index("workout_id").getAll(prev.id)) {
+        if (!we.plan_exercise_id) continue;
+        const sets = (await tx.objectStore("workout_sets").index("workout_exercise_id").getAll(we.id)).sort((a, b) => a.position - b.position);
+        out.set(we.plan_exercise_id, { we, sets });
+      }
+      return out;
+    });
+  },
+
+  /** The plan of the first of these workouts that has one, not archived — «Изменить в плане «…»» (stage 41). */
+  async latestPlanOf(workoutIds: Id[]): Promise<Plan | null> {
+    const db = await getDb();
+    for (const id of workoutIds) {
+      const w = await db.get("workouts", id);
+      const plan = w?.plan_id ? await db.get("plans", w.plan_id) : undefined;
+      if (plan && !plan.archived_at) return plan;
+    }
+    return null;
   },
 
   /** Finished and finished-automatically workouts, for «Ритм» (demo ones too). */

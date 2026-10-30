@@ -19,3 +19,15 @@ export const USUAL_WEIGHT_SESSIONS = 5;
 
 /** Finish screen: records shown before «Ещё N». */
 export const FINISH_RECORDS_SHOWN = 3;
+
+/** «4 тренировки на одном уровне» (А1): the best not beaten for 4 workouts (itself included)… */
+export const STALL_SESSIONS = 4;
+/** …and 21+ days, so a deload week does not trigger it. */
+export const STALL_DAYS = 21;
+/** «+2,5 кг, меньше повторов»: two reps fewer (А1: 22,5 × 10 → 25 × 8). */
+export const STALL_REPS_DROP = 2;
+/** «+5 секунд» for a timed exercise. */
+export const STALL_TIME_STEP_SEC = 5;
+
+/** «Пора добавить вес» (А2): all planned sets done at the planned weight and reps this many workouts in a row. */
+export const DOUBLE_PROGRESSION_RUNS = 2;

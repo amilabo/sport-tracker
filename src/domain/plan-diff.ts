@@ -1,3 +1,4 @@
+import { doubleProgression, doubleProgressionWhere, type PreviousItem } from "./analytics/double-progression";
 import { formatNumber } from "./format";
 import { formatCardioDuration, formatClock } from "./sets";
 import type { Exercise, Id, LogType, WorkoutExercise, WorkoutSet } from "./types";
@@ -65,6 +66,11 @@ export interface PlanChangesOptions {
    * offered to the plan — only a higher one.
    */
   comeback?: boolean;
+  /**
+   * «Пора добавить вес» (stage 41): the same plan lines (by `plan_exercise_id`) in the previous workout by this plan.
+   * Absent — no double progression lines.
+   */
+  previous?: Map<Id, PreviousItem>;
 }
 
 /**
@@ -79,7 +85,24 @@ export function planChanges(items: DiffItem[], options: PlanChangesOptions = {})
     const planSets = item.sets.filter((s) => s.plan_set_id);
     const fields: SetField[] = ["weight", "reps", "duration_sec", "speed_kmh"];
 
+    // Double progression replaces the item's weight lines: one line for all sets, the reason in the grey line.
+    // Done heavier than the step already — the heavier weight stays.
+    const prev = options.previous && item.we.plan_exercise_id ? (options.previous.get(item.we.plan_exercise_id) ?? null) : undefined;
+    const dp = prev !== undefined ? doubleProgression(item, prev) : null;
+    if (dp) {
+      const to = Math.max(dp.to, ...planSets.map((s) => s.weight ?? 0));
+      changes.push({
+        key: `${item.we.id}:weight:dp`,
+        exerciseName: item.exercise.name,
+        where: doubleProgressionWhere(dp.reps),
+        from: valueText(logType, "weight", dp.from),
+        to: valueText(logType, "weight", to),
+        updates: planSets.map((s) => ({ planSetId: s.plan_set_id!, field: "weight" as const, value: to })),
+      });
+    }
+
     for (const field of fields) {
+      if (dp && field === "weight") continue;
       let group: { from: number | null; to: number | null; positions: number[]; updates: PlanSetUpdate[] } | null = null;
       const flush = () => {
         if (!group) return;

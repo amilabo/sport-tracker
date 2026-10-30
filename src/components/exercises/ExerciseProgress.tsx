@@ -3,16 +3,18 @@
 import Link from "next/link";
 import { useState } from "react";
 import { LineChart } from "@/components/charts/LineChart";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { useLive } from "@/db/hooks";
+import { progressionsRepo } from "@/db/repos/progressions";
 import { workoutsRepo } from "@/db/repos/workouts";
 import { bestE1rm } from "@/domain/analytics/e1rm";
 import { exerciseRecords } from "@/domain/analytics/records";
+import { stall, stallOptions, stallTitle, type Stall } from "@/domain/analytics/stall";
 import { E1RM_MAX_REPS } from "@/domain/analytics/thresholds";
 import { bestResult, chartSeries, formatAxis, formatDelta, formatValue, inPeriod, PERIOD_LABELS, type ChartMetric, type ExerciseSession, type Period } from "@/domain/chart-series";
 import { formatNumber, formatShortDate } from "@/domain/format";
 import { formatSetsSummary } from "@/domain/sets";
-import type { Exercise } from "@/domain/types";
+import type { Exercise, Plan } from "@/domain/types";
 
 const PERIODS: Period[] = ["1m", "3m", "all"];
 /** The history can be long: the latest few, the rest on demand. */
@@ -27,6 +29,52 @@ function dayMonth(iso: string) {
 /** «07.10.2026» for the tap callout. */
 function fullDate(iso: string) {
   return `${dayMonth(iso)}.${new Date(iso).getFullYear()}`;
+}
+
+/** «С 30.09 расчётный максимум ≈ 30 кг» — what the level is. */
+function levelText(logType: Exercise["log_type"], plateau: Stall, onE1rm: boolean): string {
+  if (onE1rm) return `расчётный максимум ≈ ${formatNumber(plateau.value, 2)} кг`;
+  if (logType === "weight_reps") return `лучший вес ${formatValue(logType, plateau.value)}`;
+  if (logType === "time") return `самый долгий подход ${formatValue(logType, plateau.value)}`;
+  return `лучший результат ${formatValue(logType, plateau.value)}`;
+}
+
+/** А1: «4 тренировки на одном уровне» and what to try next time. */
+function StallCard(props: { exercise: Exercise; plateau: Stall; onE1rm: boolean; sessions: ExerciseSession[]; harder: string | null; plan: Plan | null }) {
+  const { exercise, plateau } = props;
+  const options = stallOptions(exercise, props.sessions, props.harder);
+  return (
+    <section aria-labelledby="stall-h" className="mx-4 mt-3.5 flex flex-col gap-2.5 rounded-[18px] border-[1.5px] border-ink bg-surface px-4 py-3.5">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-surface-inverse text-accent-on-inverse">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 17l6-6 4 4 4-4h4" />
+          </svg>
+        </span>
+        <h2 id="stall-h" className="text-base leading-tight font-bold">
+          {stallTitle(plateau.count)}
+        </h2>
+      </div>
+      <p className="text-sm leading-[1.45] text-ink-muted">
+        С {dayMonth(plateau.since)} {levelText(exercise.log_type, plateau, props.onE1rm)}.{options.length > 0 && " Что можно попробовать в следующий раз:"}
+      </p>
+      {options.length > 0 && (
+        <ul className="flex flex-col">
+          {options.map((o) => (
+            <li key={o.label} className="flex min-h-11 items-center gap-2.5 border-t border-line">
+              <span className="flex-1 text-[15px]">{o.label}</span>
+              <span className={o.muted ? "text-right text-sm text-ink-muted" : "font-mono text-sm font-bold"}>{o.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {props.plan && (
+        <ButtonLink href={`/plans/edit/?id=${props.plan.id}`} variant="outline" size="md" className="w-full">
+          Изменить в плане «{props.plan.name}»
+        </ButtonLink>
+      )}
+    </section>
+  );
 }
 
 /** The all-time ≈ максимум for the card head: «≈ 30 кг», «по лучшему подходу 22,5 кг × 10». */
@@ -48,6 +96,18 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
     () => workoutsRepo.exerciseSessions([exercise.id]),
     [exercise.id],
     ["workouts", "workout_exercises", "workout_sets"],
+  );
+  // For «4 тренировки на одном уровне» (stage 41): the next level of the progression, the plan to change.
+  const { data: context } = useLive(
+    async () => {
+      const chain = exercise.progression_id ? await progressionsRepo.chainOf(exercise.id) : null;
+      const i = chain ? chain.members.findIndex((m) => m.id === exercise.id) : -1;
+      const harder = chain && i >= 0 ? (chain.members[i + 1] ?? null) : null;
+      const ids = (await workoutsRepo.exerciseSessions([exercise.id])).map((s) => s.workoutId);
+      return { harder: harder?.name ?? null, plan: await workoutsRepo.latestPlanOf(ids) };
+    },
+    [exercise.id, exercise.progression_id],
+    ["exercises", "progressions", "plans", "workouts"],
   );
   const [period, setPeriod] = useState<Period>("all");
   const [metric, setMetric] = useState<ChartMetric>("best");
@@ -75,6 +135,10 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
   const delta = formatDelta(logType, points);
   const values = points.map((p) => p.value);
   const records = exerciseRecords(logType, sessions);
+  // The level: ≈ максимум when there is one, otherwise the usual chart value. Cardio has no level.
+  const levelOnE1rm = canE1rm;
+  const plateau = logType === "cardio" ? null : stall(levelOnE1rm ? e1rmAll : chartSeries(logType, sessions));
+  const bandShown = plateau && (shown === "e1rm") === levelOnE1rm;
 
   return (
     <>
@@ -126,9 +190,10 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
               y: p.value,
               label: p.label,
               xLabel: dayMonth(p.date),
-              detail: `${fullDate(p.date)} · ${formatValue(logType, p.value)}${p.label ? ` ${p.label}` : ""}`,
+              detail: `${fullDate(p.date)} · ${shown === "e1rm" ? "≈ " : ""}${formatValue(logType, p.value)}${p.label ? ` ${p.label}` : ""}${p.note ? ` ${p.note}` : ""}`,
             }))}
             formatY={(v) => formatAxis(logType, v)}
+            band={bandShown ? { fromT: new Date(plateau.since).getTime(), label: `${plateau.count} на одном уровне` } : null}
             ariaLabel={`График по датам: от ${formatValue(logType, Math.min(...values))} до ${formatValue(logType, Math.max(...values))}`}
           />
         ) : (
@@ -155,6 +220,17 @@ export function ExerciseProgress({ exercise }: { exercise: Exercise }) {
           })}
         </div>
       </section>
+
+      {plateau && (
+        <StallCard
+          exercise={exercise}
+          plateau={plateau}
+          onE1rm={levelOnE1rm}
+          sessions={sessions.filter((s) => s.startedAt >= plateau.since)}
+          harder={context?.harder ?? null}
+          plan={context?.plan ?? null}
+        />
+      )}
 
       {records.length > 0 && (
         <section aria-labelledby="records-h" className="mx-4 mt-5 flex flex-col gap-1 rounded-[18px] border-[1.5px] border-line bg-surface px-4 pt-3.5 pb-3">

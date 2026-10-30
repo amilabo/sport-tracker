@@ -46,7 +46,8 @@ describe("e1rm", () => {
     const pts = chartSeries("weight_reps", rdl, "e1rm");
     // 17,5 × 1,4 = 24,5; 20 × 1,333 = 26,67 → 26,5; 20 × 1,4 = 28; 22,5 × 1,267 = 28,5; 22,5 × 1,333 = 30.
     expect(pts.map((p) => p.value)).toEqual([24.5, 26.5, 28, 28.5, 30, 30, 30, 30]);
-    expect(pts.at(-1)!.label).toBe("22,5×10");
+    expect(pts.at(-1)!.label).toBeNull();
+    expect(pts.at(-1)!.note).toBe("по 22,5×10");
     expect(chartSeries("weight_reps", [session("2026-10-01", four(40, 15))], "e1rm")).toEqual([]);
     expect(chartSeries("weight_reps", rdl).at(-1)!.value).toBe(22.5);
   });

@@ -18,6 +18,8 @@ interface LineChartProps {
   points: LinePoint[];
   formatY: (value: number) => string;
   ariaLabel: string;
+  /** A shaded stretch from `fromT` to the end with a caption — «4 на одном уровне» (stage 41). */
+  band?: { fromT: number; label: string } | null;
 }
 
 const W = 326;
@@ -33,7 +35,7 @@ const CALLOUT_PAD = 9;
 const CALLOUT_H = 24;
 
 /** Line with dots on a dark card (mockup «Упражнение»). Colors only from chart tokens. */
-export function LineChart({ points, formatY, ariaLabel }: LineChartProps) {
+export function LineChart({ points, formatY, ariaLabel, band }: LineChartProps) {
   const [active, setActive] = useState<number | null>(null);
   if (!points.length) return null;
   const ys = points.map((p) => p.y);
@@ -90,6 +92,14 @@ export function LineChart({ points, formatY, ariaLabel }: LineChartProps) {
       onClick={tappable ? onTap : undefined}
       className={`block overflow-visible ${tappable ? "cursor-pointer touch-manipulation select-none" : ""}`}
     >
+      {band && band.fromT >= t0 && t1 > t0 && (
+        <g aria-hidden="true">
+          <rect x={x(band.fromT) - 12} y={TOP - 18} width={W - x(band.fromT) + 12} height={BOTTOM - TOP + 26} rx={8} className="fill-on-inverse" opacity={0.07} />
+          <text x={(x(band.fromT) + W) / 2} y={BOTTOM - 2} textAnchor="middle" className="fill-on-inverse-muted font-mono" fontSize={10}>
+            {band.label}
+          </text>
+        </g>
+      )}
       {[max, (max + min) / 2, min].map((v, i) => (
         <g key={i}>
           <line x1={LEFT - 6} x2={W} y1={y(v)} y2={y(v)} className="stroke-chart-grid" strokeWidth={1} />

@@ -17,6 +17,8 @@ export interface ChartPoint {
   value: number;
   /** Shown at the dot: reps of the best weight set ("×12"), otherwise null. */
   label: string | null;
+  /** Shown only in the tap callout: the set behind a ≈ максимум point, «по 22,5×10». */
+  note?: string;
 }
 
 export type Period = "1m" | "3m" | "all";
@@ -60,11 +62,11 @@ export function pointFor(logType: LogType, session: ExerciseSession): ChartPoint
   }
 }
 
-/** ≈ максимум of the workout's best set (rounded to 0,5 kg), label — that set: «22,5×10». */
+/** ≈ максимум of the workout's best set (rounded to 0,5 kg); the set goes to the tap callout, not over the dot (А1). */
 export function e1rmPointFor(session: ExerciseSession): ChartPoint | null {
   const best = bestE1rm(session.sets);
   if (!best) return null;
-  return { workoutId: session.workoutId, date: session.startedAt, value: best.value, label: `${formatNumber(best.set.weight!, 2)}×${best.set.reps}` };
+  return { workoutId: session.workoutId, date: session.startedAt, value: best.value, label: null, note: `по ${formatNumber(best.set.weight!, 2)}×${best.set.reps}` };
 }
 
 /** Points in date order. `e1rm` — «вес × раз» only; a workout without a set of 1…12 reps gives no point. */

@@ -10,6 +10,7 @@ import { DateField, TimeField } from "@/components/ui/TimeField";
 import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { daysSinceLast, isComeback } from "@/domain/analytics/comeback";
+import type { PreviousItem } from "@/domain/analytics/double-progression";
 import { recordsWord, workoutRecords, type WorkoutRecord } from "@/domain/analytics/records";
 import { FINISH_RECORDS_SHOWN } from "@/domain/analytics/thresholds";
 import type { ExerciseSession } from "@/domain/chart-series";
@@ -43,6 +44,7 @@ function FinishLoader({ id }: { id: Id }) {
   const [full, setFull] = useState<WorkoutFull | null | "missing">(null);
   const [comeback, setComeback] = useState(false);
   const [records, setRecords] = useState<WorkoutRecord[]>([]);
+  const [previous, setPrevious] = useState<Map<Id, PreviousItem>>(new Map());
   useEffect(() => {
     let alive = true;
     Promise.all([workoutsRepo.getFull(id), workoutsRepo.listCompleted()]).then(async ([f, completed]) => {
@@ -57,6 +59,8 @@ function FinishLoader({ id }: { id: Id }) {
           if (s.workoutId === f.workout.id || s.startedAt >= f.workout.started_at) continue;
           history.set(s.exerciseId, [...(history.get(s.exerciseId) ?? []), s]);
         }
+        // «Пора добавить вес» (stage 41): the same plan lines last time.
+        setPrevious(await workoutsRepo.previousPlanItems(f.workout));
         setRecords(workoutRecords(items.map((i) => ({ exerciseId: i.exercise.id, name: i.exercise.name, logType: i.exercise.log_type, sets: i.sets })), history));
       }
       if (alive) setFull(f ?? "missing");
@@ -78,10 +82,17 @@ function FinishLoader({ id }: { id: Id }) {
       </div>
     );
   }
-  return <FinishForm full={full} comeback={comeback} records={records} />;
+  return <FinishForm full={full} comeback={comeback} records={records} previous={previous} />;
 }
 
-function FinishForm({ full, comeback, records }: { full: WorkoutFull; comeback: boolean; records: WorkoutRecord[] }) {
+interface FinishFormProps {
+  full: WorkoutFull;
+  comeback: boolean;
+  records: WorkoutRecord[];
+  previous: Map<Id, PreviousItem>;
+}
+
+function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
   const router = useRouter();
   const { workout, plan, items } = full;
   const [energy, setEnergy] = useState<number | null>(null);
@@ -110,8 +121,8 @@ function FinishForm({ full, comeback, records }: { full: WorkoutFull; comeback: 
       updates: [],
       rest: { planExerciseId: u.planExerciseId, sec: u.toSec },
     }));
-    return [...planChanges(items, { comeback }), ...rest];
-  }, [plan, items, workout.rest, comeback]);
+    return [...planChanges(items, { comeback, previous }), ...rest];
+  }, [plan, items, workout.rest, comeback, previous]);
   const rest = useMemo(() => restSummary(items), [items]);
 
   // Date and times: an entry made later can move the workout to the day it happened.
