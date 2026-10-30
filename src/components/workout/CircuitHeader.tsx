@@ -7,7 +7,7 @@ import type { PlanCircuit } from "@/domain/types";
 export function CircuitHeader({ circuitId, circuit, items }: { circuitId: string; circuit: PlanCircuit | undefined; items: WorkoutItem[] }) {
   const { round, rounds, done } = circuitProgress(items, circuitId);
   return (
-    <div className="flex flex-col gap-1.5 px-1.5 pt-1">
+    <div data-circuit-header className="flex flex-col gap-1.5 px-1.5 pt-1">
       <div className="flex items-center gap-2.5">
         <span className="flex h-8 items-center gap-1.5 rounded-lg bg-surface-inverse px-2.5 font-display text-[11px] font-bold tracking-[0.04em] text-on-inverse uppercase">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

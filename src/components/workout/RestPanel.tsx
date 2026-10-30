@@ -84,15 +84,22 @@ export function RestPanel({ timer, items, screenOn, onAdjust, onStartSet, onFini
   return (
     <section
       aria-label="Таймер отдыха"
-      className={`sticky bottom-0 z-30 mt-3 flex flex-col gap-2.5 rounded-t-[22px] px-4 pt-3.5 pb-[max(14px,env(safe-area-inset-bottom))] transition-colors duration-300 ${
+      className={`sticky bottom-0 z-30 mt-3 flex flex-col gap-2 rounded-t-[22px] px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] transition-colors duration-300 ${
         due ? "bg-accent text-on-accent" : "bg-surface-inverse text-on-inverse"
       }`}
     >
       <div className="flex items-center gap-2">
+        {/* Compact (stage 38): label and timer in one row, so the done exercise and the new one fit above the panel. */}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2 className="font-display text-[11px] font-bold tracking-[0.06em] uppercase">{label}</h2>
-          {screenOn && <span className={`text-xs ${muted}`}>экран не гаснет</span>}
+          <h2 className="truncate font-display text-[11px] font-bold tracking-[0.06em] uppercase">{label}</h2>
+          <span className={`truncate font-mono text-xs ${muted}`}>
+            {!rest ? "идёт подход" : due ? "сверх плана" : `из ${formatRest(timer.target_sec)}`}
+            {screenOn && <span className="sr-only">, экран не гаснет</span>}
+          </span>
         </div>
+        <span role="timer" className="font-display text-[34px] leading-none font-bold tabular-nums">
+          {rest ? formatCountdown(left) : formatRest(elapsedSec(timer, now))}
+        </span>
         <button
           type="button"
           aria-pressed={sound}
@@ -121,28 +128,20 @@ export function RestPanel({ timer, items, screenOn, onAdjust, onStartSet, onFini
         </button>
       </div>
 
-      <div className="flex items-baseline gap-3">
-        <span role="timer" className="font-display text-[44px] leading-none font-bold tabular-nums">
-          {rest ? formatCountdown(left) : formatRest(elapsedSec(timer, now))}
-        </span>
-        <span className={`font-mono text-sm ${muted}`}>
-          {!rest ? "идёт подход" : due ? "сверх плана" : `из ${formatRest(timer.target_sec)}`}
-        </span>
-      </div>
-      {next && <p className={`text-sm leading-snug ${due ? "font-semibold" : muted}`}>{rest ? `Дальше: ${next}` : next}</p>}
+      {next && <p className={`truncate text-sm ${due ? "font-semibold" : muted}`}>{rest ? `Дальше: ${next}` : next}</p>}
 
       {rest ? (
         <div className="grid grid-cols-4 gap-2">
-          <button type="button" onClick={tap(() => onAdjust(-1))} className={`min-h-13 rounded-[14px] border-[1.5px] text-sm font-semibold ${lineColor}`} aria-label="Отдых меньше на 15 секунд">
+          <button type="button" onClick={tap(() => onAdjust(-1))} className={`min-h-12 rounded-[14px] border-[1.5px] text-sm font-semibold ${lineColor}`} aria-label="Отдых меньше на 15 секунд">
             −15 с
           </button>
-          <button type="button" onClick={tap(() => onAdjust(1))} className={`min-h-13 rounded-[14px] border-[1.5px] text-sm font-semibold ${lineColor}`} aria-label="Отдых больше на 15 секунд">
+          <button type="button" onClick={tap(() => onAdjust(1))} className={`min-h-12 rounded-[14px] border-[1.5px] text-sm font-semibold ${lineColor}`} aria-label="Отдых больше на 15 секунд">
             +15 с
           </button>
           <button
             type="button"
             onClick={tap(onStartSet)}
-            className={`col-span-2 min-h-13 rounded-[14px] font-display text-[15px] font-bold active:scale-[0.98] ${
+            className={`col-span-2 min-h-12 rounded-[14px] font-display text-[15px] font-bold active:scale-[0.98] ${
               due ? "bg-surface-inverse text-on-inverse" : "bg-accent text-on-accent"
             }`}
           >
@@ -150,7 +149,7 @@ export function RestPanel({ timer, items, screenOn, onAdjust, onStartSet, onFini
           </button>
         </div>
       ) : (
-        <button type="button" onClick={tap(onFinishSet)} className="min-h-13 rounded-[14px] bg-accent font-display text-[15px] font-bold text-on-accent active:scale-[0.98]">
+        <button type="button" onClick={tap(onFinishSet)} className="min-h-12 rounded-[14px] bg-accent font-display text-[15px] font-bold text-on-accent active:scale-[0.98]">
           Готово — подход сделан
         </button>
       )}

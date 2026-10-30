@@ -15,7 +15,8 @@ import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { touch } from "@/domain/entity";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { fieldText, formatSetDetail, parseField } from "@/domain/history";
-import { formatRest } from "@/domain/rest";
+import { restSummary } from "@/domain/rest-summary";
+import { RestLine, WorkRest } from "@/components/workout/WorkRest";
 import { durationMinutes, formatDurationLong, formatKg, summarize } from "@/domain/summary";
 import { isWorkoutDate, parseTime24, toLocalDate, workoutMoments } from "@/domain/time";
 import type { Exercise, Id, LogType, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
@@ -151,6 +152,7 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
   const [picking, setPicking] = useState(false);
 
   const summary = useMemo(() => summarize(items), [items]);
+  const rest = useMemo(() => restSummary(items), [items]);
   const started = new Date(workout.started_at);
   const minutes = workout.finished_at ? durationMinutes(workout.started_at, workout.finished_at) : null;
   const title = plan?.name ?? "Без плана";
@@ -360,6 +362,8 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
               </div>
             </div>
 
+            {rest && <WorkRest rest={rest} minutes={minutes} />}
+
             {hasRatings && (
               <section className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-2xl border-[1.5px] border-line bg-surface p-3.5">
                 {ratings.map(([label, v]) => (
@@ -413,16 +417,16 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                 </div>
                 <ol className="flex flex-col">
                   {item.sets.map((s, i) => (
-                    <li key={s.id} className="flex items-baseline gap-3 border-t border-line py-1.5 first:border-t-0">
-                      <span className="w-5 font-mono text-[13px] text-ink-muted">{i + 1}</span>
-                      <span className={`font-mono text-[15px] font-bold ${s.done_at ? "" : "text-ink-muted"}`}>{formatSetDetail(logType, s)}</span>
-                      {!s.done_at && <span className="ml-auto text-[13px] text-ink-muted">не выполнен</span>}
+                    <li key={s.id} className="flex flex-col border-t border-line py-1.5 first:border-t-0">
+                      {/* Rest before this set, between the rows — as in the gym (stage 38). */}
                       {s.done_at && s.rest_sec !== undefined && (
-                        <span className="ml-auto font-mono text-xs text-ink-muted">
-                          отдых {s.rest_approx ? "≈" : ""}
-                          {formatRest(s.rest_sec)}
-                        </span>
+                        <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} before={i === 0 && !item.we.circuit_id} className="pb-1.5" />
                       )}
+                      <div className="flex items-baseline gap-3">
+                        <span className="w-5 font-mono text-[13px] text-ink-muted">{i + 1}</span>
+                        <span className={`font-mono text-[15px] font-bold ${s.done_at ? "" : "text-ink-muted"}`}>{formatSetDetail(logType, s)}</span>
+                        {!s.done_at && <span className="ml-auto text-[13px] text-ink-muted">не выполнен</span>}
+                      </div>
                     </li>
                   ))}
                 </ol>

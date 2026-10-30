@@ -18,7 +18,7 @@ import type { Exercise, Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
 import { primeSignal } from "@/lib/signal";
 import { useWakeLock } from "@/lib/wake-lock";
-import { circuitCurrent } from "@/domain/circuit";
+import { circuitCurrent, circuitProgress } from "@/domain/circuit";
 import { CircuitHeader } from "./CircuitHeader";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestPanel } from "./RestPanel";
@@ -59,6 +59,16 @@ export function WorkoutRoute() {
     );
   }
   return null;
+}
+
+/** The current exercise of the first circuit not finished yet; undefined — no circuit or all done. */
+function circuitFocus(items: WorkoutItem[]): Id | undefined {
+  const ids = [...new Set(items.map((it) => it.we.circuit_id).filter((c): c is string => !!c))];
+  for (const cid of ids) {
+    const i = circuitCurrent(items, cid);
+    if (i >= 0) return items[i].we.id;
+  }
+  return undefined;
 }
 
 /** Re-renders every 15 s: enough for "идёт 00:41". */
@@ -156,12 +166,28 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   // A workout with rest (stage 35): the screen stays on, the card of the next set opens by itself.
   const running = full && full !== "missing" && full.workout.status === "in_progress" && !isDraft ? full.workout : null;
   const screenOn = useWakeLock(!!running?.rest);
-  const timerWe = running?.rest ? running.timer?.we_id : undefined;
-  const [seenTimerWe, setSeenTimerWe] = useState(timerWe);
-  if (timerWe !== seenTimerWe) {
-    setSeenTimerWe(timerWe);
-    if (timerWe) setOpen(timerWe);
+  // The exercise to do now: the one the timer counts down to, or — with no timer (0:00 in a circuit) —
+  // the circuit's current one. When it changes, its card opens and scrolls to the top (stage 38).
+  const focusWe = running?.rest && full && full !== "missing" ? (running.timer?.we_id ?? circuitFocus(full.items)) : undefined;
+  const [lastFocus, setLastFocus] = useState<Id | undefined>(undefined);
+  if (focusWe && focusWe !== lastFocus) {
+    setLastFocus(focusWe);
+    setOpen(focusWe);
   }
+  useEffect(() => {
+    if (!lastFocus) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // After the card has opened (its height is laid out): the exercise just done stays on top, collapsed,
+    // so it is clear what was finished; the new one is right under it. In a circuit — its «Круг 2 из 3» header.
+    const t = setTimeout(() => {
+      const card = document.getElementById(`we-${lastFocus}`);
+      if (!card) return;
+      const prev = card.previousElementSibling;
+      const target = prev && (prev.tagName === "ARTICLE" || prev.hasAttribute("data-circuit-header")) ? prev : card;
+      window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - 12, behavior: reduce ? "auto" : "smooth" });
+    }, 60);
+    return () => clearTimeout(t);
+  }, [lastFocus]);
 
   /** Draft → a stored workout in progress, with today's changes and the start time = now. */
   async function begin() {
@@ -250,6 +276,12 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   });
   const current = new Set(isDraft ? [] : blocks.filter((b) => b.cid).map((b) => circuitCurrent(items, b.cid!)).filter((i) => i >= 0));
 
+  const roundDone = (i: number) => {
+    const cid = items[i].we.circuit_id;
+    if (!cid || isDraft) return undefined;
+    return !!items[i].sets[circuitProgress(items, cid).round - 1]?.done_at;
+  };
+
   const renderCard = (i: number) => {
     const item = items[i];
     return (
@@ -260,6 +292,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         total={items.length}
         open={open === item.we.id}
         current={current.has(i)}
+        roundDone={roundDone(i)}
         planning={isDraft}
         last={last.get(item.exercise.id)}
         onToggleOpen={() => setOpen(open === item.we.id ? null : item.we.id)}

@@ -4,11 +4,11 @@ import { TechniqueHintButton } from "@/components/exercises/Technique";
 import { techniqueOf } from "@/content/technique";
 import type { WorkoutItem } from "@/db/repos/workouts";
 import { formatNumber, parseDecimal, parseDurationInput } from "@/domain/format";
-import { formatRest } from "@/domain/rest";
 import { formatCardioDuration, formatClock, formatSetsSummary } from "@/domain/sets";
 import type { LogType, SetValues } from "@/domain/types";
 import { fieldsFor, isExerciseDone, isFieldChanged, lastTimeDiffers, parseSignedWeight, stepValue, type SetField } from "@/domain/workout";
 import { ValueStepper } from "./ValueStepper";
+import { RestLine } from "./WorkRest";
 
 interface ExerciseCardProps {
   item: WorkoutItem;
@@ -32,6 +32,8 @@ interface ExerciseCardProps {
   onTechnique: () => void;
   /** The circuit exercise to do now (stage 36): outlined. */
   current?: boolean;
+  /** A circuit exercise done in the current round (stage 38): its ✓ and card show done until the next round. */
+  roundDone?: boolean;
 }
 
 function unitOf(logType: LogType, field: SetField) {
@@ -70,22 +72,6 @@ function CheckIcon({ className = "" }: { className?: string }) {
   );
 }
 
-/** Rest before a set (stage 35): «отдых 2:05», «≈» without «Начать подход»; over the plan by 30 s+ — accent. */
-function RestLine({ sec, target, approx }: { sec: number; target: number | undefined; approx: boolean }) {
-  const long = target !== undefined && sec > target + 30;
-  return (
-    <div className="flex items-center gap-2 pl-[52px]">
-      <span aria-hidden="true" className="h-0 flex-1 border-t-[1.5px] border-dashed border-line-strong" />
-      <span className={`font-mono text-xs ${long ? "font-bold text-accent-text" : "text-ink-muted"}`}>
-        отдых {approx ? "≈" : ""}
-        {formatRest(sec)}
-        {long && target !== undefined ? ` · план ${formatRest(target)}` : ""}
-      </span>
-      <span aria-hidden="true" className="h-0 flex-1 border-t-[1.5px] border-dashed border-line-strong" />
-    </div>
-  );
-}
-
 const actionClass = "min-h-11 rounded-[10px] border-[1.5px] border-line px-1 text-[13px] font-semibold disabled:opacity-40";
 
 export function ExerciseCard(props: ExerciseCardProps) {
@@ -93,6 +79,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
   const { exercise, we, sets } = item;
   const logType = exercise.log_type;
   const done = isExerciseDone(sets);
+  const checked = props.roundDone ?? done;
   const skipped = we.skipped;
   const showLast = !done && lastTimeDiffers(sets, last);
   const num = String(index + 1).padStart(2, "0");
@@ -106,11 +93,12 @@ export function ExerciseCard(props: ExerciseCardProps) {
 
   return (
     <article
+      id={`we-${we.id}`}
       aria-label={exercise.name}
       aria-current={props.current ? "step" : undefined}
-      className={`overflow-hidden rounded-[18px] border-ink transition-colors duration-300 ${
+      className={`scroll-mt-3 overflow-hidden rounded-[18px] border-ink transition-colors duration-300 ${
         props.current ? "border-[3px]" : "border-[1.5px]"
-      } ${done ? "bg-surface-done" : "bg-surface"}`}
+      } ${checked ? "bg-surface-done" : "bg-surface"}`}
     >
       <div className="flex items-stretch">
         <button
@@ -152,17 +140,17 @@ export function ExerciseCard(props: ExerciseCardProps) {
             type="button"
             onClick={props.onToggleDone}
             disabled={skipped || sets.length === 0}
-            aria-pressed={done}
+            aria-pressed={checked}
             aria-label={`Выполнено: ${exercise.name}${we.circuit_id && !done ? " — этот круг" : ""}`}
             className="flex w-[76px] shrink-0 items-center justify-center border-l-[1.5px] border-line disabled:opacity-50"
           >
             <span
               className={`check-ring flex h-13 w-13 items-center justify-center rounded-full border-2 transition-[background-color,border-color,transform] duration-200 active:scale-90 ${
-                done ? "border-accent bg-accent text-on-accent" : "border-ink text-line-strong"
+                checked ? "border-accent bg-accent text-on-accent" : "border-ink text-line-strong"
               }`}
-              data-done={done || undefined}
+              data-done={checked || undefined}
             >
-              <CheckIcon className={done ? "check-draw" : ""} />
+              <CheckIcon className={checked ? "check-draw" : ""} />
             </span>
           </button>
         )}
@@ -174,7 +162,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
           {showLast && <p className="text-[13px] text-ink-muted">В прошлый раз: {formatSetsSummary(logType, last!)}</p>}
           {sets.map((s, si) => (
             <div key={s.id} className="flex flex-col gap-2">
-            {!planning && s.rest_sec !== undefined && <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} />}
+            {!planning && s.rest_sec !== undefined && <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} before={si === 0 && !we.circuit_id} className="pl-[52px]" />}
             <div className="flex items-center gap-2">
               {planning ? (
                 <span className="flex h-12 w-11 shrink-0 items-center justify-center font-mono text-sm font-bold text-ink-muted">{si + 1}</span>

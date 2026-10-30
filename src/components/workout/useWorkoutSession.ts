@@ -5,6 +5,7 @@ import { workoutsRepo, type StartResult, type WorkoutFull, type WorkoutItem } fr
 import { touch } from "@/domain/entity";
 import { nowIso } from "@/domain/time";
 import type { Exercise, Id, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
+import { circuitProgress } from "@/domain/circuit";
 import { adjustRest, restAfter, restRecord, startWork } from "@/domain/rest-timer";
 import { addedExercise, isExerciseDone, isStale, newWorkoutSet, replacedExercise, type SetField } from "@/domain/workout";
 
@@ -166,8 +167,14 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
         const item = f.items[index];
         if (!item.sets.length) return null;
         const done = isExerciseDone(item.sets);
-        // In a circuit ✓ means «this round is done»: one set, then the next exercise of the round (stage 36).
-        if (item.we.circuit_id && f.workout.rest && !done) return markSetDone(f, index, item.sets.findIndex((s) => !s.done_at));
+        // In a circuit ✓ means «done in this round» (stages 36, 38): ticks one set, a second tap undoes that round only.
+        if (item.we.circuit_id && f.workout.rest) {
+          const cur = item.sets[circuitProgress(f.items, item.we.circuit_id).round - 1];
+          if (!cur?.done_at) return markSetDone(f, index, item.sets.findIndex((s) => !s.done_at));
+          const undone = touch(cur, { done_at: null });
+          const change = withItem(f, index, item.we, item.sets.map((s) => (s.id === cur.id ? undone : s)), { sets: [undone] });
+          return withTimer(change, f.workout.timer?.from_set_id === cur.id ? null : undefined);
+        }
         const at = nowIso();
         const sets = item.sets.map((s) => (done ? touch(s, { done_at: null }) : s.done_at ? s : touch(s, { done_at: at })));
         const change = withItem(f, index, item.we, sets, { sets: sets.filter((s, i) => s !== item.sets[i]) });
