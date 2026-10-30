@@ -1,3 +1,4 @@
+import { bestE1rm } from "./analytics/e1rm";
 import { formatNumber, plural } from "./format";
 import { formatCardioDuration, formatClock } from "./sets";
 import type { IsoDateTime, LogType, WorkoutSet } from "./types";
@@ -19,6 +20,9 @@ export interface ChartPoint {
 }
 
 export type Period = "1m" | "3m" | "all";
+
+/** What the «вес × раз» chart shows (stage 40, А1): the heaviest set or the estimated one-rep max. */
+export type ChartMetric = "best" | "e1rm";
 
 export const PERIOD_LABELS: Record<Period, string> = { "1m": "1 мес", "3m": "3 мес", all: "Всё" };
 
@@ -56,10 +60,18 @@ export function pointFor(logType: LogType, session: ExerciseSession): ChartPoint
   }
 }
 
-/** Points in date order. */
-export function chartSeries(logType: LogType, sessions: ExerciseSession[]): ChartPoint[] {
+/** ≈ максимум of the workout's best set (rounded to 0,5 kg), label — that set: «22,5×10». */
+export function e1rmPointFor(session: ExerciseSession): ChartPoint | null {
+  const best = bestE1rm(session.sets);
+  if (!best) return null;
+  return { workoutId: session.workoutId, date: session.startedAt, value: best.value, label: `${formatNumber(best.set.weight!, 2)}×${best.set.reps}` };
+}
+
+/** Points in date order. `e1rm` — «вес × раз» only; a workout without a set of 1…12 reps gives no point. */
+export function chartSeries(logType: LogType, sessions: ExerciseSession[], metric: ChartMetric = "best"): ChartPoint[] {
+  const point = metric === "e1rm" && logType === "weight_reps" ? e1rmPointFor : (s: ExerciseSession) => pointFor(logType, s);
   return sessions
-    .map((s) => pointFor(logType, s))
+    .map(point)
     .filter((p): p is ChartPoint => p !== null)
     .sort((a, b) => a.date.localeCompare(b.date));
 }

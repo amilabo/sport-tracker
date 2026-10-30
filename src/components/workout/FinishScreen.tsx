@@ -10,6 +10,9 @@ import { DateField, TimeField } from "@/components/ui/TimeField";
 import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { daysSinceLast, isComeback } from "@/domain/analytics/comeback";
+import { recordsWord, workoutRecords, type WorkoutRecord } from "@/domain/analytics/records";
+import { FINISH_RECORDS_SHOWN } from "@/domain/analytics/thresholds";
+import type { ExerciseSession } from "@/domain/chart-series";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { planChanges, type PlanChange } from "@/domain/plan-diff";
 import { formatRest } from "@/domain/rest";
@@ -39,13 +42,24 @@ export function FinishRoute() {
 function FinishLoader({ id }: { id: Id }) {
   const [full, setFull] = useState<WorkoutFull | null | "missing">(null);
   const [comeback, setComeback] = useState(false);
+  const [records, setRecords] = useState<WorkoutRecord[]>([]);
   useEffect(() => {
     let alive = true;
-    Promise.all([workoutsRepo.getFull(id), workoutsRepo.listCompleted()]).then(([f, completed]) => {
-      if (!alive) return;
-      // The first workout after a break (stage 44): its lower weights are not offered to the plan.
-      if (f) setComeback(isComeback(daysSinceLast(completed, new Date(f.workout.started_at), f.workout.id)));
-      setFull(f ?? "missing");
+    Promise.all([workoutsRepo.getFull(id), workoutsRepo.listCompleted()]).then(async ([f, completed]) => {
+      if (f) {
+        // The first workout after a break (stage 44): its lower weights are not offered to the plan.
+        setComeback(isComeback(daysSinceLast(completed, new Date(f.workout.started_at), f.workout.id)));
+        // Records (stage 40): against the completed workouts started before this one.
+        const items = f.items.filter((i) => !i.we.skipped);
+        const sessions = await workoutsRepo.exerciseSessions([...new Set(items.map((i) => i.exercise.id))]);
+        const history = new Map<Id, ExerciseSession[]>();
+        for (const s of sessions) {
+          if (s.workoutId === f.workout.id || s.startedAt >= f.workout.started_at) continue;
+          history.set(s.exerciseId, [...(history.get(s.exerciseId) ?? []), s]);
+        }
+        setRecords(workoutRecords(items.map((i) => ({ exerciseId: i.exercise.id, name: i.exercise.name, logType: i.exercise.log_type, sets: i.sets })), history));
+      }
+      if (alive) setFull(f ?? "missing");
     });
     return () => {
       alive = false;
@@ -64,10 +78,10 @@ function FinishLoader({ id }: { id: Id }) {
       </div>
     );
   }
-  return <FinishForm full={full} comeback={comeback} />;
+  return <FinishForm full={full} comeback={comeback} records={records} />;
 }
 
-function FinishForm({ full, comeback }: { full: WorkoutFull; comeback: boolean }) {
+function FinishForm({ full, comeback, records }: { full: WorkoutFull; comeback: boolean; records: WorkoutRecord[] }) {
   const router = useRouter();
   const { workout, plan, items } = full;
   const [energy, setEnergy] = useState<number | null>(null);
@@ -170,7 +184,7 @@ function FinishForm({ full, comeback }: { full: WorkoutFull; comeback: boolean }
         <h1 className="font-display text-[28px] leading-[1.05] font-extrabold tracking-[-0.02em]">{plan?.name ?? "Тренировка без плана"}</h1>
       </header>
 
-      <div className="flex flex-col gap-3.5 p-4 pb-8">
+      <div className="flex flex-col gap-3.5 p-4 pb-3">
         {!afterHidden && (
           <section className="flex flex-col gap-2.5 rounded-[18px] border-[1.5px] border-line bg-surface p-3.5">
             <div className="flex items-center justify-between">
@@ -220,6 +234,7 @@ function FinishForm({ full, comeback }: { full: WorkoutFull; comeback: boolean }
               <span className="text-xs text-ink-muted">кг · вес × раз</span>
             </div>
           </div>
+          <Records records={records} />
           <div className="flex flex-col gap-2.5 rounded-2xl border-[1.5px] border-line bg-surface p-3.5">
             <div className="flex items-baseline justify-between">
               <span className="text-xs text-ink-muted">Длительность</span>
@@ -276,10 +291,64 @@ function FinishForm({ full, comeback }: { full: WorkoutFull; comeback: boolean }
         )}
 
         <FormError message={error} />
-        <Button variant="accent" size="xl" className="mt-1 w-full" onClick={save} disabled={busy}>
+      </div>
+      {/* Pinned (А2): a long summary with records does not push the button off the screen. */}
+      <div className="sticky bottom-0 z-10 mt-auto border-t-[1.5px] border-line bg-bg px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+        <Button variant="accent" size="xl" className="w-full" onClick={save} disabled={busy}>
           Сохранить в историю
         </Button>
       </div>
     </div>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-accent-on-inverse">
+      <path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z" />
+    </svg>
+  );
+}
+
+/** А2: records of this workout — up to 3, the rest behind «Ещё N рекордов». No records — no block. */
+function Records({ records }: { records: WorkoutRecord[] }) {
+  const [open, setOpen] = useState(false);
+  if (!records.length) return null;
+  const rest = records.length - FINISH_RECORDS_SHOWN;
+  const shown = open || rest <= 0 ? records : records.slice(0, FINISH_RECORDS_SHOWN);
+  return (
+    <section aria-labelledby="records-h" className="flex flex-col rounded-[18px] bg-surface-inverse px-4 pt-3.5 pb-1 text-on-inverse">
+      <div className="mb-1.5 flex items-center gap-2.5">
+        <StarIcon />
+        <h2 id="records-h" className="font-display text-sm font-extrabold tracking-[0.04em] uppercase">
+          {records.length} {recordsWord(records.length)}
+        </h2>
+      </div>
+      <ul id="records-list">
+        {shown.map((r) => (
+          <li key={r.exerciseId} className="flex min-h-12 items-center gap-2.5 border-t border-line-inverse py-1.5">
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+              <span className="truncate text-[15px] font-semibold">{r.name}</span>
+              <span className="text-xs text-on-inverse-muted">{r.kind}</span>
+            </span>
+            <span className="flex shrink-0 flex-col items-end gap-px font-mono">
+              <span className="text-sm font-bold">{r.value}</span>
+              <span className="text-xs text-accent-on-inverse">{r.delta}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {rest > 0 && (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="records-list"
+          onClick={() => setOpen(!open)}
+          className="min-h-11 border-t border-line-inverse text-sm font-semibold underline"
+        >
+          {open ? "Свернуть" : `Ещё ${rest} ${recordsWord(rest)}`}
+        </button>
+      )}
+    </section>
   );
 }
