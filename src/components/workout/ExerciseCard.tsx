@@ -1,6 +1,5 @@
 "use client";
 
-import { TechniqueHintButton } from "@/components/exercises/Technique";
 import { techniqueOf } from "@/content/technique";
 import type { WorkoutItem } from "@/db/repos/workouts";
 import { formatNumber, parseDecimal, parseDurationInput } from "@/domain/format";
@@ -28,7 +27,7 @@ interface ExerciseCardProps {
   onNote: () => void;
   onSkip: () => void;
   onMove: (dir: -1 | 1) => void;
-  /** Opens «Как делать»; the row is shown only when the exercise has a description. */
+  /** Opens «Как делать»; the book button is shown only when the exercise has a description. */
   onTechnique: () => void;
   /** The circuit exercise to do now (stage 36): outlined. */
   current?: boolean;
@@ -74,7 +73,26 @@ function CheckIcon({ className = "" }: { className?: string }) {
   );
 }
 
-const actionClass = "min-h-11 rounded-[10px] border-[1.5px] border-line px-1 text-[13px] font-semibold disabled:opacity-40";
+function BookIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+      <path d="M4 19.5V5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-1.5z" />
+      <path d="M20 19.5V5a2 2 0 0 0-2-2h-5v18h5a2 2 0 0 0 2-1.5z" />
+    </svg>
+  );
+}
+
+function ArrowIcon({ up = false }: { up?: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={up ? "M12 19V5M6 11l6-6 6 6" : "M12 5v14M6 13l6 6 6-6"} />
+    </svg>
+  );
+}
+
+// The border color is separate: two border colors in one class list do not override each other reliably.
+const actionBase = "min-h-11 rounded-[10px] border-[1.5px] px-1 text-[13px] font-semibold disabled:opacity-40";
+const actionClass = `${actionBase} border-line`;
 
 export function ExerciseCard(props: ExerciseCardProps) {
   const { item, index, total, open, planning, last } = props;
@@ -161,7 +179,6 @@ export function ExerciseCard(props: ExerciseCardProps) {
 
       {open && (
         <div className="flex flex-col gap-2.5 border-t-[1.5px] border-dashed border-line px-3.5 pt-3 pb-3.5">
-          {technique && <TechniqueHintButton technique={technique} onClick={props.onTechnique} />}
           {showLast && <p className="text-[13px] text-ink-muted">В прошлый раз: {formatSetsSummary(logType, last!)}</p>}
           {sets.map((s, si) => (
             <div key={s.id} className="flex flex-col gap-2">
@@ -201,30 +218,36 @@ export function ExerciseCard(props: ExerciseCardProps) {
             </div>
             </div>
           ))}
+          {/* К5 (stage 46): frequent actions in row 1 — sets together, «+ подход» rightmost under the thumb;
+              rare ones in row 2 — the «Как делать» book (outlined darker, easier to spot), «Пропуск», ↑ ↓. */}
           <div className="grid grid-cols-4 gap-1.5 pt-0.5">
-            {/* "+ подход" is the most frequent action — rightmost, under the thumb. */}
-            <button type="button" onClick={props.onSkip} className={`${actionClass} ${skipped ? "border-ink" : ""}`}>
-              {skipped ? "Вернуть" : "Пропуск"}
-            </button>
             <button type="button" onClick={props.onReplace} className={actionClass}>
               Заменить
             </button>
             <button type="button" onClick={props.onNote} className={actionClass}>
               Заметка
             </button>
+            <button type="button" onClick={props.onRemoveSet} disabled={sets.length <= 1} className={actionClass}>
+              − подход
+            </button>
             <button type="button" onClick={props.onAddSet} className={actionClass}>
               + подход
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            <button type="button" onClick={() => props.onMove(-1)} disabled={index === 0} className={actionClass} aria-label="Переместить выше">
-              ↑ выше
+          <div className={`grid gap-1.5 ${technique ? "grid-cols-[52px_minmax(0,1fr)_52px_52px]" : "grid-cols-[minmax(0,1fr)_52px_52px]"}`}>
+            {technique && (
+              <button type="button" onClick={props.onTechnique} aria-label="Как делать" className={`${actionBase} flex items-center justify-center border-ink`}>
+                <BookIcon />
+              </button>
+            )}
+            <button type="button" onClick={props.onSkip} className={`${actionBase} ${skipped ? "border-ink" : "border-line"}`}>
+              {skipped ? "Вернуть" : "Пропуск"}
             </button>
-            <button type="button" onClick={() => props.onMove(1)} disabled={index === total - 1} className={actionClass} aria-label="Переместить ниже">
-              ↓ ниже
+            <button type="button" onClick={() => props.onMove(-1)} disabled={index === 0} className={`${actionClass} flex items-center justify-center`} aria-label="Переместить выше">
+              <ArrowIcon up />
             </button>
-            <button type="button" onClick={props.onRemoveSet} disabled={sets.length <= 1} className={actionClass}>
-              − подход
+            <button type="button" onClick={() => props.onMove(1)} disabled={index === total - 1} className={`${actionClass} flex items-center justify-center`} aria-label="Переместить ниже">
+              <ArrowIcon />
             </button>
           </div>
         </div>
