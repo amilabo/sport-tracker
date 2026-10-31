@@ -4,6 +4,7 @@ import { techniqueOf } from "@/content/technique";
 import type { WorkoutItem } from "@/db/repos/workouts";
 import { formatNumber, parseDecimal, parseDurationInput } from "@/domain/format";
 import { formatCardioDuration, formatClock, formatSetsSummary } from "@/domain/sets";
+import { timedSetSummary } from "@/domain/timed-circuit";
 import type { LogType, SetValues } from "@/domain/types";
 import { fieldsFor, isExerciseDone, isFieldChanged, lastTimeDiffers, parseSignedWeight, stepValue, type SetField } from "@/domain/workout";
 import { ValueStepper } from "./ValueStepper";
@@ -35,6 +36,8 @@ interface ExerciseCardProps {
   roundDone?: boolean;
   /** «в плане 45 кг» under weights lowered after a break (stage 44). */
   planWeight?: string | null;
+  /** In a circuit by time (stage 39): the work time; the line shows the round, not the plan's reps. */
+  timedWork?: number | null;
 }
 
 function unitOf(logType: LogType, field: SetField) {
@@ -132,7 +135,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
           <span className="w-[26px] shrink-0 pt-0.5 font-mono text-sm font-bold text-ink-muted">{num}</span>
           <span className={`flex min-w-0 flex-col gap-1 ${skipped ? "text-ink-muted" : ""}`}>
             <span className={`text-base leading-tight font-semibold ${skipped ? "line-through decoration-1" : ""}`}>{exercise.name}</span>
-            <span className="font-mono text-[15px] font-bold">{formatSetsSummary(logType, sets)}</span>
+            <span className="font-mono text-[15px] font-bold">{props.timedWork ? timedSetSummary(logType, sets, props.timedWork) : formatSetsSummary(logType, sets)}</span>
             {tags.map((t) => (
               <span key={t.text} className={`text-[13px] ${t.accent ? "text-accent-text" : "text-ink-muted"}`}>
                 {t.text}

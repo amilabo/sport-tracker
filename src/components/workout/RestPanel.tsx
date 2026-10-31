@@ -254,33 +254,24 @@ function TimedPanel({ timer, items, snapshot, screenOn, onStop, onPause, onSkip,
     >
       <div className="flex items-center gap-2">
         <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${rest ? "bg-on-inverse-muted" : "bg-on-accent"}`} />
-        <h2 className={`min-w-0 flex-1 truncate font-display text-xs font-bold tracking-[0.06em] uppercase ${rest ? "text-on-inverse-muted" : ""}`}>
+        <h2 className={`min-w-0 flex-1 line-clamp-2 font-display text-xs font-bold tracking-[0.06em] uppercase ${rest ? "text-on-inverse-muted" : ""}`}>
           {paused ? "Пауза · " : ""}
           {rest ? KIND_LABELS[timer.kind] : `Работа · ${target?.exercise.name ?? ""}`}
           {screenOn && <span className="sr-only">, экран не гаснет</span>}
         </h2>
-        {rest && (
-          <span className="flex items-baseline gap-1.5">
-            <span role="timer" className="font-display text-[30px] leading-none font-extrabold tabular-nums">
-              {formatRest(Math.max(0, left))}
-            </span>
-            <span className="font-mono text-[13px] text-on-inverse-muted">из {formatRest(total)}</span>
-          </span>
-        )}
         <SoundButton sound={sound} setSound={setSound} lineColor={lineColor} />
         <button type="button" aria-label="Остановить таймер круга" onClick={onStop} className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-[1.5px] ${lineColor}`}>
           <CloseIcon />
         </button>
       </div>
 
-      {!rest && (
-        <div className="flex items-baseline gap-2.5">
-          <span role="timer" className="font-display text-[64px] leading-none font-extrabold tracking-[-0.02em] tabular-nums">
-            {formatRest(Math.max(0, left))}
-          </span>
-          <span className="font-mono text-[15px] font-bold">из {formatRest(work)}</span>
-        </div>
-      )}
+      {/* The rest is shorter in Т3: the reps take the room. */}
+      <div className="flex items-baseline gap-2.5">
+        <span role="timer" className={`font-display leading-none font-extrabold tracking-[-0.02em] tabular-nums ${rest ? "text-[40px]" : "text-[64px]"}`}>
+          {formatRest(Math.max(0, left))}
+        </span>
+        <span className={`font-mono font-bold ${rest ? "text-[13px] text-on-inverse-muted" : "text-[15px]"}`}>из {formatRest(rest ? total : work)}</span>
+      </div>
       <div aria-hidden="true" className={`h-2 overflow-hidden rounded-full border ${rest ? "border-line-inverse" : "border-on-accent"}`}>
         <div className={`h-full ${rest ? "bg-on-inverse-muted" : "bg-on-accent"}`} style={{ width: `${progress * 100}%` }} />
       </div>

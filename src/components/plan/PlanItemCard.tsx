@@ -3,8 +3,8 @@
 import { forwardRef, useEffect, useRef } from "react";
 import { QUICK_INPUT_EXAMPLES, QUICK_INPUT_LABELS } from "@/domain/quick-input";
 import { formatRest } from "@/domain/rest";
-import { formatSet, formatSetsSummary } from "@/domain/sets";
-import type { Exercise, SetValues } from "@/domain/types";
+import { formatSet, formatSetsSummary, weightText } from "@/domain/sets";
+import type { Exercise, LogType, SetValues } from "@/domain/types";
 
 export interface EditorRow {
   key: string;
@@ -35,10 +35,22 @@ interface PlanItemCardProps {
   /** Rest between sets, shown on plans with rest; `own` — set on this exercise. */
   rest?: { value: number; own: boolean };
   onRest?: () => void;
+  /** In a circuit by time (stage 39, mockup Т1): the work time; sets are rounds, reps are not planned. */
+  timed?: { workSec: number };
 }
 
+const HAS_WEIGHT = new Set<LogType>(["weight_reps", "bodyweight_plus"]);
+
+/** «Вес по кругам · время задаёт круг» (Т1). */
+function timedCaption(logType: LogType): string {
+  if (HAS_WEIGHT.has(logType)) return "Вес по кругам · время задаёт круг";
+  return logType === "reps" ? "Свой вес · время задаёт круг" : "Время задаёт круг";
+}
+
+const roundChip = "flex min-h-11 items-center rounded-[9px] border-[1.5px] border-line bg-surface-raised px-2.5 font-mono text-[13px] font-bold";
+
 export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(function PlanItemCard(
-  { row, index, compact, lifted, handleProps, style, onText, onEditSet, onAddSet, onMenu, autoFocus, rest, onRest },
+  { row, index, compact, lifted, handleProps, style, onText, onEditSet, onAddSet, onMenu, autoFocus, rest, onRest, timed },
   ref,
 ) {
   const logType = row.exercise.log_type;
@@ -81,7 +93,7 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
         <span className="font-mono text-[13px] font-bold text-ink-muted">{num}</span>
         <span className="min-w-0 flex-1 text-[15px] leading-snug font-semibold">
           {row.exercise.name}
-          {compact && <span className="block font-mono text-[13px] font-normal text-ink-muted">{formatSetsSummary(logType, row.sets)}</span>}
+          {compact && !timed && <span className="block font-mono text-[13px] font-normal text-ink-muted">{formatSetsSummary(logType, row.sets)}</span>}
         </span>
         {!compact && (
           <button
@@ -99,7 +111,33 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
         )}
       </div>
 
-      {!compact && (
+      {!compact && timed && (
+        <>
+          <span className="text-xs text-ink-muted">{timedCaption(logType)}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {row.sets.map((s, i) =>
+              HAS_WEIGHT.has(logType) ? (
+                <button
+                  key={s.id ?? i}
+                  type="button"
+                  onClick={() => onEditSet(i)}
+                  aria-label={`Круг ${i + 1}: ${s.weight === null ? "вес не задан" : `${weightText(logType, s.weight)} кг`}. Изменить`}
+                  className={roundChip}
+                >
+                  {s.weight === null ? "— кг" : `${weightText(logType, s.weight)} кг`}
+                </button>
+              ) : (
+                <span key={s.id ?? i} className={roundChip}>
+                  {formatRest(timed.workSec)}
+                </span>
+              ),
+            )}
+          </div>
+          {row.note && <p className="rounded-[10px] bg-bg px-2.5 py-2 text-[13px] text-ink-muted">Заметка: {row.note}</p>}
+        </>
+      )}
+
+      {!compact && !timed && (
         <>
           <label htmlFor={inputId} className="flex flex-col gap-1 text-xs text-ink-muted">
             {QUICK_INPUT_LABELS[logType]}

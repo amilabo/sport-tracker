@@ -25,7 +25,8 @@ function signed(weight: number): string {
   return "0";
 }
 
-function weightText(logType: LogType, weight: number): string {
+/** «16», «+8», «−10»: weight as written in a set. */
+export function weightText(logType: LogType, weight: number): string {
   return logType === "bodyweight_plus" ? signed(weight) : formatNumber(weight);
 }
 

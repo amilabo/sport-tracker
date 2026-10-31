@@ -16,6 +16,7 @@ import {
   newCircuit,
   tidyGroups,
   MAX_ROUNDS,
+  TIMED_DEFAULTS,
   WHOLE_CIRCUIT_ID,
   wholeCircuit,
 } from "@/domain/circuit";
@@ -24,6 +25,7 @@ import { uuid } from "@/domain/ids";
 import { parseQuickInput, QUICK_INPUT_EXAMPLES } from "@/domain/quick-input";
 import { EDITOR_FORMATS, FORMAT_LABELS, formatRest, hasRestSettings, ownRest, restSettings, setRestFor, usesRest, type RestSettings } from "@/domain/rest";
 import { emptySet, MAX_SETS, toQuickInput } from "@/domain/sets";
+import { timedEstimate } from "@/domain/timed-circuit";
 import { DomainError, type Exercise, type Id, type PlanCircuit, type SetValues } from "@/domain/types";
 import { PlanItemCard, type EditorRow } from "./PlanItemCard";
 import { RestSheet } from "./RestSheet";
@@ -118,6 +120,7 @@ type RestEdit =
   | { kind: "row"; index: number }
   | { kind: "inside"; circuit: Id }
   | { kind: "round"; circuit: Id }
+  | { kind: "work" }
   | null;
 
 function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
@@ -164,6 +167,30 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
     setCircuit(cid, { rounds: n });
     setRows((list) => list.map((r) => (inCircuit(r, cid) ? alignRow(r, n) : r)));
   }
+
+  // «По времени» (stage 39, mockup Т1): only the whole circuit of «Круговая».
+  const timed = rest.format === "circuit" && whole.mode === "timed";
+  const workSec = whole.work_sec ?? TIMED_DEFAULTS.work_sec;
+
+  /** «По повторам / По времени». By time every exercise gets its rounds at once: the cards show weight per round. */
+  function pickMode(mode: "reps" | "timed") {
+    if (mode === (timed ? "timed" : "reps")) return;
+    if (mode === "timed") {
+      setCircuit(WHOLE_CIRCUIT_ID, {
+        mode: "timed",
+        work_sec: whole.work_sec ?? TIMED_DEFAULTS.work_sec,
+        ...(whole.work_sec === undefined ? { rest_inside_sec: TIMED_DEFAULTS.rest_inside_sec } : {}),
+      });
+      setRows((list) => list.map((r) => alignRow(r.sets.length ? r : { ...r, sets: [emptySet()] }, whole.rounds)));
+    } else {
+      setCircuit(WHOLE_CIRCUIT_ID, { mode: undefined });
+      // Rounds left blank by time are no plan by reps: the card asks for its sets again.
+      setRows((list) => list.map((r) => (r.sets.every(isBlank) ? { ...r, sets: [], text: "", error: null } : r)));
+    }
+  }
+
+  /** A new or replaced exercise in a circuit by time: blank rounds, the weight is set per round. */
+  const freshSets = (): EditorRow["sets"] => (timed ? Array.from({ length: whole.rounds }, emptySet) : []);
 
   function pickFormat(format: RestSettings["format"]) {
     setRest((r) => ({ ...r, format }));
@@ -225,8 +252,8 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
   function addExercise(exercise: Exercise) {
     const key = uuid();
     setFormError(null);
-    setRows((list) => [...list, { key, exercise, note: null, sets: [], text: "", error: null, rest: null, circuit_id: null }]);
-    setFocusKey(key);
+    setRows((list) => [...list, { key, exercise, note: null, sets: freshSets(), text: "", error: null, rest: null, circuit_id: null }]);
+    if (!timed) setFocusKey(key);
     setPicker(null);
   }
 
@@ -234,7 +261,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
     updateRow(index, (row) =>
       row.exercise.log_type === exercise.log_type
         ? { ...row, exercise }
-        : { ...row, exercise, sets: [], text: "", error: null },
+        : { ...row, exercise, sets: freshSets(), text: "", error: null },
     );
     setPicker(null);
   }
@@ -300,7 +327,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
   // Neighbours of one group («С отдыхом») are drawn together in a frame.
   const blocks: { cid: Id | null; indices: number[] }[] = [];
   rows.forEach((row, i) => {
-    const cid = rest.format === "rest" ? groupOf(row) : null;
+    const cid = rest.format === "rest" ? groupOf(row) : timed ? WHOLE_CIRCUIT_ID : null;
     const last = blocks.at(-1);
     if (cid && last?.cid === cid) last.indices.push(i);
     else blocks.push({ cid, indices: [i] });
@@ -330,11 +357,12 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
         onMenu={() => setMenu(i)}
         rest={withRest && !groupOf(row) && row.sets.length > 1 ? { value: setRestFor(rest, row.rest), own: row.rest !== null } : undefined}
         onRest={() => setRestEdit({ kind: "row", index: i })}
+        timed={timed ? { workSec } : undefined}
       />
     );
   };
 
-  function restSheetProps(edit: NonNullable<RestEdit>): { title: string; subject: string; value: number; planValue?: number } {
+  function restSheetProps(edit: NonNullable<RestEdit>): { title: string; subject: string; value: number; planValue?: number; work?: boolean } {
     const plan = "Весь план. У упражнения можно задать своё значение.";
     switch (edit.kind) {
       case "set":
@@ -345,6 +373,8 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
         return { title: "В круге", subject: "Между упражнениями одного круга.", value: circuitById(edit.circuit).rest_inside_sec };
       case "round":
         return { title: "Между кругами", subject: "После последнего упражнения круга.", value: circuitById(edit.circuit).rest_round_sec };
+      case "work":
+        return { title: "Работа", subject: "Сколько длится каждое упражнение круга. Таймер ведёт сам.", value: workSec, work: true };
       case "row":
         return { title: "Между подходами", subject: rows[edit.index].exercise.name, value: setRestFor(rest, rows[edit.index].rest), planValue: rest.rest_set_sec };
     }
@@ -415,26 +445,29 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
           </p>
         )}
 
-        {withRest && (
+        {rest.format === "circuit" && (
+          <CircuitSection
+            circuit={whole}
+            timed={timed}
+            workSec={workSec}
+            exercises={rows.length}
+            onRounds={(n) => changeRounds(WHOLE_CIRCUIT_ID, n)}
+            onMode={pickMode}
+            onWork={() => setRestEdit({ kind: "work" })}
+            onInside={() => setRestEdit({ kind: "inside", circuit: WHOLE_CIRCUIT_ID })}
+            onRound={() => setRestEdit({ kind: "round", circuit: WHOLE_CIRCUIT_ID })}
+          />
+        )}
+        {rest.format === "rest" && (
           <section aria-labelledby="rest-h" className="rounded-[18px] border-[1.5px] border-line bg-surface px-3.5 pt-3 pb-1">
             <h2 id="rest-h" className="font-display text-xs font-bold tracking-[0.04em] uppercase">
               Отдых
             </h2>
-            {rest.format === "circuit" ? (
-              <>
-                <RoundsRow rounds={whole.rounds} onChange={(n) => changeRounds(WHOLE_CIRCUIT_ID, n)} />
-                <RestRow label="В круге" value={whole.rest_inside_sec} onClick={() => setRestEdit({ kind: "inside", circuit: WHOLE_CIRCUIT_ID })} border />
-                <RestRow label="Между кругами" value={whole.rest_round_sec} onClick={() => setRestEdit({ kind: "round", circuit: WHOLE_CIRCUIT_ID })} border />
-              </>
-            ) : (
-              <>
-                <RestRow label="Между подходами" value={rest.rest_set_sec} onClick={() => setRestEdit({ kind: "set" })} />
-                <RestRow label="Между упражнениями" value={rest.rest_exercise_sec} onClick={() => setRestEdit({ kind: "exercise" })} border />
-              </>
-            )}
+            <RestRow label="Между подходами" value={rest.rest_set_sec} onClick={() => setRestEdit({ kind: "set" })} />
+            <RestRow label="Между упражнениями" value={rest.rest_exercise_sec} onClick={() => setRestEdit({ kind: "exercise" })} border />
           </section>
         )}
-        {rest.format === "circuit" && (
+        {rest.format === "circuit" && !timed && (
           <p className="text-[13px] leading-snug text-ink-muted">
             Все упражнения — один круг, подход = круг.
             {rows.some((r) => r.sets.length > 0 && r.sets.length !== whole.rounds) &&
@@ -452,6 +485,18 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
             if (!b.cid) return renderCard(b.indices[0]);
             const cid = b.cid;
             const c = circuitById(cid);
+            if (cid === WHOLE_CIRCUIT_ID)
+              return (
+                <section key="circuit-all" aria-label={`Круг × ${c.rounds}, по времени`} className="flex flex-col gap-1.5 rounded-[22px] border-[1.5px] border-ink p-2">
+                  <div className="flex items-center gap-2 px-1.5 py-1">
+                    <CircuitBadge rounds={c.rounds} />
+                    <span className="font-mono text-xs text-ink-muted">
+                      по времени · {formatRest(workSec)} / {formatRest(c.rest_inside_sec)}
+                    </span>
+                  </div>
+                  {b.indices.map((i) => renderCard(i))}
+                </section>
+              );
             return (
               <section key={`circuit-${cid}`} aria-label={`Круг × ${c.rounds}`} className="flex flex-col gap-2.5 rounded-[22px] border-[1.5px] border-ink p-2">
                 <CircuitHeader
@@ -504,9 +549,10 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
       {editRow && editSet && setEdit && (
         <SetEditorSheet
           open
-          title={`${editRow.exercise.name} · подход ${setEdit.set + 1}`}
+          title={`${editRow.exercise.name} · ${timed ? "круг" : "подход"} ${setEdit.set + 1}`}
           logType={editRow.exercise.log_type}
           value={editSet}
+          weightOnly={timed}
           canDelete
           onClose={() => setSetEdit(null)}
           onSave={(v) => {
@@ -531,6 +577,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
             else if (restEdit.kind === "exercise") setRest((r) => ({ ...r, rest_exercise_sec: v ?? r.rest_exercise_sec }));
             else if (restEdit.kind === "inside") setCircuit(restEdit.circuit, { rest_inside_sec: v ?? 0 });
             else if (restEdit.kind === "round") setCircuit(restEdit.circuit, { rest_round_sec: v ?? 0 });
+            else if (restEdit.kind === "work") setCircuit(WHOLE_CIRCUIT_ID, { work_sec: v ?? workSec });
             else updateRow(restEdit.index, (r) => ({ ...r, rest: v === null || v === rest.rest_set_sec ? null : v }));
             setRestEdit(null);
           }}
@@ -650,19 +697,108 @@ function Stepper({ value, onChange, label }: { value: number; onChange: (n: numb
   );
 }
 
+function CircuitBadge({ rounds }: { rounds: number }) {
+  return (
+    <span className="flex h-8 items-center gap-1.5 rounded-lg bg-surface-inverse px-2.5 font-display text-[11px] font-bold tracking-[0.04em] text-on-inverse uppercase">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20 12a8 8 0 1 1-2.3-5.6" />
+        <path d="M20 4v4.5h-4.5" />
+      </svg>
+      Круг × {rounds}
+    </span>
+  );
+}
+
+const isBlank = (s: SetValues) => s.weight === null && s.reps === null && s.duration_sec === null && s.speed_kmh === null;
+
+/** «≈ 11 мин», «≈ 1 ч 05 мин». */
+function aboutMinutes(sec: number): string {
+  const m = Math.max(1, Math.round(sec / 60));
+  return m < 60 ? `≈ ${m} мин` : `≈ ${Math.floor(m / 60)} ч ${String(m % 60).padStart(2, "0")} мин`;
+}
+
+interface CircuitSectionProps {
+  circuit: PlanCircuit;
+  timed: boolean;
+  workSec: number;
+  exercises: number;
+  onRounds: (n: number) => void;
+  onMode: (mode: "reps" | "timed") => void;
+  onWork: () => void;
+  onInside: () => void;
+  onRound: () => void;
+}
+
+/** «Круг» of a «Круговая» plan (mockup Т1): rounds, «По повторам / По времени», work and rests, the estimate. */
+function CircuitSection({ circuit, timed, workSec, exercises, onRounds, onMode, onWork, onInside, onRound }: CircuitSectionProps) {
+  const est = timedEstimate({ ...circuit, work_sec: workSec }, exercises);
+  return (
+    <section aria-labelledby="circuit-h" className="flex flex-col gap-2.5 rounded-[18px] border-[1.5px] border-line bg-surface p-3.5">
+      <h2 id="circuit-h" className="font-display text-xs font-bold tracking-[0.04em] uppercase">
+        Круг
+      </h2>
+      <RoundsRow rounds={circuit.rounds} onChange={onRounds} />
+      <span id="circuit-mode" className="text-xs text-ink-muted">
+        Упражнения в круге
+      </span>
+      <div role="radiogroup" aria-labelledby="circuit-mode" className="grid grid-cols-2 gap-1 rounded-[13px] bg-surface-done p-[3px]">
+        {(
+          [
+            ["reps", "По повторам"],
+            ["timed", "По времени"],
+          ] as const
+        ).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={timed === (m === "timed")}
+            onClick={() => onMode(m)}
+            className={`h-11 rounded-[10px] text-sm font-semibold transition-colors ${timed === (m === "timed") ? "bg-surface-raised text-ink" : "text-ink-muted"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {timed && <PhaseRow label="Работа" value={workSec} work onClick={onWork} />}
+      <PhaseRow label={timed ? "Отдых в круге" : "В круге"} value={circuit.rest_inside_sec} onClick={onInside} />
+      <PhaseRow label="Между кругами" value={circuit.rest_round_sec} onClick={onRound} />
+      {timed && (
+        <p className="text-[13px] leading-[1.45] text-ink-muted">
+          В зале таймер ведёт сам: работа → отдых → следующее упражнение. Сколько раз сделали — впишете во время отдыха.
+          {exercises > 0 && ` Круг ≈ ${formatRest(est.roundSec)}, тренировка ${aboutMinutes(est.totalSec)}.`}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** A row of the circuit: the work has the accent dot, rests — a muted one. */
+function PhaseRow({ label, value, work, onClick }: { label: string; value: number; work?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${work ? label : `Отдых ${label.toLowerCase().replace(/^отдых /, "")}`}: ${formatRest(value)}. Изменить`}
+      className="flex min-h-13 w-full items-center gap-2.5 rounded-[14px] border-[1.5px] border-line bg-surface px-3 text-left"
+    >
+      <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${work ? "bg-accent" : "bg-line-strong"}`} />
+      <span className="flex-1 text-[15px]">{label}</span>
+      <span className="font-mono text-base font-bold">{formatRest(value)}</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-ink-muted" aria-hidden="true">
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </button>
+  );
+}
+
 /** The header of a group in a «С отдыхом» plan (mockup О2): «Круг × 3», rounds −/+, rest inside and between rounds. */
 function CircuitHeader({ circuit, onRounds, onInside, onRound }: { circuit: PlanCircuit; onRounds: (n: number) => void; onInside: () => void; onRound: () => void }) {
   const chip = "flex min-h-11 items-center gap-1.5 rounded-[10px] bg-surface px-2.5 text-[13px]";
   return (
     <div className="flex flex-col gap-2 px-1 pt-1">
       <div className="flex items-center gap-2">
-        <span className="flex h-8 items-center gap-1.5 rounded-lg bg-surface-inverse px-2.5 font-display text-[11px] font-bold tracking-[0.04em] text-on-inverse uppercase">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M20 12a8 8 0 1 1-2.3-5.6" />
-            <path d="M20 4v4.5h-4.5" />
-          </svg>
-          Круг × {circuit.rounds}
-        </span>
+        <CircuitBadge rounds={circuit.rounds} />
         <span className="flex-1" />
         <Stepper value={circuit.rounds} onChange={onRounds} label="кругов" />
       </div>

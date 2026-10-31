@@ -2,7 +2,9 @@
 // The timer is stored with the workout as before (RestTimer); what passed while the screen was off or the app closed
 // is counted from the timestamps — `catchUp` replays it, so the sets and the clock always agree.
 import { circuitCurrent } from "./circuit";
+import { formatRest } from "./rest";
 import { nextSet, restAfter } from "./rest-timer";
+import { weightText } from "./sets";
 import type { Exercise, IsoDateTime, PlanCircuit, RestSnapshot, RestTimer, WorkoutExercise, WorkoutSet } from "./types";
 
 export type TimedItem = {
@@ -32,6 +34,20 @@ export function timedEstimate(circuit: Pick<PlanCircuit, "rounds" | "rest_inside
 }
 
 const HAS_REPS = new Set<Exercise["log_type"]>(["weight_reps", "reps", "bodyweight_plus"]);
+const HAS_WEIGHT = new Set<Exercise["log_type"]>(["weight_reps", "bodyweight_plus"]);
+
+/**
+ * The card line in a circuit by time (Т2, Т3): the round now, or the last one when all are done —
+ * «16 кг · 0:40» before it, «16 кг · 18 раз» once the reps are written; own weight — «0:40» / «18 раз».
+ */
+export function timedSetSummary(logType: Exercise["log_type"], sets: Pick<WorkoutSet, "weight" | "reps" | "done_at">[], workSec: number): string {
+  const s = sets.find((x) => !x.done_at) ?? sets.at(-1);
+  if (!s) return formatRest(workSec);
+  const parts: string[] = [];
+  if (HAS_WEIGHT.has(logType) && s.weight !== null) parts.push(`${weightText(logType, s.weight)} кг`);
+  parts.push(s.done_at && s.reps !== null && HAS_REPS.has(logType) ? `${s.reps} раз` : formatRest(workSec));
+  return parts.join(" · ");
+}
 const sec = (fromIso: IsoDateTime, toMs: number) => Math.max(0, Math.round((toMs - Date.parse(fromIso)) / 1000));
 
 interface State {

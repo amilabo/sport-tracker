@@ -22,7 +22,7 @@ import { primeSignal } from "@/lib/signal";
 import { useWakeLock } from "@/lib/wake-lock";
 import { circuitCurrent, circuitProgress } from "@/domain/circuit";
 import { formatRest } from "@/domain/rest";
-import { pendingTimedCircuit } from "@/domain/timed-circuit";
+import { pendingTimedCircuit, workSecFor } from "@/domain/timed-circuit";
 import { CircuitHeader } from "./CircuitHeader";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestPanel } from "./RestPanel";
@@ -336,6 +336,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         roundDone={roundDone(i)}
         planning={isDraft}
         planWeight={comeback?.pct ? planWeightNote(item.sets, (kg) => formatNumber(kg, 2)) : null}
+        timedWork={workSecFor(workout.rest, item)}
         last={last.get(item.exercise.id)}
         onToggleOpen={() => setOpen(open === item.we.id ? null : item.we.id)}
         onToggleDone={() => {

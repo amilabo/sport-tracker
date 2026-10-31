@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cleanCircuits } from "./circuit";
-import { catchUp, finishEarly, pause, resume, startNow, startTimed, timedEstimate, type TimedItem } from "./timed-circuit";
+import { catchUp, finishEarly, pause, resume, startNow, startTimed, timedEstimate, timedSetSummary, type TimedItem } from "./timed-circuit";
 import type { LogType, RestSnapshot, WorkoutSet } from "./types";
 import { newWorkoutExercise, newWorkoutSet } from "./workout";
 
@@ -101,6 +101,14 @@ describe("timed circuit", () => {
     its = applied(its, now.sets);
     expect(its[1].sets[0]).toMatchObject({ rest_sec: 5, rest_target_sec: 20 });
     expect(now.timer).toMatchObject({ phase: "work", we_id: "goblet", target_sec: 40 });
+  });
+
+  it("the card line: the round now — weight and work, a done round — weight and reps", () => {
+    const set = (weight: number | null, reps: number | null, done: boolean) => ({ weight, reps, done_at: done ? "x" : null });
+    expect(timedSetSummary("weight_reps", [set(16, 18, true), set(16, null, false)], 40)).toBe("16 кг · 0:40");
+    expect(timedSetSummary("weight_reps", [set(16, 18, true), set(20, 14, true)], 40)).toBe("20 кг · 14 раз");
+    expect(timedSetSummary("reps", [set(null, null, false)], 40)).toBe("0:40");
+    expect(timedSetSummary("weight_reps", [set(16, null, true)], 45)).toBe("16 кг · 0:45");
   });
 
   it("a skipped exercise is passed over", () => {

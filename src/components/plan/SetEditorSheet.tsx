@@ -13,6 +13,8 @@ interface SetEditorSheetProps {
   logType: LogType;
   value: SetValues;
   canDelete: boolean;
+  /** A circuit by time (stage 39): only the weight is planned, the rest of the set stays as it is. */
+  weightOnly?: boolean;
   onSave: (value: SetValues) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -30,7 +32,7 @@ export function SetEditorSheet(props: SetEditorSheetProps) {
   );
 }
 
-function SetEditorForm({ logType, value, canDelete, onSave, onDelete }: SetEditorSheetProps) {
+function SetEditorForm({ logType, value, canDelete, weightOnly, onSave, onDelete }: SetEditorSheetProps) {
   const [weight, setWeight] = useState(num(value.weight === null ? null : Math.abs(value.weight)));
   const [assist, setAssist] = useState((value.weight ?? 0) < 0);
   const [reps, setReps] = useState(value.reps === null ? "" : String(value.reps));
@@ -41,12 +43,12 @@ function SetEditorForm({ logType, value, canDelete, onSave, onDelete }: SetEdito
   const [error, setError] = useState<string | null>(null);
 
   const usesWeight = logType === "weight_reps" || logType === "bodyweight_plus";
-  const usesReps = usesWeight || logType === "reps";
-  const usesTime = logType === "time" || logType === "cardio";
+  const usesReps = !weightOnly && (usesWeight || logType === "reps");
+  const usesTime = !weightOnly && (logType === "time" || logType === "cardio");
 
   function save(e: React.FormEvent) {
     e.preventDefault();
-    const next: SetValues = { weight: null, reps: null, duration_sec: null, speed_kmh: null };
+    const next: SetValues = weightOnly ? { ...value, weight: null } : { weight: null, reps: null, duration_sec: null, speed_kmh: null };
     if (usesWeight && weight.trim()) {
       const w = parseDecimal(weight);
       if (w === null || w < 0 || w > 999) return setError("Вес — число, например 42,5");
@@ -65,7 +67,7 @@ function SetEditorForm({ logType, value, canDelete, onSave, onDelete }: SetEdito
       }
       next.duration_sec = m * 60 + s;
     }
-    if (logType === "cardio" && speed.trim()) {
+    if (!weightOnly && logType === "cardio" && speed.trim()) {
       const v = parseDecimal(speed);
       if (v === null || v <= 0 || v > 50) return setError("Скорость — число, например 9,5");
       next.speed_kmh = v;
@@ -105,15 +107,17 @@ function SetEditorForm({ logType, value, canDelete, onSave, onDelete }: SetEdito
             <Field label="Секунды" inputMode="numeric" value={sec} onChange={(e) => setSec(e.target.value)} placeholder="0" />
           </>
         )}
-        {logType === "cardio" && (
+        {!weightOnly && logType === "cardio" && (
           <Field label="Скорость, км/ч" inputMode="decimal" value={speed} onChange={(e) => setSpeed(e.target.value)} placeholder="—" />
         )}
       </div>
       <FormError message={error} />
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="quiet" disabled={!canDelete} onClick={onDelete}>
-          Удалить подход
-        </Button>
+      <div className={weightOnly ? "grid" : "grid grid-cols-2 gap-2"}>
+        {!weightOnly && (
+          <Button variant="quiet" disabled={!canDelete} onClick={onDelete}>
+            Удалить подход
+          </Button>
+        )}
         <Button variant="primary" type="submit">
           Готово
         </Button>
