@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentWeek, dayKey, doneByDay, goalWord, habitDays, monthGrid, recentWeeks, weekStart, weeksInRhythm } from "./rhythm";
+import { currentWeek, dayKey, doneByDay, goalWord, habitDays, monthGrid, monthWeeks, recentWeeks, shortDuration, weekStart, weeksInRhythm, weekWorkouts } from "./rhythm";
 import type { Workout } from "./types";
 
 // Local times: the week and the day are the phone's, not UTC.
@@ -78,5 +78,51 @@ describe("habitDays", () => {
 describe("goalWord", () => {
   it("раз / раза", () => {
     expect([1, 2, 3, 4, 5, 6].map(goalWord)).toEqual(["раз", "раза", "раза", "раза", "раз", "раз"]);
+  });
+});
+
+describe("monthWeeks (А3)", () => {
+  const done = doneByDay([w(at(2026, 9, 28)), w(at(2026, 10, 2)), w(at(2026, 10, 19)), w(at(2026, 10, 21))]);
+
+  it("weeks touching the month, newest first; the current one is going, future ones are absent", () => {
+    const weeks = monthWeeks(2026, 9, done, new Date(2026, 9, 30, 12));
+    expect(weeks.map((x) => x.range)).toEqual(["26 окт – 1 ноя", "19–25 окт", "12–18 окт", "5–11 окт", "28 сен – 4 окт"]);
+    expect(weeks[0]).toMatchObject({ current: true, days: "идёт неделя", count: 0 });
+    expect(weeks.at(-1)).toMatchObject({ days: "пн, пт", count: 2 });
+    expect(weeksInRhythm(weeks, 2)).toEqual({ full: 2, total: 4 });
+    // Mid-month: only the weeks so far.
+    expect(monthWeeks(2026, 9, done, new Date(2026, 9, 8, 12)).map((x) => x.range)).toEqual(["5–11 окт", "28 сен – 4 окт"]);
+  });
+
+  it("a week across the year border is in both months", () => {
+    const dec = monthWeeks(2026, 11, new Map(), new Date(2027, 0, 20));
+    const jan = monthWeeks(2027, 0, new Map(), new Date(2027, 0, 20));
+    expect(dec[0].range).toBe("28 дек – 3 янв");
+    expect(jan.at(-1)!.range).toBe("28 дек – 3 янв");
+  });
+});
+
+describe("weekWorkouts", () => {
+  const entry = (id: string, start: string, minutes: number | null, plan: string | null, sets: number, kg: number) => ({
+    workout: { id, started_at: start, finished_at: minutes === null ? null : new Date(new Date(start).getTime() + minutes * 60000).toISOString() },
+    planName: plan,
+    summary: { doneSets: sets, volumeKg: kg },
+  });
+
+  it("the week's workouts oldest first, the other month's days included, and the total", () => {
+    const entries = [
+      entry("b", at(2026, 10, 2, 18), 64, "Ягодицы / спина", 20, 2400),
+      entry("a", at(2026, 9, 28, 18), 58, "Ноги / грудь / руки", 18, 2000),
+      entry("c", at(2026, 10, 5, 18), 50, null, 10, 0),
+    ];
+    const week = weekWorkouts("2026-09-28", entries);
+    expect(week.items).toEqual([
+      { id: "a", day: "пн 28.09", plan: "Ноги / грудь / руки", duration: "58 мин" },
+      { id: "b", day: "пт 02.10", plan: "Ягодицы / спина", duration: "1:04" },
+    ]);
+    expect([week.sets, week.volume]).toEqual([38, 4400]);
+    expect(weekWorkouts("2026-10-05", entries).items[0].plan).toBe("Без плана");
+    expect(weekWorkouts("2026-10-12", entries)).toEqual({ items: [], sets: 0, volume: 0 });
+    expect(shortDuration(60)).toBe("1:00");
   });
 });

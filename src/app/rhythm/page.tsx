@@ -11,7 +11,8 @@ import { settingsRepo } from "@/db/repos/settings";
 import { workoutsRepo } from "@/db/repos/workouts";
 import { monthSummary } from "@/domain/analytics/month-summary";
 import { plural } from "@/domain/format";
-import { doneByDay, GOAL_DEFAULT, habitDays, monthGrid, MONTHS, recentWeeks, weeksInRhythm } from "@/domain/rhythm";
+import { doneByDay, GOAL_DEFAULT, habitDays, monthGrid, MONTHS, monthWeeks, weeksInRhythm, weekWorkouts } from "@/domain/rhythm";
+import { formatKg } from "@/domain/summary";
 
 const sectionTitle = "font-display text-xs font-bold tracking-[0.04em] uppercase";
 const WORKOUT_FORMS: [string, string, string] = ["тренировка", "тренировки", "тренировок"];
@@ -32,22 +33,24 @@ function Arrow({ dir }: { dir: "left" | "right" }) {
 export default function RhythmPage() {
   const { data } = useLive(
     async () => {
-      const [settings, { workouts: completed, items }] = await Promise.all([settingsRepo.get(), workoutsRepo.completedItems()]);
-      return { goal: settings.weekly_goal, done: doneByDay(completed), completed, items };
+      const [settings, { workouts: completed, items }, history] = await Promise.all([settingsRepo.get(), workoutsRepo.completedItems(), workoutsRepo.listHistory()]);
+      return { goal: settings.weekly_goal, done: doneByDay(completed), completed, items, history };
     },
     [],
-    ["settings", "workouts", "workout_exercises", "workout_sets", "exercises"],
+    ["settings", "workouts", "workout_exercises", "workout_sets", "exercises", "plans"],
   );
   const [draft, setDraft] = useState(GOAL_DEFAULT);
   // Months back from the current one, for the calendar arrows.
   const [back, setBack] = useState(0);
+  // The week opened in «Недели <месяца>» (one at a time).
+  const [openWeek, setOpenWeek] = useState<string | null>(null);
 
   if (!data) return <PageHeader title="Ритм" backHref="/" />;
   const now = new Date();
   const goal = typeof data.goal === "number" ? data.goal : null;
   const shownMonth = new Date(now.getFullYear(), now.getMonth() - back, 1);
   const month = monthGrid(shownMonth.getFullYear(), shownMonth.getMonth(), data.done, now);
-  const weeks = recentWeeks(data.done, now);
+  const weeks = monthWeeks(shownMonth.getFullYear(), shownMonth.getMonth(), data.done, now);
   const rhythm = goal ? weeksInRhythm(weeks, goal) : null;
   const habit = habitDays(data.done, now);
   const habitMax = Math.max(...habit.map((h) => h.count));
@@ -135,28 +138,57 @@ export default function RhythmPage() {
       <section aria-labelledby="weeks-h" className="flex flex-col gap-2.5">
         <div className="flex items-baseline justify-between gap-2">
           <h2 id="weeks-h" className={sectionTitle}>
-            Недели
+            Недели {MONTHS_GEN[shownMonth.getMonth()]}
           </h2>
-          {rhythm && (
+          {rhythm && rhythm.total > 0 && (
             <span className="text-sm text-ink-muted">
-              {rhythm.full} из {rhythm.total} {plural(rhythm.total, ["недели", "недель", "недель"])} в ритме
+              {rhythm.full} из {rhythm.total} в ритме
             </span>
           )}
         </div>
         <ul className="flex flex-col overflow-hidden rounded-[18px] border-[1.5px] border-line bg-surface">
           {weeks.map((w) => {
             const dots = Math.max(goal ?? 0, w.count);
+            const open = openWeek === w.key;
+            const week = open ? weekWorkouts(w.key, data.history) : null;
             return (
-              <li key={w.key} className="flex items-center gap-3 border-t border-line px-3.5 py-3 first:border-t-0">
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[15px] font-semibold">{w.range}</span>
-                  <span className="text-sm text-ink-muted">{w.days}</span>
-                </span>
-                <span role="img" className="flex flex-wrap justify-end gap-[5px]" aria-label={goal ? `${w.count} из ${goal}` : `${w.count} ${plural(w.count, WORKOUT_FORMS)}`}>
-                  {Array.from({ length: dots }, (_, j) => (
-                    <span key={j} className={`h-4 w-4 rounded-full ${j < w.count ? "bg-accent" : "border-2 border-line-strong"}`} />
-                  ))}
-                </span>
+              <li key={w.key} className="border-t border-line first:border-t-0">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={`week-${w.key}`}
+                  onClick={() => setOpenWeek(open ? null : w.key)}
+                  className="flex min-h-[72px] w-full items-center gap-2.5 py-3 pr-3 pl-4 text-left"
+                >
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-base font-bold">{w.range}</span>
+                    <span className="text-sm text-ink-muted">{w.days}</span>
+                  </span>
+                  <span role="img" className="flex flex-wrap justify-end gap-[5px]" aria-label={goal ? `${w.count} из ${goal}` : `${w.count} ${plural(w.count, WORKOUT_FORMS)}`}>
+                    {Array.from({ length: dots }, (_, j) => (
+                      <span key={j} className={`h-4 w-4 rounded-full ${j < w.count ? "bg-accent" : "border-2 border-line-strong"}`} />
+                    ))}
+                  </span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`shrink-0 text-ink-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                {week && (
+                  <div id={`week-${w.key}`} className="flex flex-col gap-1.5 px-4 pb-3.5">
+                    {week.items.map((it) => (
+                      <Link key={it.id} href={`/history/view/?id=${it.id}`} className="flex min-h-12 items-center gap-2.5 rounded-xl bg-bg px-3">
+                        <span className="w-16 shrink-0 font-mono text-[13px] font-bold">{it.day}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{it.plan}</span>
+                        {it.duration && <span className="shrink-0 font-mono text-[13px] text-ink-muted">{it.duration}</span>}
+                      </Link>
+                    ))}
+                    <span className="pt-0.5 text-[13px] text-ink-muted">
+                      {week.items.length
+                        ? `${week.sets} ${plural(week.sets, ["подход", "подхода", "подходов"])}${week.volume ? ` · ${formatKg(week.volume)} кг` : ""}`
+                        : "Пока без тренировок"}
+                    </span>
+                  </div>
+                )}
               </li>
             );
           })}

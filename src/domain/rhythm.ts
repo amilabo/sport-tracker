@@ -91,28 +91,90 @@ function weekRange(start: Date): string {
     : `${start.getDate()} ${MONTHS_SHORT[start.getMonth()]} – ${end.getDate()} ${MONTHS_SHORT[end.getMonth()]}`;
 }
 
+function weekRow(start: Date, done: Map<string, number>, current: boolean): WeekRow {
+  const names: string[] = [];
+  let count = 0;
+  for (let i = 0; i < 7; i++) {
+    const c = done.get(dayKey(addDays(start, i))) ?? 0;
+    if (c) names.push(WEEKDAYS[i]);
+    count += c;
+  }
+  const list = names.join(", ");
+  return {
+    key: dayKey(start),
+    range: weekRange(start),
+    days: current ? (list ? `${list} · идёт неделя` : "идёт неделя") : list || "не было",
+    count,
+    current,
+  };
+}
+
 /** The last `n` weeks, the current one first. */
 export function recentWeeks(done: Map<string, number>, now: Date, n = 8): WeekRow[] {
   const first = weekStart(now);
-  return Array.from({ length: n }, (_, w) => {
-    const start = addDays(first, -7 * w);
-    const names: string[] = [];
-    let count = 0;
-    for (let i = 0; i < 7; i++) {
-      const c = done.get(dayKey(addDays(start, i))) ?? 0;
-      if (c) names.push(WEEKDAYS[i]);
-      count += c;
-    }
-    const current = w === 0;
-    const list = names.join(", ");
-    return {
-      key: dayKey(start),
-      range: weekRange(start),
-      days: current ? (list ? `${list} · идёт неделя` : "идёт неделя") : list || "не было",
-      count,
-      current,
-    };
-  });
+  return Array.from({ length: n }, (_, w) => weekRow(addDays(first, -7 * w), done, w === 0));
+}
+
+/**
+ * «Недели <месяца>» (stage 42а, mockup А3): the weeks with at least one day in the month shown, newest first.
+ * A week across two months is listed in both; weeks that have not started yet are not.
+ */
+export function monthWeeks(year: number, month: number, done: Map<string, number>, now: Date): WeekRow[] {
+  const thisWeek = dayKey(weekStart(now));
+  const rows: WeekRow[] = [];
+  const last = new Date(year, month + 1, 0);
+  for (let start = weekStart(new Date(year, month, 1)); start <= last && start <= now; start = addDays(start, 7)) {
+    rows.push(weekRow(start, done, dayKey(start) === thisWeek));
+  }
+  return rows.reverse();
+}
+
+export interface WeekWorkout {
+  id: string;
+  /** «пн 19.10». */
+  day: string;
+  /** The plan's name, «Без плана» for a free workout. */
+  plan: string;
+  /** «58 мин», «1:04»; null — no end time. */
+  duration: string | null;
+}
+
+/** «58 мин» under an hour, «1:04» from an hour. */
+export function shortDuration(minutes: number): string {
+  return minutes < 60 ? `${minutes} мин` : `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+/**
+ * A week opened in the list (А3): its workouts oldest first, days of the neighbouring month included, and the total —
+ * done sets and volume. `entries` — completed workouts with plan names and summaries (the history list).
+ */
+export function weekWorkouts(
+  weekKey: string,
+  entries: { workout: Pick<Workout, "id" | "started_at" | "finished_at">; planName: string | null; summary: { doneSets: number; volumeKg: number } }[],
+): { items: WeekWorkout[]; sets: number; volume: number } {
+  const [y, m, d] = weekKey.split("-").map(Number);
+  const from = new Date(y, m - 1, d).getTime();
+  const to = new Date(y, m - 1, d + 7).getTime();
+  const inWeek = entries
+    .filter((e) => {
+      const t = new Date(e.workout.started_at).getTime();
+      return t >= from && t < to;
+    })
+    .sort((a, b) => a.workout.started_at.localeCompare(b.workout.started_at));
+  return {
+    items: inWeek.map((e) => {
+      const at = new Date(e.workout.started_at);
+      const minutes = e.workout.finished_at ? Math.max(0, Math.round((new Date(e.workout.finished_at).getTime() - at.getTime()) / 60000)) : null;
+      return {
+        id: e.workout.id,
+        day: `${WEEKDAYS[(at.getDay() + 6) % 7]} ${String(at.getDate()).padStart(2, "0")}.${String(at.getMonth() + 1).padStart(2, "0")}`,
+        plan: e.planName ?? "Без плана",
+        duration: minutes === null ? null : shortDuration(minutes),
+      };
+    }),
+    sets: inWeek.reduce((n, e) => n + e.summary.doneSets, 0),
+    volume: inWeek.reduce((n, e) => n + e.summary.volumeKg, 0),
+  };
 }
 
 /** «N из M недель в ритме»: finished weeks with at least `goal` workouts; the current week is not counted until it ends. */
