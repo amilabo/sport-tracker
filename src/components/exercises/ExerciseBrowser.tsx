@@ -35,12 +35,14 @@ interface ExerciseBrowserProps {
   onPreview?: (exercise: Exercise) => void;
   /** Shown instead of the whole list while the search is empty and the filter is «Все». */
   sections?: BrowserSection[] | null;
+  /** The muscle group filter to start with (catalog `?group=back` from «Спина отстаёт»). */
+  initialGroup?: MuscleGroup | null;
 }
 
 /** Search by name + muscle group filter + list. Shared by the catalog and the exercise picker. */
-export function ExerciseBrowser({ exercises, onSelect, footer, autoFocus, disabledIds = [], onPreview, sections }: ExerciseBrowserProps) {
+export function ExerciseBrowser({ exercises, onSelect, footer, autoFocus, disabledIds = [], onPreview, sections, initialGroup = null }: ExerciseBrowserProps) {
   const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<MuscleGroup | null>(null);
+  const [group, setGroup] = useState<MuscleGroup | null>(initialGroup);
   const groups = useMemo(() => presentGroups(exercises), [exercises]);
   const found = useMemo(() => filterExercises(exercises, query, group), [exercises, query, group]);
   const suggesting = !!sections && !query.trim() && group === null;

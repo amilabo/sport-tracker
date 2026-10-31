@@ -14,7 +14,7 @@ export interface AnalyticsItem {
   workoutId: Id;
   startedAt: IsoDateTime;
   we: Pick<WorkoutExercise, "skipped" | "replaced_exercise_id">;
-  exercise: Pick<Exercise, "id" | "name" | "log_type">;
+  exercise: Pick<Exercise, "id" | "name" | "log_type" | "muscle_group" | "is_builtin" | "secondary_groups">;
   sets: WorkoutSet[];
 }
 

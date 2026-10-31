@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Chip } from "@/components/ui/Chip";
+import { cleanSecondary, NO_SECONDARY, SECONDARY_MAX } from "@/content/exercise-muscles";
 import { Field, FormError } from "@/components/ui/Field";
 import type { ExerciseInput } from "@/db/repos/exercises";
 import { EQUIPMENT_LABELS, MUSCLE_GROUP_LABELS } from "@/domain/labels";
@@ -35,6 +36,8 @@ export function ExerciseForm({ id, initial, logTypeLocked, withDescription = tru
   const [equipment, setEquipment] = useState<Equipment | null>(initial?.equipment ?? null);
   const [logType, setLogType] = useState<LogType>(initial?.log_type ?? "weight_reps");
   const [description, setDescription] = useState(initial?.description ?? "");
+  // «Ещё работают» (stage 42б, А8): own exercises only, like the description.
+  const [secondary, setSecondary] = useState<MuscleGroup[]>(initial?.secondary_groups ?? []);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -46,7 +49,13 @@ export function ExerciseForm({ id, initial, logTypeLocked, withDescription = tru
     setBusy(true);
     setError(null);
     try {
-      await onSubmit({ name, muscle_group: group, equipment, log_type: logType, ...(withDescription ? { description } : {}) });
+      await onSubmit({
+        name,
+        muscle_group: group,
+        equipment,
+        log_type: logType,
+        ...(withDescription ? { description, secondary_groups: cleanSecondary(group, secondary) } : {}),
+      });
     } catch (err) {
       setError(err instanceof DomainError ? err.message : "Не получилось сохранить. Попробуйте ещё раз.");
       if (!(err instanceof DomainError)) console.error(err);
@@ -63,12 +72,55 @@ export function ExerciseForm({ id, initial, logTypeLocked, withDescription = tru
         <legend className="mb-2 text-xs text-ink-muted">Группа мышц</legend>
         <div className="flex flex-wrap gap-1.5">
           {MUSCLE_GROUPS.map((g) => (
-            <Chip key={g} on={group === g} onClick={() => setGroup(g)}>
+            <Chip
+              key={g}
+              on={group === g}
+              onClick={() => {
+                setGroup(g);
+                // A new main group is never its own secondary; cardio and whole body have none.
+                setSecondary((cur) => cleanSecondary(g, cur));
+              }}
+            >
               {MUSCLE_GROUP_LABELS[g]}
             </Chip>
           ))}
         </div>
       </fieldset>
+
+      {withDescription && group && (
+        <fieldset className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-dashed border-line-strong px-3.5 pt-1 pb-3.5">
+          <legend className="px-1.5 text-sm font-bold">
+            Ещё работают <span className="font-normal text-ink-muted">— до {SECONDARY_MAX}, необязательно</span>
+          </legend>
+          {!NO_SECONDARY.includes(group) && (
+            <div className="flex flex-wrap gap-1.5">
+              {MUSCLE_GROUPS.filter((g) => g !== group && !NO_SECONDARY.includes(g)).map((g) => {
+                const on = secondary.includes(g);
+                const full = secondary.length >= SECONDARY_MAX;
+                return (
+                  <Chip
+                    key={g}
+                    on={on}
+                    aria-disabled={!on && full}
+                    className={!on && full ? "opacity-45" : ""}
+                    onClick={() => {
+                      if (on) setSecondary(secondary.filter((x) => x !== g));
+                      else if (!full) setSecondary([...secondary, g]);
+                    }}
+                  >
+                    {MUSCLE_GROUP_LABELS[g]}
+                  </Chip>
+                );
+              })}
+            </div>
+          )}
+          <span className="text-[13px] leading-[1.45] text-ink-muted">
+            {NO_SECONDARY.includes(group)
+              ? "У кардио и упражнений на всё тело вторичных групп нет."
+              : "Каждая — половина подхода в «Нагрузке недели». Мышцы, которые только держат положение, не отмечайте."}
+          </span>
+        </fieldset>
+      )}
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-xs text-ink-muted">Оборудование</legend>

@@ -1,3 +1,4 @@
+import { cleanSecondary } from "@/content/exercise-muscles";
 import { newEntity, touch } from "@/domain/entity";
 import { cleanDescription, cleanName, compareRu, searchKey } from "@/domain/text";
 import { nowIso } from "@/domain/time";
@@ -11,6 +12,8 @@ export interface ExerciseInput {
   log_type: LogType;
   /** «Как делать» of an own exercise; ignored for catalog ones (their text ships with the app). */
   description?: string | null;
+  /** «Ещё работают» of an own exercise (stage 42б); ignored for catalog ones. */
+  secondary_groups?: MuscleGroup[] | null;
 }
 
 function assertName(name: string) {
@@ -55,6 +58,8 @@ export const exercisesRepo = {
         progression_level: null,
         description: cleanDescription(input.description),
       });
+      const secondary = cleanSecondary(input.muscle_group, input.secondary_groups);
+      if (secondary.length) exercise.secondary_groups = secondary;
       await store.put(exercise);
       return exercise;
     });
@@ -82,7 +87,14 @@ export const exercisesRepo = {
         const used = await tx.objectStore("workout_exercises").index("exercise_id").count(id);
         if (used > 0) throw new DomainError("Тип записи нельзя изменить: по упражнению уже есть история");
       }
-      const updated = touch(current, next);
+      const { secondary_groups: wanted, ...rest } = next;
+      const updated: Exercise = touch(current, rest);
+      // «Ещё работают»: own exercises only; a new main group drops itself from the secondary ones.
+      if (!current.is_builtin && (wanted !== undefined || patch.muscle_group !== undefined)) {
+        const secondary = cleanSecondary(updated.muscle_group, wanted !== undefined ? wanted : current.secondary_groups);
+        if (secondary.length) updated.secondary_groups = secondary;
+        else delete updated.secondary_groups;
+      }
       await store.put(updated);
       return updated;
     });

@@ -12,6 +12,7 @@ import { exercisesRepo } from "@/db/repos/exercises";
 import { progressionsRepo } from "@/db/repos/progressions";
 import { EQUIPMENT_LABELS, LOG_TYPE_LABELS, MUSCLE_GROUP_LABELS } from "@/domain/labels";
 import { DomainError } from "@/domain/types";
+import { muscleGroupsOf } from "@/content/exercise-muscles";
 import { ExerciseForm } from "./ExerciseForm";
 import { ExerciseProgress } from "./ExerciseProgress";
 import { LinkVariant } from "./LinkVariant";
@@ -78,7 +79,10 @@ export function ExerciseView() {
       <div className="flex flex-col gap-2 px-4">
         <h1 className="font-display text-[26px] leading-[1.1] font-extrabold tracking-[-0.01em]">{exercise.name}</h1>
         <p className="text-sm text-ink-muted">
-          {MUSCLE_GROUP_LABELS[exercise.muscle_group]} · {EQUIPMENT_LABELS[exercise.equipment]} · запись: {LOG_TYPE_LABELS[exercise.log_type]}
+          {MUSCLE_GROUP_LABELS[exercise.muscle_group]}
+          {/* А1: «ноги · ещё ягодицы · штанга» — secondary groups (stage 42б). */}
+          {muscleGroupsOf(exercise).secondary.length > 0 && ` · ещё ${muscleGroupsOf(exercise).secondary.map((g) => MUSCLE_GROUP_LABELS[g]).join(", ")}`} ·{" "}
+          {EQUIPMENT_LABELS[exercise.equipment]} · запись: {LOG_TYPE_LABELS[exercise.log_type]}
         </p>
         <p className="text-sm">
           <span className="text-ink-muted">В планах: </span>

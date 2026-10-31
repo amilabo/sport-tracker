@@ -23,8 +23,9 @@ export const DB_VERSION = 1;
 /**
  * Data format version, written to settings and to backup files.
  * 2 — optional rest fields on plans, plan exercises and workouts (stage 34); files of version 1 read as is.
+ * 3 — optional `Exercise.secondary_groups` (stage 42б); an older app ignores the field.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // Booleans and nulls are not valid IndexedDB keys, so is_demo / archived_at are filtered in memory.
 export interface TrackerDB extends DBSchema {

@@ -38,3 +38,16 @@ export const MOOD_MIN = 5;
 export const FEEL_MIN = 8;
 /** «Рост за месяц»: at most this many exercises. */
 export const MONTH_GROWTH_MAX = 5;
+
+/** «Нагрузка недели» (А3): a secondary group gets this share of a set. */
+export const SECONDARY_SHARE = 0.5;
+/** «Спина отстаёт»: under a third of its pair (chest ↔ back, legs ↔ glutes)… */
+export const LAG_RATIO = 1 / 3;
+/** …this many weeks in a row, the shown one included. */
+export const LAG_WEEKS = 3;
+/** «Нагрузка резко выросла»: sets of the week over 1,5 × the usual… */
+export const SPIKE_RATIO = 1.5;
+/** …the usual — the average of this many previous weeks (also the «обычно» mark on the bars). */
+export const SPIKE_BASE_WEEKS = 4;
+/** «Для роста мышц обычно делают от 10 подходов на группу в неделю». */
+export const WEEKLY_SETS_HINT = 10;

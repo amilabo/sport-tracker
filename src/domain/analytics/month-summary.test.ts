@@ -20,7 +20,7 @@ function item(w: Workout, exerciseId: string, logType: LogType, sets: (SetValues
     workoutId: w.id,
     startedAt: w.started_at,
     we: { skipped: false, replaced_exercise_id: null },
-    exercise: { id: exerciseId, name: exerciseId, log_type: logType },
+    exercise: { id: exerciseId, name: exerciseId, log_type: logType, muscle_group: "legs", is_builtin: false },
     sets: sets.map((s, i): WorkoutSet => ({ ...newWorkoutSet("we", i, s ?? v(20, 10)), done_at: s ? w.started_at : null })),
   };
 }

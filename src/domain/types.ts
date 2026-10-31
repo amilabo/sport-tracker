@@ -37,6 +37,11 @@ export interface Exercise extends BaseEntity {
   progression_level: number | null;
   /** «Как делать» in the person's own words — own exercises only (stage 27); catalog ones ship theirs in the app. */
   description?: string | null;
+  /**
+   * «Ещё работают» of an own exercise (stage 42б, mockup А8): up to 2 groups, each gets half a set in «Нагрузка недели».
+   * Absent — none. Catalog exercises ship theirs in the app (content/exercise-muscles.ts).
+   */
+  secondary_groups?: MuscleGroup[];
   /** «Ваша замена»: offered first when the exercise is replaced in the gym (stage 28). Absent — none. */
   substitute_id?: Id | null;
 }

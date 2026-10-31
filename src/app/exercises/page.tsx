@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { ExerciseBrowser } from "@/components/exercises/ExerciseBrowser";
 import { ExerciseForm } from "@/components/exercises/ExerciseForm";
 import { Button } from "@/components/ui/Button";
@@ -9,9 +9,21 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
 import { useLive } from "@/db/hooks";
 import { exercisesRepo } from "@/db/repos/exercises";
+import { MUSCLE_GROUPS, type MuscleGroup } from "@/domain/types";
 
 export default function CatalogPage() {
+  return (
+    <Suspense>
+      <Catalog />
+    </Suspense>
+  );
+}
+
+/** /exercises/ — the catalog; `?group=back` opens it filtered (from «Спина отстаёт» in «Ритм», stage 42б). */
+function Catalog() {
   const router = useRouter();
+  const param = useSearchParams().get("group");
+  const initialGroup = MUSCLE_GROUPS.includes(param as MuscleGroup) ? (param as MuscleGroup) : null;
   const [creating, setCreating] = useState(false);
   const { data: exercises } = useLive(() => exercisesRepo.list(), [], ["exercises"]);
 
@@ -33,6 +45,7 @@ export default function CatalogPage() {
             <ExerciseBrowser
               exercises={exercises}
               onSelect={(e) => router.push(`/exercises/view/?id=${e.id}`)}
+              initialGroup={initialGroup}
             />
           </>
         )}

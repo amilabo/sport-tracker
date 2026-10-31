@@ -59,7 +59,7 @@ describe("seed", () => {
     expect(fatPct.base_type_id).toBe(types.find((t) => t.key === "fat_kg")!.id);
 
     const settings = await settingsRepo.get();
-    expect(settings).toMatchObject({ schema_version: 2, theme_mode: "system", color_theme: "card", height_cm: null });
+    expect(settings).toMatchObject({ schema_version: 3, theme_mode: "system", color_theme: "card", height_cm: null });
   });
 
   it("every plan item refers to a catalog exercise and seed ids are unique", () => {

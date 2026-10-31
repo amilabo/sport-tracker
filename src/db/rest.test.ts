@@ -104,7 +104,7 @@ describe("rollback safety", () => {
   it("a backup with rest data restores as is", async () => {
     const id = await plansRepo.save({ name: "Гири", rest: REST, items: [{ exercise_id: bench, note: null, sets: sets(2), rest_set_sec: 45 }] });
     const file = parseBackup(JSON.stringify(await backupRepo.exportAll()));
-    expect(file.schema_version).toBe(2);
+    expect(file.schema_version).toBe(3);
     await resetDbForTests();
     await backupRepo.import(file, "replace");
     const full = (await plansRepo.getFull(id))!;

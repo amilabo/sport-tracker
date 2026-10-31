@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { monthCardLine, monthParam } from "@/components/rhythm/MonthSummaryView";
 import { GoalPicker } from "@/components/rhythm/Rhythm";
+import { WeekLoad } from "@/components/rhythm/WeekLoad";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useLive } from "@/db/hooks";
@@ -214,6 +215,8 @@ export default function RhythmPage() {
           </ul>
         </section>
       )}
+
+      <WeekLoad items={data.items} now={now} />
 
       {summary && (
         <section aria-labelledby="analytics-h" className="flex flex-col gap-2.5">
