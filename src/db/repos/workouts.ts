@@ -1,5 +1,6 @@
 import { touch } from "@/domain/entity";
 import type { PreviousItem } from "@/domain/analytics/double-progression";
+import type { AnalyticsItem } from "@/domain/analytics/month-summary";
 import type { ExerciseSession } from "@/domain/chart-series";
 import type { HistoryEntry } from "@/domain/history";
 import { summarize } from "@/domain/summary";
@@ -416,6 +417,28 @@ export const workoutsRepo = {
       if (plan && !plan.archived_at) return plan;
     }
     return null;
+  },
+
+  /**
+   * Analytics (stage 45): every completed workout with its exercises and all their sets, in one read-only
+   * transaction. A year of workouts is a few thousand rows — milliseconds on a phone.
+   */
+  async completedItems(): Promise<{ workouts: Workout[]; items: AnalyticsItem[] }> {
+    return withTx(["workouts", "workout_exercises", "workout_sets", "exercises"], "readonly", async (tx) => {
+      const workouts = (await tx.objectStore("workouts").getAll()).filter((w) => COMPLETED.has(w.status));
+      const byId = new Map(workouts.map((w) => [w.id, w]));
+      const exercises = new Map((await tx.objectStore("exercises").getAll()).map((e) => [e.id, e]));
+      const sets = new Map<Id, WorkoutSet[]>();
+      for (const s of await tx.objectStore("workout_sets").getAll()) sets.set(s.workout_exercise_id, [...(sets.get(s.workout_exercise_id) ?? []), s]);
+      const items: AnalyticsItem[] = [];
+      for (const we of await tx.objectStore("workout_exercises").getAll()) {
+        const w = byId.get(we.workout_id);
+        const exercise = exercises.get(we.exercise_id);
+        if (!w || !exercise) continue;
+        items.push({ workoutId: w.id, startedAt: w.started_at, we, exercise, sets: (sets.get(we.id) ?? []).sort((a, b) => a.position - b.position) });
+      }
+      return { workouts, items };
+    });
   },
 
   /** Finished and finished-automatically workouts, for «Ритм» (demo ones too). */

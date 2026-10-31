@@ -1,17 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { monthCardLine, monthParam } from "@/components/rhythm/MonthSummaryView";
 import { GoalPicker } from "@/components/rhythm/Rhythm";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useLive } from "@/db/hooks";
 import { settingsRepo } from "@/db/repos/settings";
 import { workoutsRepo } from "@/db/repos/workouts";
+import { monthSummary } from "@/domain/analytics/month-summary";
 import { plural } from "@/domain/format";
 import { doneByDay, GOAL_DEFAULT, habitDays, monthGrid, MONTHS, recentWeeks, weeksInRhythm } from "@/domain/rhythm";
 
 const sectionTitle = "font-display text-xs font-bold tracking-[0.04em] uppercase";
 const WORKOUT_FORMS: [string, string, string] = ["тренировка", "тренировки", "тренировок"];
+const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
 function Arrow({ dir }: { dir: "left" | "right" }) {
   return (
@@ -28,11 +32,11 @@ function Arrow({ dir }: { dir: "left" | "right" }) {
 export default function RhythmPage() {
   const { data } = useLive(
     async () => {
-      const [settings, completed] = await Promise.all([settingsRepo.get(), workoutsRepo.listCompleted()]);
-      return { goal: settings.weekly_goal, done: doneByDay(completed) };
+      const [settings, { workouts: completed, items }] = await Promise.all([settingsRepo.get(), workoutsRepo.completedItems()]);
+      return { goal: settings.weekly_goal, done: doneByDay(completed), completed, items };
     },
     [],
-    ["settings", "workouts"],
+    ["settings", "workouts", "workout_exercises", "workout_sets", "exercises"],
   );
   const [draft, setDraft] = useState(GOAL_DEFAULT);
   // Months back from the current one, for the calendar arrows.
@@ -47,6 +51,8 @@ export default function RhythmPage() {
   const rhythm = goal ? weeksInRhythm(weeks, goal) : null;
   const habit = habitDays(data.done, now);
   const habitMax = Math.max(...habit.map((h) => h.count));
+  // «Аналитика» (stage 45): the card into «Итоги» of the month on screen — only when it had workouts.
+  const summary = month.count > 0 ? monthSummary(shownMonth.getFullYear(), shownMonth.getMonth(), data.completed, data.items, goal, now) : null;
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-4 pb-8">
@@ -174,6 +180,24 @@ export default function RhythmPage() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {summary && (
+        <section aria-labelledby="analytics-h" className="flex flex-col gap-2.5">
+          <h2 id="analytics-h" className={sectionTitle}>
+            Аналитика
+          </h2>
+          <Link
+            href={`/rhythm/month/?m=${monthParam(shownMonth.getFullYear(), shownMonth.getMonth())}`}
+            className="flex min-h-14 items-center gap-3 rounded-[18px] border-[1.5px] border-ink bg-surface px-4 py-3"
+          >
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-base font-bold">Итоги {MONTHS_GEN[shownMonth.getMonth()]}</span>
+              {monthCardLine(summary) && <span className="text-[13px] text-ink-muted">{monthCardLine(summary)}</span>}
+            </span>
+            <Arrow dir="right" />
+          </Link>
         </section>
       )}
     </div>

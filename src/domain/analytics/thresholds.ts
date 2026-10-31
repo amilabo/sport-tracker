@@ -31,3 +31,10 @@ export const STALL_TIME_STEP_SEC = 5;
 
 /** «Пора добавить вес» (А2): all planned sets done at the planned weight and reps this many workouts in a row. */
 export const DOUBLE_PROGRESSION_RUNS = 2;
+
+/** «Итоги месяца» (А6): mood before → after from this many workouts of the month with both marks. */
+export const MOOD_MIN = 5;
+/** «Самочувствие и результат» (А6): this many workouts in each group (4–5 and 1–3), all time. */
+export const FEEL_MIN = 8;
+/** «Рост за месяц»: at most this many exercises. */
+export const MONTH_GROWTH_MAX = 5;

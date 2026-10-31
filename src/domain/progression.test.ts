@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chainTimeline, insertLevel, levelInfo, moveLevel, type ChainSession } from "./progression";
+import { chainSeries, chainTimeline, insertLevel, levelInfo, moveLevel, type ChainSession } from "./progression";
 import type { Exercise, WorkoutSet } from "./types";
 
 const ex = (id: string, log_type: Exercise["log_type"] = "reps") => ({ id, name: id, log_type }) as Exercise;
@@ -54,5 +54,34 @@ describe("chain timeline", () => {
   it("starting in the middle of a chain gives no mark for the first level done", () => {
     const items = chainTimeline(members, [s("С резинкой", "2026-07-10", { reps: 8 })]);
     expect(items.some((i) => i.kind === "transition")).toBe(false);
+  });
+});
+
+describe("chainSeries (А7)", () => {
+  const gravitron = ex("gravitron", "bodyweight_plus");
+  const band = ex("band", "reps");
+  const pullups = ex("pullups", "reps");
+  const sessions = [
+    s("gravitron", "2026-05-02", { weight: -40, reps: 8 }),
+    s("gravitron", "2026-06-10", { weight: -30, reps: 8 }),
+    s("gravitron", "2026-07-18", { weight: -20, reps: 8 }),
+    s("band", "2026-07-21", { reps: 5 }),
+    s("band", "2026-10-10", { reps: 9 }),
+    s("pullups", "2026-10-14", { reps: 3 }),
+  ];
+
+  it("a band per level, scaled inside it; less assistance is higher", () => {
+    const c = chainSeries([gravitron, band, pullups], sessions);
+    expect(c.levels.map((l) => l.points.map((p) => p.norm))).toEqual([[0, 0.5, 1], [0, 1], [0.5]]);
+    expect(c.levels[0].points.map((p) => p.value)).toEqual([-40, -30, -20]);
+    expect(c.current).toEqual({ level: 3, since: "2026-10-14T07:00:00.000Z" });
+    expect(c.from).toBe(new Date("2026-05-02T07:00:00.000Z").getTime());
+  });
+
+  it("a level without workouts has no points; no workouts — nothing current", () => {
+    const c = chainSeries([gravitron, band, pullups], sessions.slice(0, 3));
+    expect(c.levels[2].points).toEqual([]);
+    expect(c.current?.level).toBe(1);
+    expect(chainSeries([band], [])).toMatchObject({ from: null, to: null, current: null });
   });
 });

@@ -89,3 +89,47 @@ export function levelInfo(members: Exercise[], sessions: ChainSession[]): LevelI
     };
   });
 }
+
+export interface ChainLevelSeries {
+  exercise: Exercise;
+  level: number;
+  /** The level's workouts in date order; `norm` — 0…1 inside the level's band, 1 — its best. */
+  points: { t: number; value: number; norm: number; workoutId: string }[];
+}
+
+export interface ChainSeries {
+  /** Easiest first, every member — a level without workouts has no points. */
+  levels: ChainLevelSeries[];
+  /** First and last workout of the chain, ms; null — none yet. */
+  from: number | null;
+  to: number | null;
+  /** The level done most recently and when it was first done. */
+  current: { level: number; since: IsoDateTime } | null;
+}
+
+/**
+ * «Вся прогрессия» on one chart (stage 45, mockup А7): a band per level; inside a band each workout's result as on the
+ * exercise's own chart (`pointFor`: assistance is negative, so «less assistance» is higher by itself), scaled between
+ * the level's worst and best. Transitions come from the order of the levels.
+ */
+export function chainSeries(members: Exercise[], sessions: ChainSession[]): ChainSeries {
+  const levels = members.map((exercise, i) => {
+    const raw = chartSeries(exercise.log_type, sessions.filter((s) => s.exerciseId === exercise.id));
+    const values = raw.map((p) => p.value);
+    const lo = Math.min(...values), hi = Math.max(...values);
+    return {
+      exercise,
+      level: i + 1,
+      points: raw.map((p) => ({ t: new Date(p.date).getTime(), value: p.value, norm: hi === lo ? 0.5 : (p.value - lo) / (hi - lo), workoutId: p.workoutId })),
+    };
+  });
+  const all = levels.flatMap((l) => l.points.map((p) => p.t));
+  const latest = [...sessions].filter((s) => members.some((m) => m.id === s.exerciseId)).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+  const currentLevel = latest ? levels.find((l) => l.exercise.id === latest.exerciseId) : undefined;
+  return {
+    levels,
+    from: all.length ? Math.min(...all) : null,
+    to: all.length ? Math.max(...all) : null,
+    current: currentLevel?.points.length ? { level: currentLevel.level, since: new Date(currentLevel.points[0].t).toISOString() } : null,
+  };
+}

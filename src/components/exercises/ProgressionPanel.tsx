@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ProgressionChart } from "@/components/charts/ProgressionChart";
 import { Button } from "@/components/ui/Button";
 import { Field, FormError } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/Sheet";
@@ -9,7 +10,7 @@ import { useLive } from "@/db/hooks";
 import { progressionsRepo, type Chain } from "@/db/repos/progressions";
 import { workoutsRepo } from "@/db/repos/workouts";
 import { formatShortDate } from "@/domain/format";
-import { chainTimeline, levelInfo, type LevelInfo } from "@/domain/progression";
+import { chainSeries, chainTimeline, levelInfo, type ChainSeries, type LevelInfo } from "@/domain/progression";
 import { formatSetsSummary } from "@/domain/sets";
 import { DomainError, type Exercise } from "@/domain/types";
 
@@ -27,6 +28,35 @@ function metaLine(l: LevelInfo): string {
   return l.range ? `${dates} · ${l.range}` : dates;
 }
 
+const shortDate = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/** А7: the whole chain on one chart — «Уровень 3 из 3 · с 14.10». Nothing done yet — no card. */
+function ChainCard({ series }: { series: ChainSeries }) {
+  if (series.from === null) return null;
+  return (
+    <section aria-label="Вся прогрессия на графике" className="flex flex-col gap-3 rounded-[20px] bg-surface-inverse p-4 text-on-inverse">
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-on-inverse-muted">Вся прогрессия · с {MONTHS_GEN[new Date(series.from).getMonth()]}</span>
+        {series.current && (
+          <span className="flex flex-wrap items-baseline gap-2.5">
+            <span className="font-display text-[30px] leading-none font-extrabold text-accent-on-inverse">Уровень {series.current.level}</span>
+            <span className="font-mono text-[13px] text-on-inverse-muted">
+              из {series.levels.length} · с {shortDate(series.current.since)}
+            </span>
+          </span>
+        )}
+      </div>
+      <ProgressionChart series={series} />
+      <p className="text-xs leading-[1.45] text-on-inverse-muted">
+        Внутри уровня выше — лучше: больше вес или раз, меньше помощи. Пунктир — переход на следующий вариант.
+      </p>
+    </section>
+  );
+}
+
 /** «Вся прогрессия» (PRD §3.1.2): levels, then every variant's workouts with transition marks. */
 export function ProgressionPanel({ chain, current }: { chain: Chain; current: Exercise }) {
   const ids = chain.members.map((m) => m.id);
@@ -38,6 +68,7 @@ export function ProgressionPanel({ chain, current }: { chain: Chain; current: Ex
   if (!sessions) return null;
   const levels = levelInfo(chain.members, sessions);
   const timeline = chainTimeline(chain.members, sessions);
+  const series = chainSeries(chain.members, sessions);
   const sectionTitle = "font-display text-xs font-bold tracking-[0.04em] uppercase";
 
   async function run(action: () => Promise<unknown>) {
@@ -57,6 +88,8 @@ export function ProgressionPanel({ chain, current }: { chain: Chain; current: Ex
           {editing ? "Готово" : "Настроить"}
         </button>
       </div>
+
+      <ChainCard series={series} />
 
       <ol className="flex flex-col gap-2">
         {levels.map((l, i) => {
