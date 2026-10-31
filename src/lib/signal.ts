@@ -60,3 +60,24 @@ export function playRestSignal() {
     osc.stop(t + 0.18);
   }
 }
+
+/** One short beep: «3 секунды до конца» in a timed circuit (stage 39). */
+export function playTick() {
+  try {
+    navigator.vibrate?.(80);
+  } catch {
+    // No vibration API (iPhone).
+  }
+  if (!soundOn() || !ctx || ctx.state !== "running") return;
+  const t = ctx.currentTime + 0.02;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "square";
+  osc.frequency.value = 660;
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}

@@ -177,7 +177,7 @@ export default function HomePage() {
       // After a break (stage 44) the lowered weights are not offered to the plan, as on the finish screen.
       const comeback = full?.plan ? isComeback(daysSinceLast(await workoutsRepo.listCompleted(), new Date(w.started_at), w.id)) : false;
       const previous = full?.plan ? await workoutsRepo.previousPlanItems(w) : undefined;
-      const changes = full?.plan && !full.plan.archived_at ? planChanges(full.items, { comeback, previous }) : [];
+      const changes = full?.plan && !full.plan.archived_at ? planChanges(full.items, { comeback, previous, timedCircuits: new Set((w.rest?.circuits ?? []).filter((c) => c.mode === "timed").map((c) => c.id)) }) : [];
       if (!full?.plan || changes.length === 0) {
         // Nothing to ask: settle it silently (the query re-runs and checks the next one).
         await workoutsRepo.markPlanPrompted(w.id);

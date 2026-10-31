@@ -21,6 +21,8 @@ import { progress } from "@/domain/workout";
 import { primeSignal } from "@/lib/signal";
 import { useWakeLock } from "@/lib/wake-lock";
 import { circuitCurrent, circuitProgress } from "@/domain/circuit";
+import { formatRest } from "@/domain/rest";
+import { pendingTimedCircuit } from "@/domain/timed-circuit";
 import { CircuitHeader } from "./CircuitHeader";
 import { ExerciseCard } from "./ExerciseCard";
 import { RestPanel } from "./RestPanel";
@@ -208,6 +210,25 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
     return () => clearTimeout(t);
   }, [lastFocus]);
 
+  // A circuit by time (stage 39): the clock moves the phases on by itself — every half second while the screen is on,
+  // and at once when the app comes back (what passed meanwhile is replayed from the timestamps).
+  const timedRunning = !!running?.timer && !!running.rest?.circuits?.some((c) => c.mode === "timed");
+  const tickRef = useRef(actions.tick);
+  useEffect(() => {
+    tickRef.current = actions.tick;
+  });
+  useEffect(() => {
+    if (!timedRunning) return;
+    const t = setInterval(() => tickRef.current(), 500);
+    const onVisible = () => document.visibilityState === "visible" && tickRef.current();
+    document.addEventListener("visibilitychange", onVisible);
+    tickRef.current();
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [timedRunning]);
+
   /** Draft → a stored workout in progress, with today's changes and the start time = now. */
   async function begin() {
     if (starting) return;
@@ -274,6 +295,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   }
 
   const { done, total } = progress(items);
+  const pendingTimed = pendingTimedCircuit(workout.rest, items);
   const title = full.plan?.name ?? "Тренировка без плана";
   const beforeCollapsed = collapsedId === workout.id;
   const toggleBefore = () => {
@@ -602,12 +624,39 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         <RestPanel
           timer={workout.timer}
           items={items}
+          snapshot={workout.rest}
           screenOn={screenOn}
           onAdjust={actions.adjustRest}
           onStartSet={actions.startSet}
           onFinishSet={actions.finishSet}
           onStop={actions.stopTimer}
+          onPause={actions.togglePause}
+          onSkip={actions.skipPhase}
+          onReps={(weId, setId, reps) => {
+            const i = items.findIndex((it) => it.we.id === weId);
+            const si = i >= 0 ? items[i].sets.findIndex((x) => x.id === setId) : -1;
+            if (si >= 0) actions.setValue(i, si, "reps", reps);
+          }}
         />
+      )}
+      {!isDraft && workout.rest && !workout.timer && pendingTimed && (
+        <section aria-label="Круг по времени" className="sticky bottom-0 z-30 mt-3 flex flex-col gap-2 rounded-t-[22px] bg-surface-inverse px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] text-on-inverse">
+          <p className="text-sm text-on-inverse-muted">
+            Круг по времени: {formatRest(pendingTimed.work_sec ?? 0)} работа / {formatRest(pendingTimed.rest_inside_sec)} отдых — таймер ведёт сам.
+          </p>
+          <Button
+            variant="accent"
+            size="lg"
+            className="font-display"
+            onClick={() => {
+              primeSignal();
+              actions.startTimed();
+            }}
+          >
+            <PlayIcon />
+            Начать круг
+          </Button>
+        </section>
       )}
 
       <StartConflictSheet active={conflict} onClose={() => setConflict(null)} onFinishAndStart={finishActiveAndBegin} />

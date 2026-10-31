@@ -6,6 +6,8 @@ import type { Id, PlanCircuit, PlanFormat, SetValues } from "./types";
 /** The circuit of a «Круговая» plan: all its exercises, whatever their own circuit ids say. */
 export const WHOLE_CIRCUIT_ID = "all";
 export const CIRCUIT_DEFAULTS = { rounds: 3, rest_inside_sec: 15, rest_round_sec: 90 } as const;
+/** «По времени» (stage 39, mockup Т1): 0:40 of work, 0:20 between exercises. */
+export const TIMED_DEFAULTS = { work_sec: 40, rest_inside_sec: 20 } as const;
 export const MAX_ROUNDS = 20;
 
 export function newCircuit(id: Id, rounds: number = CIRCUIT_DEFAULTS.rounds): PlanCircuit {
@@ -21,12 +23,20 @@ export function cleanCircuits(value: unknown): PlanCircuit[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter((c): c is PlanCircuit => !!c && typeof c === "object" && typeof (c as PlanCircuit).id === "string")
-    .map((c) => ({
-      id: c.id,
-      rounds: clampRounds(Number(c.rounds)),
-      rest_inside_sec: cleanRest(c.rest_inside_sec) ?? CIRCUIT_DEFAULTS.rest_inside_sec,
-      rest_round_sec: cleanRest(c.rest_round_sec) ?? CIRCUIT_DEFAULTS.rest_round_sec,
-    }));
+    .map((c) => {
+      const out: PlanCircuit = {
+        id: c.id,
+        rounds: clampRounds(Number(c.rounds)),
+        rest_inside_sec: cleanRest(c.rest_inside_sec) ?? CIRCUIT_DEFAULTS.rest_inside_sec,
+        rest_round_sec: cleanRest(c.rest_round_sec) ?? CIRCUIT_DEFAULTS.rest_round_sec,
+      };
+      // «По времени» keeps its work time; a circuit by reps stays without the fields (older versions see nothing new).
+      if (c.mode === "timed") {
+        out.mode = "timed";
+        out.work_sec = Math.max(5, cleanRest(c.work_sec) ?? TIMED_DEFAULTS.work_sec);
+      }
+      return out;
+    });
 }
 
 /**

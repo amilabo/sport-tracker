@@ -71,6 +71,11 @@ export interface PlanChangesOptions {
    * Absent — no double progression lines.
    */
   previous?: Map<Id, PreviousItem>;
+  /**
+   * Circuits «По времени» of the workout (stage 39): their time is the circuit's, and reps are written in the gym, not
+   * planned — neither is offered to the plan. Weights are.
+   */
+  timedCircuits?: ReadonlySet<Id>;
 }
 
 /**
@@ -101,8 +106,10 @@ export function planChanges(items: DiffItem[], options: PlanChangesOptions = {})
       });
     }
 
+    const timed = !!item.we.circuit_id && !!options.timedCircuits?.has(item.we.circuit_id);
     for (const field of fields) {
       if (dp && field === "weight") continue;
+      if (timed && (field === "reps" || field === "duration_sec")) continue;
       let group: { from: number | null; to: number | null; positions: number[]; updates: PlanSetUpdate[] } | null = null;
       const flush = () => {
         if (!group) return;

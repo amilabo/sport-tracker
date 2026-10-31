@@ -8,6 +8,7 @@ import type { Exercise, Id, SetValues, Workout, WorkoutExercise, WorkoutSet } fr
 import { comebackSets } from "@/domain/analytics/comeback";
 import { circuitProgress } from "@/domain/circuit";
 import { adjustRest, restAfter, restRecord, startWork } from "@/domain/rest-timer";
+import { catchUp, finishEarly, pause, resume, startNow, startTimed, workSecFor, type TimedChange } from "@/domain/timed-circuit";
 import { addedExercise, isExerciseDone, isStale, newWorkoutSet, replacedExercise, type SetField } from "@/domain/workout";
 
 type Records = Parameters<typeof workoutsRepo.put>[0];
@@ -147,6 +148,15 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
     return { next: { ...change.next, workout }, records: { ...change.records, workout } };
   };
 
+  /** A timed circuit step (stage 39): its sets and the timer, written in one go. */
+  const withTimed = (f: WorkoutFull, change: TimedChange): Change | null => {
+    if (!change.sets.length && change.timer === (f.workout.timer ?? null)) return null;
+    const byId = new Map(change.sets.map((s) => [s.id, s]));
+    const items = f.items.map((it) => (it.sets.some((s) => byId.has(s.id)) ? { ...it, sets: it.sets.map((s) => byId.get(s.id) ?? s) } : it));
+    const workout = touch(f.workout, { timer: change.timer });
+    return { next: { ...f, workout, items }, records: { workout, sets: change.sets } };
+  };
+
   /** Ticks set `setIndex` done. The rest before it is recorded; «≈» when «Начать подход» was not pressed. */
   const markSetDone = (f: WorkoutFull, index: number, setIndex: number): Change => {
     const item = f.items[index];
@@ -217,7 +227,8 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
         if (!s || s.done_at) return withTimer({ next: f, records: {} }, null);
         const updated = touch(s, { ...restRecord(t, at, false), started_at: at });
         const change = withItem(f, index, f.items[index].we, f.items[index].sets.map((x) => (x.id === s.id ? updated : x)), { sets: [updated] });
-        return withTimer(change, startWork(t, at));
+        // Into a timed circuit: the work runs for the circuit's time and ends by itself (stage 39).
+        return withTimer(change, startWork(t, at, workSecFor(f.workout.rest, f.items[index]) ?? 0));
       }),
 
     /** «Готово» on the panel while a set is being done. */
@@ -229,6 +240,40 @@ export function useWorkoutSession(targetKind: SessionTarget["kind"], targetId: I
         const setIndex = f.items[index]?.sets.findIndex((x) => x.id === t.set_id) ?? -1;
         if (setIndex < 0 || f.items[index].sets[setIndex].done_at) return withTimer({ next: f, records: {} }, null);
         return markSetDone(f, index, setIndex);
+      }),
+
+    /** A timed circuit (stage 39): the phases that ended by now — called every half second and on coming back. */
+    tick: () =>
+      apply((f) => {
+        const snap = f.workout.rest;
+        if (!snap || !f.workout.timer) return null;
+        return withTimed(f, catchUp(snap, f.items, f.workout.timer, Date.now()));
+      }),
+
+    /** «Начать круг»: the first exercise of a timed circuit starts its work. */
+    startTimed: () =>
+      apply((f) => {
+        const snap = f.workout.rest;
+        if (!snap || f.workout.timer) return null;
+        const change = startTimed(snap, f.items, Date.now());
+        return change && withTimed(f, change);
+      }),
+
+    /** «Пауза» / continue. */
+    togglePause: () =>
+      apply((f) => {
+        const t = f.workout.timer;
+        if (!t) return null;
+        return withTimer({ next: f, records: {} }, t.paused_at ? resume(t, Date.now()) : pause(t, Date.now()));
+      }),
+
+    /** «Закончить раньше» (work) / «Начать сейчас» (rest) in a timed circuit. */
+    skipPhase: () =>
+      apply((f) => {
+        const snap = f.workout.rest;
+        const t = f.workout.timer;
+        if (!snap || !t) return null;
+        return withTimed(f, t.phase === "work" ? finishEarly(snap, f.items, t, Date.now()) : startNow(snap, f.items, t, Date.now()));
       }),
 
     /** «×» on the panel: no timer until the next set is ticked. */

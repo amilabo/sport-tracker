@@ -79,6 +79,10 @@ export interface PlanCircuit {
   rest_inside_sec: number;
   /** Rest between rounds. */
   rest_round_sec: number;
+  /** «По времени» (stage 39): the timer runs work and rest by itself. Absent — «По повторам». */
+  mode?: "timed";
+  /** Work of each exercise in a timed circuit, seconds. */
+  work_sec?: number;
 }
 
 export interface PlanExercise extends BaseEntity {
@@ -150,6 +154,8 @@ export interface RestTimer {
   /** What started the rest: a set (its square) or a whole exercise (big ✓, set_id null). */
   from_we_id: Id | null;
   from_set_id: Id | null;
+  /** «Пауза» (stage 39): when the clock stopped; absent — running. */
+  paused_at?: IsoDateTime;
 }
 
 export interface WorkoutExercise extends BaseEntity {

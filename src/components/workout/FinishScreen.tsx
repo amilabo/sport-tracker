@@ -121,7 +121,8 @@ function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
       updates: [],
       rest: { planExerciseId: u.planExerciseId, sec: u.toSec },
     }));
-    return [...planChanges(items, { comeback, previous }), ...rest];
+    const timedCircuits = new Set((workout.rest?.circuits ?? []).filter((c) => c.mode === "timed").map((c) => c.id));
+    return [...planChanges(items, { comeback, previous, timedCircuits }), ...rest];
   }, [plan, items, workout.rest, comeback, previous]);
   const rest = useMemo(() => restSummary(items), [items]);
 

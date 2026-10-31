@@ -96,12 +96,14 @@ export function restAfter(
   };
 }
 
-export function elapsedSec(timer: Pick<RestTimer, "since">, now: number): number {
-  return Math.max(0, Math.floor((now - Date.parse(timer.since)) / 1000));
+/** Seconds since the phase began; on «Пауза» (stage 39) the clock stands at the pause. */
+export function elapsedSec(timer: Pick<RestTimer, "since" | "paused_at">, now: number): number {
+  const at = timer.paused_at ? Math.min(now, Date.parse(timer.paused_at)) : now;
+  return Math.max(0, Math.floor((at - Date.parse(timer.since)) / 1000));
 }
 
 /** Seconds of rest left; below zero — rested longer than planned. */
-export function remainingSec(timer: Pick<RestTimer, "since" | "target_sec">, now: number): number {
+export function remainingSec(timer: Pick<RestTimer, "since" | "target_sec" | "paused_at">, now: number): number {
   return timer.target_sec - elapsedSec(timer, now);
 }
 
@@ -119,9 +121,11 @@ export function restRecord(timer: Pick<RestTimer, "since" | "target_sec">, at: I
   };
 }
 
-/** «Начать подход»: rest is over, the set is being done. */
-export function startWork(timer: RestTimer, at: IsoDateTime): RestTimer {
-  return { ...timer, phase: "work", since: at, target_sec: 0 };
+/** «Начать подход»: rest is over, the set is being done; in a timed circuit — for its work time (stage 39). */
+export function startWork(timer: RestTimer, at: IsoDateTime, workSec = 0): RestTimer {
+  const { paused_at: _paused, ...rest } = timer;
+  void _paused;
+  return { ...rest, phase: "work", since: at, target_sec: workSec };
 }
 
 /** «+0:24» over the plan, «1:12» left. */

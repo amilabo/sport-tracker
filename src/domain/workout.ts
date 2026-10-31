@@ -208,7 +208,15 @@ export function buildWorkout(planId: Id | null, items: PlanSnapshotItem[], at: I
   items.forEach((item, position) => {
     const we = newWorkoutExercise(workout.id, item.exercise.id, position, item.planExercise, circuitOf(item.planExercise));
     exercises.push(we);
-    item.sets.forEach((ps, i) => sets.push(newWorkoutSet(we.id, i, ps, ps)));
+    // A circuit by time (stage 39): reps are not planned, the time is the circuit's work; a timed exercise gets it as its value.
+    const work = rest?.circuits?.find((c) => c.id === we.circuit_id && c.mode === "timed")?.work_sec;
+    item.sets.forEach((ps, i) => {
+      const s = newWorkoutSet(we.id, i, ps, ps);
+      if (work) {
+        const timedValue = item.exercise.log_type === "time" || item.exercise.log_type === "cardio";
+        sets.push({ ...s, reps: null, target_reps: null, duration_sec: timedValue ? work : null, target_duration_sec: work });
+      } else sets.push(s);
+    });
   });
   return { workout, exercises, sets };
 }
