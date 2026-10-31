@@ -51,3 +51,13 @@ export const SPIKE_RATIO = 1.5;
 export const SPIKE_BASE_WEEKS = 4;
 /** «Для роста мышц обычно делают от 10 подходов на группу в неделю». */
 export const WEEKLY_SETS_HINT = 10;
+
+/** Weight trend (А4): exponential smoothing, α = 1 − e^(−Δdays / τ). */
+export const TREND_TAU_DAYS = 10;
+/** «↓ 0,2 кг в неделю · тренд за 6 недель»: the rate over this many last weeks (or less, if the history is shorter)… */
+export const TREND_WINDOW_WEEKS = 6;
+/** …from this many weight entries over at least this many days; below — no trend. */
+export const TREND_MIN_POINTS = 3;
+export const TREND_MIN_DAYS = 14;
+/** «Тренировки и тело»: ≈ максимум of this many exercises done most often in the period. */
+export const STRENGTH_TOP = 3;

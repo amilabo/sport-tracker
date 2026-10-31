@@ -9,7 +9,10 @@ import { dayLabel, Delta, fullDate, periodPoints, sectionTitle, Sparkline, useBo
 import { LineChart } from "@/components/charts/LineChart";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useLive } from "@/db/hooks";
 import { settingsRepo } from "@/db/repos/settings";
+import { workoutsRepo } from "@/db/repos/workouts";
+import { trainingInPeriod, trendRate, weightTrend } from "@/domain/analytics/body-trend";
 import { shortDate, type BodySession } from "@/domain/body";
 import {
   BODY_PERIODS,
@@ -97,6 +100,8 @@ function DateStepper({ label, date, latest, strong, onPick, prev, next, onStep }
 
 export default function BodyPage() {
   const data = useBodyData();
+  // «Тренировки и тело» (stage 43): the workouts of the period on screen.
+  const { data: training } = useLive(() => workoutsRepo.completedItems(), [], ["workouts", "workout_exercises", "workout_sets", "exercises"]);
   // The switch is saved in settings (and so in a backup); this keeps the screen instant until the write lands.
   const [view, setView] = useState<BodyView | null>(null);
   const [picking, setPicking] = useState<"a" | "b" | null>(null);
@@ -126,6 +131,14 @@ export default function BodyPage() {
   const weightPoints = weight?.b ? periodPoints(weight.series, weight.a?.date ?? null, weight.b.date) : [];
   const cap = latest ? caption(dates, latest, period) : "";
   const compared = sessions.length > 1;
+  // Weight trend (А4): smoothed over every entry, drawn over the period's dots.
+  const trend = weight ? weightTrend(weight.series) : [];
+  const rate = trendRate(trend);
+  const shownTrend =
+    rate && weightPoints.length > 1 ? trend.filter((p) => p.date >= weightPoints[0].date && p.date <= weightPoints.at(-1)!.date).map((p) => ({ t: new Date(`${p.date}T12:00:00`).getTime(), y: p.value })) : null;
+  const inPeriod = training && dates.a && dates.b ? trainingInPeriod(training.workouts, training.items, dates.a, dates.b) : null;
+  const bodyRows = dates.a ? rows.filter((r) => r.a && r.b && r.a.date !== r.b.date && (r.type.unit === "кг" || r.type.unit === "см")) : [];
+  const periodText = period === "last" ? "между замерами" : period === "3m" ? "за 3 мес" : period === "all" ? "с начала" : dates.a && dates.b ? `${dayLabel(dates.a, latest)} – ${dayLabel(dates.b, latest)}` : "";
 
   function saveView(next: BodyView) {
     setView(next);
@@ -228,8 +241,42 @@ export default function BodyPage() {
                 detail: `${fullDate(p.date)} · ${formatNumber(p.value)} кг`,
               }))}
               formatY={(v) => formatNumber(Math.round(v * 10) / 10)}
-              ariaLabel={`Вес с ${dayLabel(weightPoints[0].date, latest)} по ${dayLabel(weightPoints.at(-1)!.date, latest)}: от ${formatNumber(weightPoints[0].value)} до ${formatNumber(weightPoints.at(-1)!.value)} кг`}
+              ariaLabel={`Вес с ${dayLabel(weightPoints[0].date, latest)} по ${dayLabel(weightPoints.at(-1)!.date, latest)}: от ${formatNumber(weightPoints[0].value)} до ${formatNumber(weightPoints.at(-1)!.value)} кг${
+                shownTrend ? `, тренд от ${formatNumber(shownTrend[0].y)} до ${formatNumber(shownTrend.at(-1)!.y)} кг` : ""
+              }`}
+              trend={shownTrend}
             />
+          )}
+          {rate && (
+            <div className="flex flex-col gap-2">
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="flex h-[30px] items-center gap-1.5 rounded-[10px] border border-line-inverse px-2.5 font-mono text-[13px] font-bold">
+                  {Math.abs(rate.perWeek) < 0.05 ? (
+                    "≈ без изменений"
+                  ) : (
+                    <>
+                      <span className="text-accent-on-inverse">{rate.perWeek < 0 ? "↓" : "↑"}</span>
+                      {formatNumber(Math.abs(rate.perWeek))} кг в неделю
+                    </>
+                  )}
+                </span>
+                <span className="text-[13px] text-on-inverse-muted">
+                  тренд за {rate.weeks} {plural(rate.weeks, ["неделю", "недели", "недель"])}
+                </span>
+              </span>
+              {shownTrend && (
+                <span aria-hidden="true" className="flex gap-4 text-xs text-on-inverse-muted">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-[9px] w-[9px] rounded-full border-2 border-on-inverse-muted" />
+                    замеры
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-[3px] w-4 rounded-sm bg-chart-line" />
+                    тренд — без скачков воды и еды
+                  </span>
+                </span>
+              )}
+            </div>
           )}
           <div className="flex min-h-11 items-center justify-between gap-2 border-t border-line-inverse pt-3 text-sm">
             {bmi?.b ? (
@@ -332,6 +379,58 @@ export default function BodyPage() {
               {height ? "Изменить рост" : "Указать рост"}
             </button>
           </p>
+        </section>
+      )}
+
+      {dates.a && dates.b && (inPeriod || bodyRows.length > 0) && (
+        <section aria-labelledby="per-h" className="mx-4 flex flex-col gap-3 rounded-[18px] border-[1.5px] border-line bg-surface p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 id="per-h" className={sectionTitle}>
+              {inPeriod ? "Тренировки и тело" : "Тело за период"}
+            </h2>
+            <span className="text-[13px] text-ink-muted">{periodText}</span>
+          </div>
+          {inPeriod && (
+            <dl className="grid grid-cols-3 gap-2">
+              {[
+                ["Тренировок", String(inPeriod.workouts)],
+                ["В неделю", formatNumber(inPeriod.perWeek)],
+                ["Подходов", String(inPeriod.sets)],
+              ].map(([k, v]) => (
+                <div key={k} className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-ink-muted">{k}</dt>
+                  <dd className="font-mono text-lg font-bold">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {inPeriod && inPeriod.strength.length > 0 && (
+            <div className="flex flex-col">
+              <h3 className="pb-1 text-xs font-bold tracking-[0.04em] text-ink-muted uppercase">Сила · ≈ максимум</h3>
+              {inPeriod.strength.map((x) => (
+                <div key={x.name} className="flex min-h-10 items-center gap-2 border-t border-line py-1.5">
+                  <span className="flex-1 text-[15px]">{x.name}</span>
+                  <span className="font-mono text-sm text-ink-muted">{formatNumber(x.from)} →</span>
+                  <span className="font-mono text-sm font-bold">{formatNumber(x.to)} кг</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {bodyRows.length > 0 && (
+            <div className="flex flex-col">
+              <h3 className="pb-1 text-xs font-bold tracking-[0.04em] text-ink-muted uppercase">Тело</h3>
+              {bodyRows.map((r) => (
+                <div key={r.type.id} className="flex min-h-10 items-center gap-2 border-t border-line py-1.5">
+                  <span className="flex-1 text-[15px]">{r.type.name}</span>
+                  <span className="font-mono text-sm text-ink-muted">{formatNumber(r.a!.value)} →</span>
+                  <span className="font-mono text-sm font-bold">
+                    {formatNumber(r.b!.value)} {r.type.unit}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {inPeriod && inPeriod.strength.length > 0 && <p className="text-xs leading-[1.45] text-ink-muted">Сила — по трём упражнениям, которые вы делали чаще всего за этот период.</p>}
         </section>
       )}
 

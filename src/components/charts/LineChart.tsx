@@ -20,6 +20,8 @@ interface LineChartProps {
   ariaLabel: string;
   /** A shaded stretch from `fromT` to the end with a caption — «4 на одном уровне» (stage 41). */
   band?: { fromT: number; label: string } | null;
+  /** A smoothed line over the dots (weight trend, stage 43): then the dots are muted and the trend is the accent line. */
+  trend?: { t: number; y: number }[] | null;
 }
 
 const W = 326;
@@ -35,10 +37,10 @@ const CALLOUT_PAD = 9;
 const CALLOUT_H = 24;
 
 /** Line with dots on a dark card (mockup «Упражнение»). Colors only from chart tokens. */
-export function LineChart({ points, formatY, ariaLabel, band }: LineChartProps) {
+export function LineChart({ points, formatY, ariaLabel, band, trend }: LineChartProps) {
   const [active, setActive] = useState<number | null>(null);
   if (!points.length) return null;
-  const ys = points.map((p) => p.y);
+  const ys = [...points.map((p) => p.y), ...(trend ?? []).map((p) => p.y)];
   let min = Math.min(...ys);
   let max = Math.max(...ys);
   if (min === max) {
@@ -110,7 +112,17 @@ export function LineChart({ points, formatY, ariaLabel, band }: LineChartProps) 
           )}
         </g>
       ))}
-      {xy.length > 1 && (
+      {trend && trend.length > 1 && (
+        <polyline
+          points={trend.map((p) => `${x(p.t)},${y(p.y)}`).join(" ")}
+          fill="none"
+          className="stroke-chart-line"
+          strokeWidth={3}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
+      {xy.length > 1 && !trend && (
         <polyline
           points={xy.map((p) => `${p.cx},${p.cy}`).join(" ")}
           fill="none"
@@ -126,9 +138,9 @@ export function LineChart({ points, formatY, ariaLabel, band }: LineChartProps) 
           <circle
             cx={p.cx}
             cy={p.cy}
-            r={i === active ? 6.5 : 5}
-            className={`${i === active ? "fill-chart-line" : "fill-surface-inverse"} stroke-chart-line`}
-            strokeWidth={2.5}
+            r={i === active ? 6.5 : trend ? 4 : 5}
+            className={`${i === active ? "fill-chart-line" : "fill-surface-inverse"} ${trend && i !== active ? "stroke-on-inverse-muted" : "stroke-chart-line"}`}
+            strokeWidth={trend ? 2 : 2.5}
           />
           {dotLabels && p.label && i !== active && (
             <text x={p.cx} y={p.cy - 10} textAnchor="middle" className="fill-on-inverse font-mono" fontSize={10} fontWeight={700}>
