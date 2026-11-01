@@ -20,6 +20,7 @@ import type { Exercise, Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
 import { primeSignal } from "@/lib/signal";
 import { useWakeLock } from "@/lib/wake-lock";
+import { useBackGuard } from "@/platform/use-back-guard";
 import { circuitCurrent, circuitProgress } from "@/domain/circuit";
 import { formatRest } from "@/domain/rest";
 import { pendingTimedCircuit, workSecFor } from "@/domain/timed-circuit";
@@ -256,6 +257,9 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
     e.preventDefault();
     setLeaveTo(href);
   };
+  // The same for the Android back button.
+  const askLeaveBack = useCallback(() => setLeaveTo(LEAVE_BACK), []);
+  useBackGuard(isDraft && dirty ? askLeaveBack : null);
 
   // Leaving the app (lock screen, switching apps) — make sure pending writes finish.
   useEffect(() => {
@@ -698,6 +702,9 @@ function ComebackCard({ days, pct, onPick }: { days: number; pct: number; onPick
   );
 }
 
+/** `to` of LeaveDraftSheet for the back button: go back instead of to a link. */
+const LEAVE_BACK = "back";
+
 function LeaveDraftSheet({ to, onClose }: { to: string | null; onClose: () => void }) {
   const router = useRouter();
   return (
@@ -714,7 +721,8 @@ function LeaveDraftSheet({ to, onClose }: { to: string | null; onClose: () => vo
             variant="outline"
             onClick={() => {
               onClose();
-              if (to) router.push(to);
+              if (to === LEAVE_BACK) router.back();
+              else if (to) router.push(to);
             }}
           >
             Выйти без правок

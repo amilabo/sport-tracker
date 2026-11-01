@@ -10,6 +10,7 @@ import { TodayLabel } from "@/components/TodayLabel";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Sheet } from "@/components/ui/Sheet";
+import { IS_ANDROID } from "@/platform";
 import { useLive } from "@/db/hooks";
 import { plansRepo } from "@/db/repos/plans";
 import { settingsRepo } from "@/db/repos/settings";
@@ -217,7 +218,7 @@ export default function HomePage() {
       {data?.askGoal && <GoalCard />}
 
       <SavedWorkout />
-      <InstallHint />
+      {!IS_ANDROID && <InstallHint />}
 
       {data?.active && <ActiveCard active={data.active} />}
 

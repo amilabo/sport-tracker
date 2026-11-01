@@ -7,6 +7,7 @@ import { ExercisePicker } from "@/components/exercises/ExercisePicker";
 import { Button } from "@/components/ui/Button";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/Sheet";
+import { useBackGuard } from "@/platform/use-back-guard";
 import { plansRepo, type PlanFull } from "@/db/repos/plans";
 import {
   alignSets,
@@ -323,6 +324,9 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
     if (dirty) setConfirm("leave");
     else router.back();
   }
+  // The Android back button asks the same question as «Назад» on the screen.
+  const askLeave = useCallback(() => setConfirm("leave"), []);
+  useBackGuard(dirty ? askLeave : null);
 
   // Neighbours of one group («С отдыхом») are drawn together in a frame.
   const blocks: { cid: Id | null; indices: number[] }[] = [];
@@ -386,7 +390,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
 
   return (
     <div className="flex flex-1 flex-col pb-10">
-      <header className="sticky top-0 z-20 flex items-center gap-2.5 bg-bg px-4 pt-5 pb-3">
+      <header className="sticky top-[var(--safe-top)] z-20 flex items-center gap-2.5 bg-bg px-4 pt-5 pb-3">
         <button
           type="button"
           onClick={back}

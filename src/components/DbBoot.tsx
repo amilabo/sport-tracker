@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getDb, requestPersistentStorage } from "@/db/client";
 import { workoutsRepo } from "@/db/repos/workouts";
+import { IS_ANDROID } from "@/platform";
 
 /** Opens (and on first launch seeds) the database at startup; shows a clear message if storage is unavailable. */
 export function DbBoot() {
@@ -10,7 +11,8 @@ export function DbBoot() {
 
   useEffect(() => {
     getDb()
-      .then(() => Promise.all([requestPersistentStorage(), workoutsRepo.autoFinishStale()]))
+      // The APK storage belongs to the app and is never evicted: no persist() request there.
+      .then(() => Promise.all([IS_ANDROID ? null : requestPersistentStorage(), workoutsRepo.autoFinishStale()]))
       .catch((err) => {
         console.error(err);
         setFailed(true);

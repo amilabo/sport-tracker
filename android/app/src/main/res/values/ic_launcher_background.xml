@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- Token surface-inverse of the "card" theme, the background of scripts/icons/icon.svg. -->
+    <color name="ic_launcher_background">#17140F</color>
+    <!-- Token bg of the light "card" theme: the launch screen. -->
+    <color name="splash_background">#F2EDE4</color>
 </resources>

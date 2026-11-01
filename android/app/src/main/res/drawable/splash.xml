@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch screen before Android 12 (later versions draw the icon themselves, see styles.xml). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item android:gravity="center" android:width="120dp" android:height="120dp">
+        <shape android:shape="oval">
+            <solid android:color="@color/ic_launcher_background" />
+        </shape>
+    </item>
+    <item android:gravity="center" android:width="180dp" android:height="180dp"
+        android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

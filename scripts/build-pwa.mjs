@@ -58,6 +58,10 @@ for (const file of walk(outDir).sort()) {
 }
 const version = hash.digest("hex").slice(0, 12);
 
+// The site must not carry the APK layer: @capacitor/* is loaded only in the android build (src/platform/index.ts).
+const withCapacitor = urls.filter((u) => u.endsWith(".js") && /capacitor/i.test(readFileSync(join(outDir, u.slice(base.length + 1)), "utf8")));
+if (withCapacitor.length) throw new Error(`build-pwa: the site contains Capacitor code: ${withCapacitor.slice(0, 3).join(", ")}`);
+
 // A page of the build must refer only to scripts, styles and fonts of the same build. The service worker checks
 // this on install (see below); here the same check guards the build itself, so it can never reject a good deploy.
 const STATIC_REF = /\/_next\/static\/[^"'\\\s)]+/g;

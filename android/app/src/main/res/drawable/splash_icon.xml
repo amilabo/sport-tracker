@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ launch screen icon: the system shows the middle 2/3 of it in a circle, so the dark disk of
+     the icon background is drawn here (radius 256 of 768) and the picture fits inside it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="768"
+    android:viewportHeight="768">
+    <path android:fillColor="@color/ic_launcher_background"
+        android:pathData="M128,384a256,256 0,1 0,512 0a256,256 0,1 0,-512 0z" />
+    <group android:translateX="153" android:translateY="140"
+        android:scaleX="0.9" android:scaleY="0.9">
+        <path android:fillColor="#F2EDE4" android:fillAlpha="0.9"
+            android:pathData="M107,132h110a11,11 0,0 1,0 22h-110a11,11 0,0 1,0 -22z" />
+        <path android:fillColor="#F2EDE4" android:fillAlpha="0.45"
+            android:pathData="M107,178h70a11,11 0,0 1,0 22h-70a11,11 0,0 1,0 -22z" />
+        <path android:fillColor="#FF5A1F"
+            android:pathData="M182,300a118,118 0,1 0,236 0a118,118 0,1 0,-236 0z" />
+        <path android:strokeColor="#17140F" android:strokeWidth="34"
+            android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M244,302L284,342L360,260" />
+    </group>
+</vector>

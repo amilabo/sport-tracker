@@ -3,6 +3,7 @@ import { JetBrains_Mono, Onest, Unbounded } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { loadRecoveryScript } from "@/lib/pwa";
+import { IS_ANDROID } from "@/platform";
 import { DEFAULT_ACCENT, DEFAULT_THEME, themeInitScript } from "@/lib/theme";
 import "./globals.css";
 
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       data-theme={DEFAULT_THEME}
       data-accent={DEFAULT_ACCENT}
       data-mode="light"
+      data-target={IS_ANDROID ? "android" : undefined}
       suppressHydrationWarning
       className={`${unbounded.variable} ${onest.variable} ${jetbrains.variable} antialiased`}
     >

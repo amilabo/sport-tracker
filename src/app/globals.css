@@ -77,6 +77,14 @@
   }
 }
 
+/* Top inset: the APK draws edge-to-edge under the status bar, the site never does (stays 0). */
+:root {
+  --safe-top: 0px;
+}
+:root[data-target="android"] {
+  --safe-top: env(safe-area-inset-top);
+}
+
 .pb-safe {
   padding-bottom: max(22px, env(safe-area-inset-bottom));
 }

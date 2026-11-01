@@ -16,6 +16,7 @@ import {
   type ModePref,
   type StoredTheme,
 } from "@/lib/theme";
+import { getPlatform } from "@/platform";
 
 // The theme choice lives outside React: localStorage is the source the inline <head> script reads.
 const SERVER_THEME: StoredTheme = { theme: DEFAULT_THEME, accent: DEFAULT_ACCENT, mode: DEFAULT_MODE };
@@ -88,7 +89,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (hydrated) applyTheme(stored.theme, stored.accent, mode);
+    if (!hydrated) return;
+    applyTheme(stored.theme, stored.accent, mode);
+    // APK: status and navigation bar icons follow the mode (the bars show the page's --bg through).
+    getPlatform().then((p) => p.setSystemBars(mode === "dark"));
   }, [hydrated, stored.theme, stored.accent, mode]);
 
   // A theme comes with its own accent (as on the «Оформление» previews); another one can be picked after.
