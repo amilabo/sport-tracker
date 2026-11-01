@@ -9,4 +9,6 @@ export interface Platform {
   setSystemBars(dark: boolean): void;
   /** Keeps the screen on while true; resolves false if it cannot (the screen goes off as usual). */
   keepScreenOn(on: boolean): Promise<boolean>;
+  /** APK: the file as it is (a real .json) through the system share sheet. The site uses Web Share in lib/backup-share.ts. */
+  shareFile(file: File): Promise<"shared" | "cancelled">;
 }

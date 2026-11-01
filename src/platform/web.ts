@@ -6,4 +6,7 @@ export const web: Platform = {
   start: () => () => {},
   setSystemBars() {},
   keepScreenOn: async () => false,
+  shareFile: async () => {
+    throw new Error("shareFile is APK-only: the site shares through navigator.share");
+  },
 };

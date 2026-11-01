@@ -12,6 +12,7 @@ import { backupRepo } from "@/db/repos/backup";
 import { settingsRepo } from "@/db/repos/settings";
 import { formatShortDate, formatTime } from "@/domain/format";
 import { deliverBackup, shareableBackup, shareBackup, usePreparedBackup, type DeliveryResult } from "@/lib/backup-share";
+import { IS_ANDROID } from "@/platform";
 
 function ShareIcon() {
   return (
@@ -89,7 +90,7 @@ export default function BackupPage() {
 
       <div className="flex flex-col gap-4 px-4">
         <p className="text-[15px] leading-snug text-ink-muted">
-          Все записи хранятся только в этом телефоне. Сохраняйте копию — в «Файлы», на почту или себе в мессенджер, — чтобы не потерять их при смене телефона или очистке браузера.
+          Все записи хранятся только в этом телефоне. Сохраняйте копию — в «Файлы», на почту или себе в мессенджер, — чтобы не потерять их при смене телефона или {IS_ANDROID ? "удалении приложения" : "очистке браузера"}.
         </p>
 
         <section className="flex flex-col gap-3 rounded-[18px] border-2 border-ink bg-surface p-4">

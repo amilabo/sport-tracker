@@ -3,6 +3,7 @@ import { backupRepo } from "@/db/repos/backup";
 import { settingsRepo } from "@/db/repos/settings";
 import { nowIso, toLocalDate } from "@/domain/time";
 import { STORE_NAMES } from "@/domain/types";
+import { getPlatform, IS_ANDROID } from "@/platform";
 
 export type DeliveryResult = "shared" | "downloaded" | "cancelled";
 
@@ -30,6 +31,12 @@ export function usePreparedBackup(enabled = true): File | null {
 
 /** Sends the file through the system share sheet; where that is not available (or fails), downloads it. */
 export async function deliverBackup(file: File): Promise<DeliveryResult> {
+  // APK: the WebView has neither Web Share nor downloads — the .json goes through the native share sheet.
+  if (IS_ANDROID) {
+    const result = await (await getPlatform()).shareFile(file);
+    if (result === "shared") await markExported();
+    return result;
+  }
   if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });

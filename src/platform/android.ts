@@ -1,6 +1,8 @@
 // The APK (Capacitor). Loaded only in the android build, through the dynamic import in ./index.ts.
 import { App } from "@capacitor/app";
 import { registerPlugin, SystemBars, SystemBarsStyle } from "@capacitor/core";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { runBackGuard } from "./back";
 import type { Platform } from "./types";
@@ -53,6 +55,30 @@ export const android: Platform = {
     // The window behind the bars takes the page color (seen where an old WebView is not drawn under them).
     const bg = toHex(getComputedStyle(document.documentElement).getPropertyValue("--bg"));
     if (bg) Screen.setBackground({ color: bg }).catch(() => {});
+  },
+  async shareFile(file) {
+    // A real file in the app's cache (no permission needed, Android may clear it), then «Поделиться».
+    // Copies of other days are removed first: the cache keeps only the one being sent.
+    const { files } = await Filesystem.readdir({ path: "", directory: Directory.Cache }).catch(() => ({ files: [] }));
+    await Promise.all(
+      files
+        .filter((f) => f.name.startsWith("sport-tracker-backup-") && f.name !== file.name)
+        .map((f) => Filesystem.deleteFile({ path: f.name, directory: Directory.Cache }).catch(() => {})),
+    );
+    const { uri } = await Filesystem.writeFile({
+      path: file.name,
+      data: await file.text(),
+      directory: Directory.Cache,
+      encoding: Encoding.UTF8,
+    });
+    try {
+      await Share.share({ title: file.name, files: [uri] });
+      return "shared";
+    } catch (err) {
+      // Closing the share sheet rejects with «Share canceled».
+      if (/cancel/i.test(err instanceof Error ? err.message : String(err))) return "cancelled";
+      throw err;
+    }
   },
   async keepScreenOn(on) {
     try {
