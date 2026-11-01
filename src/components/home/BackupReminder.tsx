@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/Button";
 import { getDb } from "@/db/client";
 import { useLive } from "@/db/hooks";
 import { settingsRepo } from "@/db/repos/settings";
+import { latestOf } from "@/domain/auto-backup";
 import { isBackupDue } from "@/domain/backup-reminder";
 import { toLocalDate } from "@/domain/time";
+import { useAutoBackup } from "@/lib/auto-backup";
 import { deliverBackup, usePreparedBackup } from "@/lib/backup-share";
 
 // «Не сейчас» hides the reminder until tomorrow (this phone only).
@@ -38,12 +40,14 @@ const snooze = {
 
 /** «Давно не сохраняли копию» with «Сохранить» (PRD §3.11). */
 export function BackupReminder() {
+  // APK: the automatic copy (stage A3) counts as well — while it works, the reminder stays away.
+  const autoLastAt = useAutoBackup().lastAt;
   const { data: due } = useLive(
     async () => {
       const [settings, workouts] = await Promise.all([settingsRepo.get(), (await getDb()).getAll("workouts")]);
-      return isBackupDue(settings.last_export_at, settings.created_at, workouts);
+      return isBackupDue(latestOf(settings.last_export_at, autoLastAt), settings.created_at, workouts);
     },
-    [],
+    [autoLastAt],
     ["settings", "workouts"],
   );
   const snoozedUntil = useSyncExternalStore(snooze.subscribe, snooze.get, () => null);

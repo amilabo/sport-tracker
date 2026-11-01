@@ -12,10 +12,12 @@ interface SnackbarProps {
   ms?: number;
   /** Changes when the same text must be shown anew. */
   token?: unknown;
+  /** On a screen with the bottom tab bar: shown above it, not over it. */
+  aboveNav?: boolean;
 }
 
 /** A short message over the bottom edge with an action or two — after a change that can still be undone. */
-export function Snackbar({ message, actions, onClose, ms = 8000, token }: SnackbarProps) {
+export function Snackbar({ message, actions, onClose, ms = 8000, token, aboveNav = false }: SnackbarProps) {
   useEffect(() => {
     if (message === null) return;
     const t = setTimeout(onClose, ms);
@@ -24,7 +26,9 @@ export function Snackbar({ message, actions, onClose, ms = 8000, token }: Snackb
 
   if (message === null) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-[480px] px-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div
+      className={`pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-[480px] px-3 ${aboveNav ? "pb-[calc(84px+env(safe-area-inset-bottom))]" : "pb-[max(1rem,env(safe-area-inset-bottom))]"}`}
+    >
       <div
         role="status"
         className="pointer-events-auto snackbar flex w-full flex-col gap-2.5 rounded-2xl border-[1.5px] border-line-inverse bg-surface-inverse py-3 pr-3 pl-4 text-on-inverse"

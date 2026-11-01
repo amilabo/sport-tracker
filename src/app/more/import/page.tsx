@@ -10,6 +10,7 @@ import { backupRepo, type ImportMode, type ImportResult } from "@/db/repos/backu
 import { backupCounts, parseBackup, type BackupFile } from "@/domain/backup";
 import { formatShortDate, formatTime, plural } from "@/domain/format";
 import { DomainError } from "@/domain/types";
+import { autoBackupAfterRestore } from "@/lib/auto-backup";
 
 const count = (n: number, forms: [string, string, string]) => `${n} ${plural(n, forms)}`;
 
@@ -45,6 +46,7 @@ export default function ImportPage() {
     try {
       const result = await backupRepo.import(file.backup, mode);
       setDone({ mode, result });
+      autoBackupAfterRestore();
       setFile(null);
     } catch (err) {
       setError(err instanceof DomainError ? err.message : "Не получилось восстановить. Данные в телефоне не изменились");

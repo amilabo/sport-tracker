@@ -5,7 +5,7 @@ import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { runBackGuard } from "./back";
-import type { Platform } from "./types";
+import type { BackupFolder, Platform } from "./types";
 
 /** Our own plugin: android/app/src/main/java/app/napodhode/ScreenPlugin.java. */
 const Screen = registerPlugin<{
@@ -20,6 +20,15 @@ function toHex(css: string): string | null {
   ctx.fillStyle = css.trim();
   return /^#[0-9a-f]{6}$/i.test(ctx.fillStyle) ? ctx.fillStyle : null;
 }
+
+/** Our own plugin: android/app/src/main/java/app/napodhode/BackupFolderPlugin.java. */
+const Folder = registerPlugin<{
+  folder(): Promise<{ folder?: BackupFolder }>;
+  chooseFolder(): Promise<{ folder?: BackupFolder }>;
+  write(options: { name: string; data: string }): Promise<void>;
+  list(): Promise<{ files: { name: string; modified: number }[] }>;
+  remove(options: { names: string[] }): Promise<void>;
+}>("BackupFolder");
 
 type Closable = HTMLDialogElement & { requestClose?: () => void };
 
@@ -79,6 +88,14 @@ export const android: Platform = {
       if (/cancel/i.test(err instanceof Error ? err.message : String(err))) return "cancelled";
       throw err;
     }
+  },
+  autoBackup: {
+    supported: true,
+    folder: async () => (await Folder.folder()).folder ?? null,
+    chooseFolder: async () => (await Folder.chooseFolder()).folder ?? null,
+    write: (name, data) => Folder.write({ name, data }),
+    list: async () => (await Folder.list()).files,
+    remove: (names) => Folder.remove({ names }),
   },
   async keepScreenOn(on) {
     try {

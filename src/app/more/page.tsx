@@ -11,8 +11,11 @@ import { demoRepo } from "@/db/repos/demo";
 import { plansRepo } from "@/db/repos/plans";
 import { progressionsRepo } from "@/db/repos/progressions";
 import { settingsRepo } from "@/db/repos/settings";
-import { formatShortDate } from "@/domain/format";
+import { formatDayMonth, formatShortDate } from "@/domain/format";
+import { toLocalDate } from "@/domain/time";
 import { DomainError } from "@/domain/types";
+import { useAutoBackup, type AutoBackupState } from "@/lib/auto-backup";
+import { IS_ANDROID } from "@/platform";
 
 interface MoreLink {
   href: string;
@@ -40,10 +43,34 @@ function LinkRow({ link }: { link: MoreLink }) {
   );
 }
 
+/** The «Автокопия» row (APK, stage A3, mockup АК2): the folder or what is wrong, and the day of the last copy. */
+function AutoBackupRow({ auto }: { auto: AutoBackupState }) {
+  const broken = auto.pref === "on" && !!auto.folder && !auto.folder.ok;
+  const sub =
+    auto.pref === "off" ? "Выключена" : auto.pref === null ? "Папка не выбрана" : broken ? "Нет доступа к папке" : (auto.folder?.name ?? "");
+  const hint =
+    auto.pref === "on" && auto.lastAt
+      ? toLocalDate(new Date(auto.lastAt)) === toLocalDate(new Date())
+        ? "сегодня"
+        : formatDayMonth(auto.lastAt)
+      : "";
+  return (
+    <Link href="/more/auto-backup/" className="flex min-h-14 items-center gap-3 px-4 py-2">
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span className="text-base font-semibold">Автокопия</span>
+        <span className="text-[13px] text-ink-muted">{sub}</span>
+      </span>
+      <span className={`font-mono text-[13px] ${broken ? "text-danger" : "text-ink-muted"}`}>{hint}</span>
+      <Chevron />
+    </Link>
+  );
+}
+
 /** «Ещё» by groups (stage 30, mockup 29): exercises and plans, settings, data — backup and demo in one card. */
 export default function MorePage() {
   const [demoBusy, setDemoBusy] = useState(false);
   const [demoError, setDemoError] = useState<string | null>(null);
+  const auto = useAutoBackup();
   const { data } = useLive(
     async () => {
       const [exercises, archivedEx, archivedPlans, settings, chains, demo] = await Promise.all([
@@ -114,7 +141,14 @@ export default function MorePage() {
           Данные
         </h2>
         <div className="overflow-hidden rounded-[18px] border-[1.5px] border-line bg-surface">
-          <LinkRow link={backup} />
+          {IS_ANDROID && <AutoBackupRow auto={auto} />}
+          {IS_ANDROID ? (
+            <div className="border-t border-line">
+              <LinkRow link={backup} />
+            </div>
+          ) : (
+            <LinkRow link={backup} />
+          )}
           <div id="demo" className="flex scroll-mt-4 flex-col gap-3 border-t border-line px-4 pt-3.5 pb-4">
             <div className="flex flex-col gap-2.5">
               <span className="text-base font-semibold">Демо-данные</span>

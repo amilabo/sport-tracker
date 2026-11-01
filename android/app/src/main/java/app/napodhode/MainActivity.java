@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // Our own plugins must be registered before the bridge starts.
         registerPlugin(ScreenPlugin.class);
+        registerPlugin(BackupFolderPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

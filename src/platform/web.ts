@@ -9,4 +9,15 @@ export const web: Platform = {
   shareFile: async () => {
     throw new Error("shareFile is APK-only: the site shares through navigator.share");
   },
+  // A browser cannot write into a folder by itself: the site keeps «Давно не сохраняли копию» instead.
+  autoBackup: {
+    supported: false,
+    folder: async () => null,
+    chooseFolder: async () => null,
+    write: async () => {
+      throw new Error("autoBackup is APK-only");
+    },
+    list: async () => [],
+    remove: async () => {},
+  },
 };

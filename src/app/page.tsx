@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { AutoBackupCard } from "@/components/home/AutoBackupCard";
 import { BackupReminder } from "@/components/home/BackupReminder";
 import { InstallHint } from "@/components/home/InstallHint";
 import { SavedWorkout } from "@/components/home/SavedWorkout";
@@ -218,7 +219,7 @@ export default function HomePage() {
       {data?.askGoal && <GoalCard />}
 
       <SavedWorkout />
-      {!IS_ANDROID && <InstallHint />}
+      {IS_ANDROID ? <AutoBackupCard /> : <InstallHint />}
 
       {data?.active && <ActiveCard active={data.active} />}
 

@@ -9,6 +9,7 @@ import { formatBodyValue, inputTypes, parseBodyValue, seriesOf, shortDate, value
 import { formatNumber, plural } from "@/domain/format";
 import { toLocalDate } from "@/domain/time";
 import { DomainError, type Id, type LocalDate, type MeasurementType } from "@/domain/types";
+import { autoBackupAfter } from "@/lib/auto-backup";
 import { sectionTitle } from "./parts";
 
 interface MeasurementSheetProps {
@@ -87,6 +88,7 @@ function Form({ onClose, types, sessions, session, heightCm, onAskHeight }: Meas
     if (bad.size) return setError("Проверьте выделенные значения");
     try {
       await measurementsRepo.saveSession(date, map, session?.date);
+      autoBackupAfter("measurement");
       onClose();
     } catch (err) {
       setError(err instanceof DomainError ? err.message : "Не получилось сохранить. Попробуйте ещё раз.");

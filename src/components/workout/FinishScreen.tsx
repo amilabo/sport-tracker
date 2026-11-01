@@ -22,6 +22,7 @@ import { durationMinutes, formatDuration, formatDurationLong, formatKg, summariz
 import { isWorkoutDate, parseTime24, toLocalDate, workoutMoments } from "@/domain/time";
 import { DomainError, type Id } from "@/domain/types";
 import { rememberSaved } from "@/components/home/SavedWorkout";
+import { autoBackupAfter } from "@/lib/auto-backup";
 import { PlanUpdateList } from "./PlanUpdateList";
 import { WorkRest } from "./WorkRest";
 
@@ -149,6 +150,7 @@ function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
         mood_after: afterHidden ? null : mood,
         note: note.trim() || null,
       });
+      autoBackupAfter("finish");
       rememberSaved({
         title: plan?.name ?? "Без плана",
         percent: summary.percent,
