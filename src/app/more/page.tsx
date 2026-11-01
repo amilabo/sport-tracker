@@ -179,6 +179,11 @@ export default function MorePage() {
           </div>
         </div>
       </section>
+
+      {/* APK only (A4): which file is installed, to compare with the one being sent. The site is always the latest. */}
+      {IS_ANDROID && (
+        <p className="mx-5 text-center font-mono text-xs text-ink-muted">На подходе · версия {process.env.NEXT_PUBLIC_APP_VERSION}</p>
+      )}
     </div>
   );
 }

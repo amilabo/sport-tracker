@@ -1,6 +1,6 @@
 {
   "name": "sport-tracker",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,6 +12,7 @@
     "prebuild": "npm run check",
     "build": "next build && node scripts/build-pwa.mjs",
     "build:android": "node scripts/build-android.mjs",
+    "apk": "node scripts/build-android.mjs --release",
     "apk:debug": "node scripts/build-android.mjs --apk",
     "start": "npx --yes serve@14 out",
     "lint": "eslint",
