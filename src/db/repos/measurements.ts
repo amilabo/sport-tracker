@@ -60,7 +60,9 @@ export const measurementsRepo = {
       for (const [typeId, value] of values) {
         const current = existing.find((m) => m.measurement_type_id === typeId);
         if (value === null) {
-          if (current) await store.delete(current.id);
+          // An emptied field removes the value only when editing that date. «+ Замер» on a date that
+          // already has one adds to it: its empty fields were never filled, not cleared.
+          if (current && previousDate) await store.delete(current.id);
         } else if (!current) {
           await store.put(newEntity({ date, measurement_type_id: typeId, value }));
         } else if (current.value !== value) {

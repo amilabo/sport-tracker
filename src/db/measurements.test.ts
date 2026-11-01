@@ -13,7 +13,7 @@ const WAIST = measurementTypeSeedId("waist");
 describe("measurementsRepo sessions", () => {
   it("saves, edits (emptied field removes the value), moves and deletes a date", async () => {
     await measurementsRepo.saveSession("2026-09-29", new Map([[W, 64.5], [WAIST, 71.5]]));
-    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 64.4], [WAIST, null]]));
+    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 64.4], [WAIST, null]]), "2026-09-29");
     let all = await measurementsRepo.list();
     expect(all.map((m) => [m.date, m.value])).toEqual([["2026-09-29", 64.4]]);
 
@@ -23,6 +23,13 @@ describe("measurementsRepo sessions", () => {
 
     await measurementsRepo.deleteSession("2026-09-28");
     expect(await measurementsRepo.list()).toEqual([]);
+  });
+
+  it("a new measurement on a date that has one adds to it, empty fields keep the values", async () => {
+    await measurementsRepo.saveSession("2026-09-29", new Map([[W, 70]]));
+    await measurementsRepo.saveSession("2026-09-29", new Map([[W, null], [WAIST, 72]]));
+    const all = await measurementsRepo.list();
+    expect(all.map((m) => [m.measurement_type_id, m.value]).sort()).toEqual([[W, 70], [WAIST, 72]].sort());
   });
 
   it("refuses an empty session, a future date and moving onto a taken date", async () => {
