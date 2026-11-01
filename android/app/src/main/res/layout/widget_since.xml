@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A7, mockup В3: «3 дня / с прошлой тренировки». Tap — the home screen. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView android:id="@+id/w_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:src="@drawable/widget_bg" android:tint="#FBF8F2" android:scaleType="fitXY" android:importantForAccessibility="no" />
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:gravity="center_vertical"
+        android:paddingStart="14dp" android:paddingEnd="14dp">
+        <TextView android:id="@+id/w_big" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="3 дня" android:textSize="20sp" android:fontFamily="sans-serif-black"
+            android:includeFontPadding="false" android:maxLines="1" android:textColor="#17140F" />
+        <TextView android:id="@+id/w_sub" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="3dp" android:text="с прошлой тренировки" android:textSize="12sp"
+            android:maxLines="1" android:ellipsize="end" android:textColor="#5F584D" />
+    </LinearLayout>
+</FrameLayout>

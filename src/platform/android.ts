@@ -4,8 +4,11 @@ import { registerPlugin, SystemBars, SystemBarsStyle } from "@capacitor/core";
 import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { SplashScreen } from "@capacitor/splash-screen";
+import { tokenHex } from "@/lib/css-color";
 import { runBackGuard } from "./back";
-import type { BackupFolder, Platform } from "./types";
+import type { PlannedReminder } from "@/domain/reminders";
+import type { RestSignal } from "@/domain/rest-signals";
+import type { BackupFolder, HomeData, NotifyPermission, Platform } from "./types";
 
 /** Our own plugin: android/app/src/main/java/app/napodhode/ScreenPlugin.java. */
 const Screen = registerPlugin<{
@@ -13,13 +16,6 @@ const Screen = registerPlugin<{
   setBackground(options: { color: string }): Promise<void>;
 }>("Screen");
 
-/** "#000", "rgb(…)" and other CSS forms → "#rrggbb" (what Android's Color.parseColor reads); null if not a color. */
-function toHex(css: string): string | null {
-  const ctx = document.createElement("canvas").getContext("2d");
-  if (!ctx || !css.trim()) return null;
-  ctx.fillStyle = css.trim();
-  return /^#[0-9a-f]{6}$/i.test(ctx.fillStyle) ? ctx.fillStyle : null;
-}
 
 /** Our own plugin: android/app/src/main/java/app/napodhode/BackupFolderPlugin.java. */
 const Folder = registerPlugin<{
@@ -29,6 +25,27 @@ const Folder = registerPlugin<{
   list(): Promise<{ files: { name: string; modified: number }[] }>;
   remove(options: { names: string[] }): Promise<void>;
 }>("BackupFolder");
+
+/** Our own plugin: android/app/src/main/java/app/napodhode/RestAlarmPlugin.java. */
+const Alarm = registerPlugin<{
+  permission(): Promise<{ state: NotifyPermission }>;
+  requestPermission(): Promise<{ state: NotifyPermission }>;
+  openSettings(): Promise<void>;
+  schedule(options: { signals: RestSignal[]; sound: boolean }): Promise<void>;
+  cancel(): Promise<void>;
+  beep(options: { tick: boolean }): Promise<void>;
+}>("RestAlarm");
+
+/** Our own plugins: RemindersPlugin.java (A6), HomePlugin.java (A7–A8). */
+const Reminders = registerPlugin<{ set(options: { items: PlannedReminder[] }): Promise<void> }>("Reminders");
+const Home = registerPlugin<{ update(options: HomeData): Promise<void> }>("Home");
+
+/** «app.napodhode://open/workout/?plan=…» → «/workout/?plan=…»; null — not ours. */
+function pathOf(url: string): string | null {
+  const m = /^app\.napodhode:\/\/open(\/[^#]*)?/.exec(url);
+  return m ? (m[1] ?? "/") : null;
+}
+let launchHandled = false;
 
 type Closable = HTMLDialogElement & { requestClose?: () => void };
 
@@ -62,7 +79,7 @@ export const android: Platform = {
     // "Dark" style = light icons for a dark page.
     SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
     // The window behind the bars takes the page color (seen where an old WebView is not drawn under them).
-    const bg = toHex(getComputedStyle(document.documentElement).getPropertyValue("--bg"));
+    const bg = tokenHex("--bg");
     if (bg) Screen.setBackground({ color: bg }).catch(() => {});
   },
   async shareFile(file) {
@@ -96,6 +113,48 @@ export const android: Platform = {
     write: (name, data) => Folder.write({ name, data }),
     list: async () => (await Folder.list()).files,
     remove: (names) => Folder.remove({ names }),
+  },
+  notifications: {
+    supported: true,
+    permission: async () => (await Alarm.permission()).state,
+    request: async () => (await Alarm.requestPermission()).state,
+    openSettings: () => Alarm.openSettings(),
+  },
+  reminders: {
+    supported: true,
+    set: (items) => Reminders.set({ items }),
+  },
+  home: {
+    supported: true,
+    update: (data) => Home.update(data),
+  },
+  onOpen(cb) {
+    // Started from a notification, a widget or a shortcut: the address it was started with — once per run.
+    if (!launchHandled) {
+      launchHandled = true;
+      App.getLaunchUrl()
+        .then((r) => {
+          const path = r?.url ? pathOf(r.url) : null;
+          if (path) cb(path);
+        })
+        .catch(() => {});
+    }
+    // Already running: Android hands the address over.
+    const listener = App.addListener("appUrlOpen", ({ url }) => {
+      const path = pathOf(url);
+      if (path) cb(path);
+    });
+    return () => {
+      listener.then((l) => l.remove()).catch(() => {});
+    };
+  },
+  restAlarm: {
+    schedule: (signals, sound) => (signals.length ? Alarm.schedule({ signals, sound }) : Alarm.cancel()),
+    cancel: () => Alarm.cancel(),
+    beep(tick) {
+      Alarm.beep({ tick }).catch(() => {});
+      return true;
+    },
   },
   async keepScreenOn(on) {
     try {

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A7: the accent square of the play button. White: the theme's color is laid over it (Widgets.tint); android:tint in the layouts is the light «card» theme for the widget list preview. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="12dp" />
+</shape>

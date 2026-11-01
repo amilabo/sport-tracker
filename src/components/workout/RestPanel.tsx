@@ -8,6 +8,7 @@ import { formatSet } from "@/domain/sets";
 import { timedCircuit, workSecFor } from "@/domain/timed-circuit";
 import type { RestSnapshot, RestTimer } from "@/domain/types";
 import { playRestSignal, playTick, primeSignal, setSoundOn, soundOn } from "@/lib/signal";
+import { NotifyAsk } from "./NotifyAsk";
 
 /** Re-renders 4 times a second while the panel is on screen. */
 function useNow() {
@@ -22,6 +23,7 @@ function useNow() {
 }
 
 interface RestPanelProps {
+  workoutId: string;
   timer: RestTimer;
   items: WorkoutItem[];
   snapshot: RestSnapshot | undefined;
@@ -148,6 +150,8 @@ export function RestPanel(props: RestPanelProps) {
 
       {next && <p className={`truncate text-sm ${due ? "font-semibold" : muted}`}>{rest ? `Дальше: ${next}` : next}</p>}
 
+      {rest && !due && <NotifyAsk workoutId={props.workoutId} />}
+
       {rest ? (
         <div className="grid grid-cols-4 gap-2">
           <button type="button" onClick={tap(() => onAdjust(-1))} className={`min-h-12 rounded-[14px] border-[1.5px] text-sm font-semibold ${lineColor}`} aria-label="Отдых меньше на 15 секунд">
@@ -214,7 +218,7 @@ interface TimedPanelProps extends RestPanelProps {
 }
 
 /** Т2 (work: the accent panel) and Т3 (rest: the dark one, «сколько раз?»). */
-function TimedPanel({ timer, items, snapshot, screenOn, onStop, onPause, onSkip, onReps, left, work, paused, sound, setSound, tap }: TimedPanelProps) {
+function TimedPanel({ workoutId, timer, items, snapshot, screenOn, onStop, onPause, onSkip, onReps, left, work, paused, sound, setSound, tap }: TimedPanelProps) {
   const rest = timer.phase === "rest";
   const circuit = timedCircuit(snapshot, items.find((it) => it.we.id === timer.we_id)?.we.circuit_id);
   const target = items.find((it) => it.we.id === timer.we_id);
@@ -307,6 +311,8 @@ function TimedPanel({ timer, items, snapshot, screenOn, onStop, onPause, onSkip,
       <p className={`text-sm leading-snug ${rest ? muted : "font-semibold"}`}>
         {rest ? `Дальше: ${target?.exercise.name ?? ""} — 3, 2, 1 и старт сам` : `${after} Сигнал за 3 секунды до конца.`}
       </p>
+
+      {rest && <NotifyAsk workoutId={workoutId} />}
 
       <div className="grid grid-cols-[1fr_1.4fr] gap-2">
         <button type="button" onClick={tap(onPause)} className={`min-h-13 rounded-[14px] border-[1.5px] text-[15px] font-semibold ${lineColor}`}>

@@ -3,17 +3,20 @@
 import Link from "next/link";
 import { useState } from "react";
 import { monthCardLine, monthParam } from "@/components/rhythm/MonthSummaryView";
+import { RhythmReminders } from "@/components/rhythm/Reminders";
 import { GoalPicker } from "@/components/rhythm/Rhythm";
 import { WeekLoad } from "@/components/rhythm/WeekLoad";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useLive } from "@/db/hooks";
+import { plansRepo } from "@/db/repos/plans";
 import { settingsRepo } from "@/db/repos/settings";
 import { workoutsRepo } from "@/db/repos/workouts";
 import { monthSummary } from "@/domain/analytics/month-summary";
 import { plural } from "@/domain/format";
 import { doneByDay, GOAL_DEFAULT, habitDays, monthGrid, MONTHS, monthWeeks, weeksInRhythm, weekWorkouts } from "@/domain/rhythm";
 import { formatKg } from "@/domain/summary";
+import { IS_ANDROID } from "@/platform";
 
 const sectionTitle = "font-display text-xs font-bold tracking-[0.04em] uppercase";
 const WORKOUT_FORMS: [string, string, string] = ["тренировка", "тренировки", "тренировок"];
@@ -34,11 +37,17 @@ function Arrow({ dir }: { dir: "left" | "right" }) {
 export default function RhythmPage() {
   const { data } = useLive(
     async () => {
-      const [settings, { workouts: completed, items }, history] = await Promise.all([settingsRepo.get(), workoutsRepo.completedItems(), workoutsRepo.listHistory()]);
-      return { goal: settings.weekly_goal, done: doneByDay(completed), completed, items, history };
+      const [settings, { workouts: completed, items }, history, plans, exerciseCounts] = await Promise.all([
+        settingsRepo.get(),
+        workoutsRepo.completedItems(),
+        workoutsRepo.listHistory(),
+        plansRepo.list(),
+        plansRepo.exerciseCounts(),
+      ]);
+      return { goal: settings.weekly_goal, done: doneByDay(completed), completed, items, history, plans, exerciseCounts };
     },
     [],
-    ["settings", "workouts", "workout_exercises", "workout_sets", "exercises", "plans"],
+    ["settings", "workouts", "workout_exercises", "workout_sets", "exercises", "plans", "plan_exercises"],
   );
   const [draft, setDraft] = useState(GOAL_DEFAULT);
   // Months back from the current one, for the calendar arrows.
@@ -83,6 +92,9 @@ export default function RhythmPage() {
           </Button>
         )}
       </section>
+
+      {/* APK A6 (mockup Н1): right under «Цель». */}
+      {IS_ANDROID && <RhythmReminders data={{ plans: data.plans, exerciseCounts: data.exerciseCounts, workouts: data.completed, goal, habit }} />}
 
       <section aria-labelledby="month-h" className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between gap-2">

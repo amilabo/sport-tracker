@@ -34,6 +34,46 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- A5: the exact alarms of a rest while the app is away (RestAlarm.java). -->
+        <receiver android:name=".RestAlarmReceiver" android:exported="false" />
+
+        <!-- A6: the reminders of «Ритм»; set again after a reboot, a change of time or an update (with the widgets). -->
+        <receiver android:name=".ReminderReceiver" android:exported="false" />
+        <receiver android:name=".SystemEventsReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- A7: the home screen widgets (Widgets.java, mockups В1–В3). -->
+        <receiver android:name=".WidgetWide" android:label="@string/widget_wide_label" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_wide_info" />
+        </receiver>
+        <receiver android:name=".WidgetSmall" android:label="@string/widget_small_label" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small_info" />
+        </receiver>
+        <receiver android:name=".WidgetSlim" android:label="@string/widget_slim_label" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_slim_info" />
+        </receiver>
+        <receiver android:name=".WidgetSince" android:label="@string/widget_since_label" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_since_info" />
+        </receiver>
     </application>
 
     <!-- Permissions -->
@@ -42,4 +82,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- navigator.vibrate() for the end-of-rest signal: silent in the WebView without it. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- A5, A6: the countdown and «Пора» of a rest, the reminders of «Ритм». Android 13+ asks once. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- A5: «Пора» to the second. Granted by itself to an app outside Google Play (Android 13+);
+         Android 12 uses SCHEDULE_EXACT_ALARM, granted at install. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <!-- A6: the reminders are set again after the phone restarts. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>

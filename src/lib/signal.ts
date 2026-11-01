@@ -1,10 +1,15 @@
 "use client";
 
+import { getPlatform, IS_ANDROID } from "@/platform";
+
 // The end-of-rest signal (stage 35): three short beeps made in code (no sound files — works offline)
-// and a vibration where the phone allows it (not on iPhone).
+// and a vibration where the phone allows it (not on iPhone). In the APK (A5) the beeps are played by the phone itself,
+// by the same rule as when the app is away: in headphones over the music, from the speaker only in the normal mode.
 
 const SOUND_KEY = "st-rest-sound";
 let ctx: AudioContext | null = null;
+let nativeBeep: ((tick: boolean) => boolean) | null = null;
+if (IS_ANDROID && typeof window !== "undefined") getPlatform().then((p) => (nativeBeep = p.restAlarm.beep));
 
 /**
  * Browsers play sound only after a tap. Call this from tap handlers (ticking a set, «Начать подход»),
@@ -38,13 +43,20 @@ export function setSoundOn(on: boolean) {
   }
 }
 
+/** APK: while the app is away the phone gives the signal itself (lib/rest-alarm); the page, still ticking, keeps quiet. */
+function awayInApk(): boolean {
+  return IS_ANDROID && document.visibilityState === "hidden";
+}
+
 export function playRestSignal() {
+  if (awayInApk()) return;
   try {
     navigator.vibrate?.([180, 90, 180, 90, 180]);
   } catch {
     // No vibration API (iPhone).
   }
-  if (!soundOn() || !ctx || ctx.state !== "running") return;
+  if (!soundOn() || nativeBeep?.(false)) return;
+  if (!ctx || ctx.state !== "running") return;
   const t0 = ctx.currentTime + 0.02;
   for (let i = 0; i < 3; i++) {
     const osc = ctx.createOscillator();
@@ -63,12 +75,14 @@ export function playRestSignal() {
 
 /** One short beep: «3 секунды до конца» in a timed circuit (stage 39). */
 export function playTick() {
+  if (awayInApk()) return;
   try {
     navigator.vibrate?.(80);
   } catch {
     // No vibration API (iPhone).
   }
-  if (!soundOn() || !ctx || ctx.state !== "running") return;
+  if (!soundOn() || nativeBeep?.(true)) return;
+  if (!ctx || ctx.state !== "running") return;
   const t = ctx.currentTime + 0.02;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();

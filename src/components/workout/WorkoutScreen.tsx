@@ -18,6 +18,7 @@ import { workoutsRepo, type WorkoutItem } from "@/db/repos/workouts";
 import { EXERCISE_FORMS, formatNumber, formatTime, plural } from "@/domain/format";
 import type { Exercise, Id, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
+import { useRestAlarm } from "@/lib/rest-alarm";
 import { primeSignal } from "@/lib/signal";
 import { useWakeLock } from "@/lib/wake-lock";
 import { useBackGuard } from "@/platform/use-back-guard";
@@ -188,6 +189,8 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
   // A workout with rest (stage 35): the screen stays on, the card of the next set opens by itself.
   const running = full && full !== "missing" && full.workout.status === "in_progress" && !isDraft ? full.workout : null;
   const screenOn = useWakeLock(!!running?.rest);
+  // APK A5: the rest goes on as a notification with its signals when the app leaves the screen.
+  useRestAlarm(running?.rest, running && full && full !== "missing" ? full.items : undefined, running?.timer);
   // The exercise to do now: the one the timer counts down to, or — with no timer (0:00 in a circuit) —
   // the circuit's current one. When it changes, its card opens and scrolls to the top (stage 38).
   const focusWe = running?.rest && full && full !== "missing" ? (running.timer?.we_id ?? circuitFocus(full.items)) : undefined;
@@ -627,6 +630,7 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
 
       {!isDraft && workout.rest && workout.timer && (
         <RestPanel
+          workoutId={workout.id}
           timer={workout.timer}
           items={items}
           snapshot={workout.rest}

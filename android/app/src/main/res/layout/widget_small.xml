@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A7, mockups В1 + В3: the week, its days, the days since the last workout. Tap — «Ритм». -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView android:id="@+id/w_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:src="@drawable/widget_bg" android:tint="#FBF8F2" android:scaleType="fitXY" android:importantForAccessibility="no" />
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:padding="14dp">
+        <TextView android:id="@+id/w_label" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="НЕДЕЛЯ" android:textSize="11sp" android:fontFamily="monospace" android:textStyle="bold"
+                android:letterSpacing="0.08" android:textColor="#5F584D" />
+        <TextView android:id="@+id/w_big" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="1 из 2" android:textSize="24sp" android:fontFamily="sans-serif-black"
+                android:includeFontPadding="false" android:textColor="#17140F" />
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+        <ImageView android:id="@+id/w_days" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:adjustViewBounds="true" android:scaleType="fitCenter" android:importantForAccessibility="no" />
+        <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+        <LinearLayout android:id="@+id/w_ago_row" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical">
+            <ImageView android:id="@+id/w_clock" android:layout_width="13dp" android:layout_height="13dp"
+                android:src="@drawable/ic_widget_clock" android:tint="#5F584D" android:importantForAccessibility="no" />
+            <TextView android:id="@+id/w_ago" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="5dp" android:text="3 дня назад" android:textSize="12sp"
+                android:fontFamily="sans-serif-medium" android:textColor="#5F584D" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

@@ -131,6 +131,24 @@ export function catchUp(snapshot: RestSnapshot, items: TimedItem[], timer: RestT
   return { timer: t, sets: [...state.changed.values()] };
 }
 
+/**
+ * The phases the clock will still run through by itself after `timer` (APK A5: the signals while the app is away),
+ * each with when it begins and the sets as they will be then. The last one may be a rest from outside the circuit
+ * (it does not end by itself) or null — the circuit is over.
+ */
+export function phasesAhead(snapshot: RestSnapshot, items: TimedItem[], timer: RestTimer, limit = 200): { at: number; timer: RestTimer | null; items: TimedItem[] }[] {
+  const state: State = { items, changed: new Map() };
+  const out: { at: number; timer: RestTimer | null; items: TimedItem[] }[] = [];
+  let t: RestTimer | null = timer;
+  while (t && out.length < limit) {
+    const end = autoEnd(snapshot, state, t);
+    if (end === null) break;
+    t = t.phase === "work" ? finishWork(snapshot, state, t, end) : beginWork(snapshot, state, t, end);
+    out.push({ at: end, timer: t, items: state.items });
+  }
+  return out;
+}
+
 /** «Закончить раньше»: the work ends now, the rest starts. */
 export function finishEarly(snapshot: RestSnapshot, items: TimedItem[], timer: RestTimer, now: number): TimedChange {
   if (timer.phase !== "work") return { timer, sets: [] };

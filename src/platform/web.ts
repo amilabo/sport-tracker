@@ -20,4 +20,19 @@ export const web: Platform = {
     list: async () => [],
     remove: async () => {},
   },
+  // The site gives the rest signal only while it is on screen (Wake Lock keeps it there).
+  notifications: {
+    supported: false,
+    permission: async () => "denied",
+    request: async () => "denied",
+    openSettings: async () => {},
+  },
+  reminders: { supported: false, set: async () => {} },
+  home: { supported: false, update: async () => {} },
+  onOpen: () => () => {},
+  restAlarm: {
+    schedule: async () => {},
+    cancel: async () => {},
+    beep: () => false,
+  },
 };

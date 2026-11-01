@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { DatePickSheet } from "@/components/body/DatePickSheet";
 import { HeightSheet } from "@/components/body/HeightSheet";
 import { MeasurementSheet } from "@/components/body/MeasurementSheet";
@@ -98,6 +99,18 @@ function DateStepper({ label, date, latest, strong, onPick, prev, next, onStep }
   );
 }
 
+/** APK A8: the shortcut «Замер» opens /body/?add — the sheet of a new measurement. */
+function AddFromLink({ onAdd }: { onAdd: () => void }) {
+  const add = useSearchParams().get("add") !== null;
+  const router = useRouter();
+  useEffect(() => {
+    if (!add) return;
+    onAdd();
+    router.replace("/body/");
+  }, [add, onAdd, router]);
+  return null;
+}
+
 export default function BodyPage() {
   const data = useBodyData();
   // «Тренировки и тело» (stage 43): the workouts of the period on screen.
@@ -107,6 +120,7 @@ export default function BodyPage() {
   const [picking, setPicking] = useState<"a" | "b" | null>(null);
   const [editing, setEditing] = useState<BodySession | "new" | null>(null);
   const [heightOpen, setHeightOpen] = useState(false);
+  const openNew = useCallback(() => setEditing("new"), []);
 
   const addButton = (
     <Button variant="accent" className="whitespace-nowrap" onClick={() => setEditing("new")}>
@@ -475,6 +489,9 @@ export default function BodyPage() {
         selected={picking ? dates[picking] : null}
         onPick={(date) => picking && saveView({ period, custom: { ...dates, [picking]: date } })}
       />
+      <Suspense fallback={null}>
+        <AddFromLink onAdd={openNew} />
+      </Suspense>
       <MeasurementSheet
         open={editing !== null}
         onClose={() => setEditing(null)}
