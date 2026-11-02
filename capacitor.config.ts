@@ -20,8 +20,10 @@ const config: CapacitorConfig = {
   plugins: {
     // Hidden by the app as soon as the first screen is drawn (src/platform/android.ts); 2.5 s is only the fallback.
     SplashScreen: { launchShowDuration: 2500, launchAutoHide: true, backgroundColor: "#F2EDE4", showSpinner: false },
-    // Edge-to-edge: the page draws under transparent bars and pads itself with env(safe-area-inset-*).
-    SystemBars: { insetsHandling: "native", initialViewportFitValueHint: "cover" },
+    // Edge-to-edge: the page draws under transparent bars and pads itself. "css" also hands the bars' real size to the
+    // page as --safe-area-inset-* (measured by Android): on the S22 env(safe-area-inset-top) alone came out short and the
+    // status bar covered the top of the screen (1.1.1). globals.css takes the larger of the two.
+    SystemBars: { insetsHandling: "css", initialViewportFitValueHint: "cover" },
   },
 };
 

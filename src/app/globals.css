@@ -77,12 +77,14 @@
   }
 }
 
-/* Top inset: the APK draws edge-to-edge under the status bar, the site never does (stays 0). */
+/* Top inset: the APK draws edge-to-edge under the status bar, the site never does (stays 0).
+   The larger of the WebView's own inset and the one Android measured (Capacitor SystemBars, insetsHandling "css"):
+   some WebViews report it short. An old WebView is padded by Capacitor itself — both are 0 then. */
 :root {
   --safe-top: 0px;
 }
 :root[data-target="android"] {
-  --safe-top: env(safe-area-inset-top);
+  --safe-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
 }
 
 .pb-safe {
