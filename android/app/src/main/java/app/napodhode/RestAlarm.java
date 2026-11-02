@@ -31,13 +31,16 @@ import org.json.JSONObject;
  * phase of a circuit by time later. Every later step is an exact alarm. While the app is on screen the alarms are ignored
  * (the page beeps itself); when it leaves the screen the current step is shown as a countdown on the lock screen.
  *
- * Sound: «пи-пи-пи» goes where the music goes, over it (navigation guidance, the music ducks for a moment), so the
- * «Вибро» mode does not silence it in headphones. Without headphones in «Вибро» / «Без звука» — vibration only.
+ * Sound (1.1.1, after the test on the phone): in headphones «пи-пи-пи» goes where the music goes, over it (navigation
+ * guidance, the music ducks for a moment), so the «Вибро» mode does not silence it. Without headphones it is the sound of
+ * a notification: the channel «Конец отдыха» plays it at the notification volume, «Вибро» / «Без звука» leave the
+ * vibration only. (1.1.0 played it at the media volume — silent from the speaker with the media volume down.)
  */
 final class RestAlarm {
 
     static final String CH_TIMER = "rest_timer";
     static final String CH_DUE = "rest_due";
+    static final String CH_DUE_SOUND = "rest_due_sound";
     static final int NOTIFICATION_ID = 5001;
     private static final String PREFS = "rest_alarm";
     private static final long[] PATTERN = { 0, 180, 90, 180, 90, 180 };
@@ -60,14 +63,28 @@ final class RestAlarm {
         timer.setSound(null, null);
         timer.enableVibration(false);
         timer.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
-        // «Пора» pops up; its sound and vibration are played by the app itself (the rule above), not by the channel.
-        NotificationChannel due = new NotificationChannel(CH_DUE, "Конец отдыха", NotificationManager.IMPORTANCE_HIGH);
-        due.setDescription("«Пора»: отдых закончился. Звук — в наушниках поверх музыки");
+        // «Пора» in headphones (or with «Звук сигнала» off): the app plays the beeps itself, over the music.
+        NotificationChannel due = new NotificationChannel(CH_DUE, "Конец отдыха в наушниках", NotificationManager.IMPORTANCE_HIGH);
+        due.setDescription("«Пора», когда подключены наушники: звук играет приложение поверх музыки");
         due.setSound(null, null);
         due.enableVibration(false);
         due.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+        // «Пора» without headphones: the channel's own sound at the notification volume; the ringer mode applies.
+        // The vibration is the app's own (it is felt in «Без звука» too), so the channel does not vibrate.
+        NotificationChannel dueSound = new NotificationChannel(CH_DUE_SOUND, "Конец отдыха", NotificationManager.IMPORTANCE_HIGH);
+        dueSound.setDescription("«Пора» без наушников: звук уведомления, громкость — как у уведомлений, в «Вибро» — только вибрация");
+        dueSound.setSound(
+            android.net.Uri.parse("android.resource://" + c.getPackageName() + "/" + R.raw.rest_signal),
+            new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        );
+        dueSound.enableVibration(false);
+        dueSound.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
         nm.createNotificationChannel(timer);
         nm.createNotificationChannel(due);
+        nm.createNotificationChannel(dueSound);
     }
 
     private static PendingIntent alarmIntent(Context c, int index, long gen, int flags) {
@@ -142,7 +159,7 @@ final class RestAlarm {
             if (s != null && s.optLong("at") <= now) current = s;
         }
         if (current == null || current.isNull("until") || current.optLong("until") <= now) return;
-        show(c, current, false);
+        show(c, current, current.optBoolean("alert") ? CH_DUE : CH_TIMER, false);
     }
 
     /** An alarm went off: the next step of the timeline. */
@@ -150,21 +167,25 @@ final class RestAlarm {
         if (gen != prefs(c).getLong("gen", -1) || foreground) return;
         JSONObject s = signals(c).optJSONObject(index);
         if (s == null || !NotificationManagerCompat.from(c).areNotificationsEnabled()) return;
-        boolean alert = s.optBoolean("alert");
-        show(c, s, alert);
-        if (alert) {
-            vibrate(c);
-            if (prefs(c).getBoolean("sound", true)) play(c, R.raw.rest_signal);
+        if (!s.optBoolean("alert")) {
+            show(c, s, CH_TIMER, false);
+            return;
         }
+        boolean sound = prefs(c).getBoolean("sound", true);
+        boolean phones = headphones(c.getSystemService(AudioManager.class));
+        // Without headphones the channel makes the sound; in headphones the app plays it over the music.
+        show(c, s, sound && !phones ? CH_DUE_SOUND : CH_DUE, true);
+        vibrate(c);
+        if (sound && phones) play(c, R.raw.rest_signal);
     }
 
-    private static void show(Context c, JSONObject s, boolean alert) {
+    private static void show(Context c, JSONObject s, String channel, boolean alert) {
         if (!NotificationManagerCompat.from(c).areNotificationsEnabled()) return;
         ensureChannels(c);
-        boolean due = s.optBoolean("alert");
+        boolean due = !CH_TIMER.equals(channel);
         Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
         PendingIntent tap = PendingIntent.getActivity(c, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        NotificationCompat.Builder b = new NotificationCompat.Builder(c, due ? CH_DUE : CH_TIMER)
+        NotificationCompat.Builder b = new NotificationCompat.Builder(c, channel)
             .setSmallIcon(R.drawable.ic_stat_napodhode)
             .setContentTitle(s.optString("title"))
             .setContentText(s.optString("text"))
@@ -216,16 +237,17 @@ final class RestAlarm {
     }
 
     /**
-     * The beeps, by the rule of A5: in headphones always (over the music, which ducks); from the speaker only in the
-     * normal ringer mode. Called on any thread.
+     * The beeps, by the rule of A5: in headphones always, over the music (which ducks), at the media volume; from the
+     * speaker only in the normal ringer mode, at the notification volume — like «Пора» in the background. Any thread.
      */
     static void play(Context c, int res) {
         Context app = c.getApplicationContext();
         new Handler(Looper.getMainLooper()).post(() -> {
             AudioManager am = app.getSystemService(AudioManager.class);
-            if (!headphones(am) && am.getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
+            boolean phones = headphones(am);
+            if (!phones && am.getRingerMode() != AudioManager.RINGER_MODE_NORMAL) return;
             AudioAttributes attrs = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                .setUsage(phones ? AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE : AudioAttributes.USAGE_NOTIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build();
             AudioFocusRequest focus = Build.VERSION.SDK_INT >= 26

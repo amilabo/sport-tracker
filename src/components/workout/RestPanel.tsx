@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { WorkoutItem } from "@/db/repos/workouts";
 import { elapsedSec, formatCountdown, remainingSec } from "@/domain/rest-timer";
 import { formatRest } from "@/domain/rest";
+import { afterWork, KIND_LABELS } from "@/domain/rest-signals";
 import { formatSet } from "@/domain/sets";
 import { timedCircuit, workSecFor } from "@/domain/timed-circuit";
 import type { RestSnapshot, RestTimer } from "@/domain/types";
@@ -38,13 +39,6 @@ interface RestPanelProps {
   onSkip: () => void;
   onReps: (weId: string, setId: string, reps: number) => void;
 }
-
-const KIND_LABELS: Record<RestTimer["kind"], string> = {
-  set: "Отдых между подходами",
-  exercise: "Отдых между упражнениями",
-  inside: "Отдых в круге",
-  round: "Отдых между кругами",
-};
 
 /** What comes next: «Подход 3 из 6 · Рывок гири · 24 кг × 10»; in a circuit — «Круг 2 из 3 · Гоблет-присед · 16 кг × 15». */
 function nextLine(timer: RestTimer, items: WorkoutItem[]): string {
@@ -228,20 +222,7 @@ function TimedPanel({ workoutId, timer, items, snapshot, screenOn, onStop, onPau
   const muted = rest ? "text-on-inverse-muted" : "text-on-accent";
 
   // What comes after the work: «отдых 0:20 → Отжимания от пола» (or the round rest, or the end).
-  let after = "";
-  if (!rest && target && circuit) {
-    const members = items.filter((it) => it.we.circuit_id === circuit.id && !it.we.skipped);
-    const si = target.sets.findIndex((s) => s.id === timer.set_id);
-    const pos = members.findIndex((m) => m.we.id === target.we.id);
-    const lastInRound = pos === members.length - 1;
-    const lastRound = si === Math.max(...members.map((m) => m.sets.length)) - 1;
-    if (lastInRound && lastRound) after = "Дальше: конец круга.";
-    else {
-      const nextName = lastInRound ? members[0]?.exercise.name : members[pos + 1]?.exercise.name;
-      const restSec = lastInRound ? circuit.rest_round_sec : circuit.rest_inside_sec;
-      after = `Дальше: ${restSec > 0 ? `отдых ${formatRest(restSec)} → ` : ""}${nextName}.`;
-    }
-  }
+  const after = !rest && circuit ? `${afterWork(items, timer, circuit)}.` : "";
 
   // «сколько раз?» for the set just done (Т3).
   const from = rest ? items.find((it) => it.we.id === timer.from_we_id) : undefined;
