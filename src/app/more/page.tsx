@@ -11,11 +11,11 @@ import { demoRepo } from "@/db/repos/demo";
 import { plansRepo } from "@/db/repos/plans";
 import { progressionsRepo } from "@/db/repos/progressions";
 import { settingsRepo } from "@/db/repos/settings";
-import { formatDayMonth, formatShortDate } from "@/domain/format";
-import { toLocalDate } from "@/domain/time";
+import { backupRow } from "@/domain/backup-status";
+import { formatShortDate } from "@/domain/format";
 import { DomainError } from "@/domain/types";
-import { useAutoBackup, type AutoBackupState } from "@/lib/auto-backup";
-import { IS_ANDROID } from "@/platform";
+import { useAutoBackup } from "@/lib/auto-backup";
+import { getPlatform, IS_ANDROID } from "@/platform";
 
 interface MoreLink {
   href: string;
@@ -43,26 +43,50 @@ function LinkRow({ link }: { link: MoreLink }) {
   );
 }
 
-/** The «Автокопия» row (APK, stage A3, mockup АК2): the folder or what is wrong, and the day of the last copy. */
-function AutoBackupRow({ auto }: { auto: AutoBackupState }) {
-  const broken = auto.pref === "on" && !!auto.folder && !auto.folder.ok;
-  const sub =
-    auto.pref === "off" ? "Выключена" : auto.pref === null ? "Папка не выбрана" : broken ? "Нет доступа к папке" : (auto.folder?.name ?? "");
-  const hint =
-    auto.pref === "on" && auto.lastAt
-      ? toLocalDate(new Date(auto.lastAt)) === toLocalDate(new Date())
-        ? "сегодня"
-        : formatDayMonth(auto.lastAt)
-      : "";
+/** The «Копия данных» row in the APK (mockup КД1): how the copy is kept, and the day of the freshest copy of any kind. */
+function BackupRow({ row }: { row: { sub: string; hint: string; danger: boolean } }) {
   return (
-    <Link href="/more/auto-backup/" className="flex min-h-14 items-center gap-3 px-4 py-2">
+    <Link href="/more/backup/" className="flex min-h-16 items-center gap-3 px-4 py-2.5">
       <span className="flex flex-1 flex-col gap-0.5">
-        <span className="text-base font-semibold">Автокопия</span>
-        <span className="text-[13px] text-ink-muted">{sub}</span>
+        <span className="text-base font-semibold">Копия данных</span>
+        <span className={`text-[13px] ${row.danger ? "text-danger" : "text-ink-muted"}`}>{row.sub}</span>
       </span>
-      <span className={`font-mono text-[13px] ${broken ? "text-danger" : "text-ink-muted"}`}>{hint}</span>
+      <span className="font-mono text-[13px] text-ink-muted">{row.hint}</span>
       <Chevron />
     </Link>
+  );
+}
+
+/**
+ * APK only (A4): which file is installed, to compare with the one being sent. A tap adds the top inset as each
+ * source has it (1.1.2): if the status bar still covers the top on some phone, these numbers show which one is short.
+ */
+function VersionLine() {
+  const [insets, setInsets] = useState<string | null>(null);
+  async function measure() {
+    if (insets) return setInsets(null);
+    const probe = document.createElement("div");
+    document.body.appendChild(probe);
+    const px = (value: string) => {
+      probe.style.paddingTop = value;
+      return getComputedStyle(probe).paddingTop;
+    };
+    const env = px("env(safe-area-inset-top)");
+    const total = px("var(--safe-top)");
+    probe.remove();
+    const root = getComputedStyle(document.documentElement);
+    const native = await (await getPlatform()).screenInsets().catch(() => null);
+    const webview = /Chrome\/(\d+)/.exec(navigator.userAgent)?.[1] ?? "?";
+    setInsets(
+      `Отступ сверху: страница ${env} · SystemBars ${root.getPropertyValue("--safe-area-inset-top").trim() || "—"} · ` +
+        `Android ${native ? `${native.top}px${native.padded ? " (сдвинуто)" : ""}` : "—"} · итог ${total} · WebView ${webview}`,
+    );
+  }
+  return (
+    <button type="button" onClick={measure} className="mx-5 flex min-h-11 flex-col items-center justify-center gap-1 text-center font-mono text-xs text-ink-muted">
+      <span>На подходе · версия {process.env.NEXT_PUBLIC_APP_VERSION}</span>
+      {insets && <span className="break-words">{insets}</span>}
+    </button>
   );
 }
 
@@ -141,11 +165,8 @@ export default function MorePage() {
           Данные
         </h2>
         <div className="overflow-hidden rounded-[18px] border-[1.5px] border-line bg-surface">
-          {IS_ANDROID && <AutoBackupRow auto={auto} />}
           {IS_ANDROID ? (
-            <div className="border-t border-line">
-              <LinkRow link={backup} />
-            </div>
+            <BackupRow row={backupRow({ pref: auto.pref, folder: auto.folder, autoLastAt: auto.lastAt, exportAt: data?.lastExport ?? null })} />
           ) : (
             <LinkRow link={backup} />
           )}
@@ -180,10 +201,8 @@ export default function MorePage() {
         </div>
       </section>
 
-      {/* APK only (A4): which file is installed, to compare with the one being sent. The site is always the latest. */}
-      {IS_ANDROID && (
-        <p className="mx-5 text-center font-mono text-xs text-ink-muted">На подходе · версия {process.env.NEXT_PUBLIC_APP_VERSION}</p>
-      )}
+      {/* The site is always the latest: no version line there. */}
+      {IS_ANDROID && <VersionLine />}
     </div>
   );
 }

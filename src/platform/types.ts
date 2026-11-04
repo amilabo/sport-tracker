@@ -37,6 +37,8 @@ export interface Platform {
   start(): () => void;
   /** Light or dark icons on the status and navigation bars. The bars are transparent: the page shows through. */
   setSystemBars(dark: boolean): void;
+  /** APK: the status bar's height in px as Android has it; padded — the WebView is already below it. Site: null. */
+  screenInsets(): Promise<{ top: number; padded: boolean } | null>;
   /** Keeps the screen on while true; resolves false if it cannot (the screen goes off as usual). */
   keepScreenOn(on: boolean): Promise<boolean>;
   /** APK: the file as it is (a real .json) through the system share sheet. The site uses Web Share in lib/backup-share.ts. */

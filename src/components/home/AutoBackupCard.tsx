@@ -71,7 +71,7 @@ export function AutoBackupCard() {
             type="button"
             onClick={() => {
               setAutoBackupPref("off");
-              setToast("Автокопия выключена. Включить — «Ещё → Автокопия».");
+              setToast("Автокопия выключена. Включить — «Ещё → Копия данных».");
             }}
             className="min-h-11 text-sm font-semibold text-ink-muted underline underline-offset-[3px]"
           >

@@ -5,6 +5,7 @@ export const web: Platform = {
   kind: "web",
   start: () => () => {},
   setSystemBars() {},
+  screenInsets: async () => null,
   keepScreenOn: async () => false,
   shareFile: async () => {
     throw new Error("shareFile is APK-only: the site shares through navigator.share");

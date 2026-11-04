@@ -78,13 +78,14 @@
 }
 
 /* Top inset: the APK draws edge-to-edge under the status bar, the site never does (stays 0).
-   The larger of the WebView's own inset and the one Android measured (Capacitor SystemBars, insetsHandling "css"):
-   some WebViews report it short. An old WebView is padded by Capacitor itself — both are 0 then. */
+   The largest of three: the WebView's own inset, Capacitor's (SystemBars, insetsHandling "css") and the status bar
+   height our ScreenPlugin reads from Android, rounded up (--native-top, src/platform/android.ts). On the S22 the first
+   two still left the top under the bar (1.1.1). An old WebView is padded by Capacitor itself — all three are 0 then. */
 :root {
   --safe-top: 0px;
 }
 :root[data-target="android"] {
-  --safe-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
+  --safe-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px), var(--native-top, 0px));
 }
 
 .pb-safe {

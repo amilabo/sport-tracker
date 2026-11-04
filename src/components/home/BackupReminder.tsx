@@ -10,6 +10,7 @@ import { isBackupDue } from "@/domain/backup-reminder";
 import { toLocalDate } from "@/domain/time";
 import { useAutoBackup } from "@/lib/auto-backup";
 import { deliverBackup, usePreparedBackup } from "@/lib/backup-share";
+import { IS_ANDROID } from "@/platform";
 
 // «Не сейчас» hides the reminder until tomorrow (this phone only).
 const SNOOZE_KEY = "st-backup-snooze";
@@ -61,7 +62,9 @@ export function BackupReminder() {
     <section aria-label="Копия данных" className="flex flex-col gap-2.5 rounded-[18px] border-[1.5px] border-line-strong bg-surface p-3.5">
       <div className="flex flex-col gap-0.5">
         <span className="text-[15px] font-semibold">Давно не сохраняли копию</span>
-        <span className="text-[13px] leading-snug text-ink-muted">Записи есть только в этом телефоне. Сохраните файл копии — например, себе в мессенджер.</span>
+        <span className="text-[13px] leading-snug text-ink-muted">
+          Записи есть только в этом телефоне. {IS_ANDROID ? "Отправьте" : "Сохраните"} файл копии — например, себе в мессенджер.
+        </span>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Button
@@ -74,7 +77,8 @@ export function BackupReminder() {
           Не сейчас
         </Button>
         <Button variant="primary" disabled={!file} onClick={() => file && deliverBackup(file).catch(console.error)}>
-          Сохранить
+          {/* APK: the file goes through «Поделиться», not into the phone — the button says so. */}
+          {IS_ANDROID ? "Отправить" : "Сохранить"}
         </Button>
       </div>
     </section>

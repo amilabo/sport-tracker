@@ -1,7 +1,12 @@
 package app.napodhode;
 
 import android.graphics.Color;
+import android.view.View;
 import android.view.WindowManager;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -13,6 +18,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * dropped whenever the page is hidden; the window flag holds until the workout ends and needs no permission.
  * setBackground: the theme's page color behind the system bars. A WebView older than 140 is not drawn under the
  * bars (Capacitor pads it), and without this the strips there stay white in a dark theme.
+ * insets: the status bar's height as Android has it, for --native-top in globals.css (1.1.2). On the S22 the page's
+ * own insets (env() and Capacitor's --safe-area-inset-top) still left the top under the status bar.
  */
 @CapacitorPlugin(name = "Screen")
 public class ScreenPlugin extends Plugin {
@@ -24,6 +31,26 @@ public class ScreenPlugin extends Plugin {
             if (on) getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             else getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             call.resolve();
+        });
+    }
+
+    /** { top: dp rounded up, padded: Capacitor already moved the WebView below the bar (old WebView) }. */
+    @PluginMethod
+    public void insets(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            View decor = getActivity().getWindow().getDecorView();
+            WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decor);
+            int px = 0;
+            if (insets != null) {
+                Insets bars = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars());
+                Insets cut = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
+                px = Math.max(bars.top, cut.top);
+            }
+            float density = getActivity().getResources().getDisplayMetrics().density;
+            JSObject res = new JSObject();
+            res.put("top", (int) Math.ceil(px / density));
+            res.put("padded", decor.getPaddingTop() > 0);
+            call.resolve(res);
         });
     }
 

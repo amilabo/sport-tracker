@@ -14,7 +14,17 @@ import type { BackupFolder, HomeData, NotifyPermission, Platform } from "./types
 const Screen = registerPlugin<{
   keepOn(options: { on: boolean }): Promise<void>;
   setBackground(options: { color: string }): Promise<void>;
+  insets(): Promise<{ top: number; padded: boolean }>;
 }>("Screen");
+
+/** The status bar's height from Android itself into --native-top (globals.css takes the largest of three, 1.1.2). */
+function measureTop() {
+  Screen.insets()
+    .then(({ top, padded }) => {
+      document.documentElement.style.setProperty("--native-top", `${padded ? 0 : top}px`);
+    })
+    .catch(() => {});
+}
 
 
 /** Our own plugin: android/app/src/main/java/app/napodhode/BackupFolderPlugin.java. */
@@ -69,12 +79,17 @@ export const android: Platform = {
   kind: "android",
   start() {
     const listener = App.addListener("backButton", onBack);
+    // Again on resize: Capacitor may switch between padding the WebView and drawing it under the bar after loading.
+    measureTop();
+    window.addEventListener("resize", measureTop);
     // The first screen is drawn: take the launch screen away (it also goes by itself after 2.5 s).
     requestAnimationFrame(() => SplashScreen.hide({ fadeOutDuration: 200 }).catch(() => {}));
     return () => {
       listener.then((l) => l.remove()).catch(() => {});
+      window.removeEventListener("resize", measureTop);
     };
   },
+  screenInsets: () => Screen.insets(),
   setSystemBars(dark) {
     // "Dark" style = light icons for a dark page.
     SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
