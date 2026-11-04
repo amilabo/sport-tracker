@@ -191,7 +191,7 @@ export default function BodyPage() {
                   role="radio"
                   aria-checked={on}
                   onClick={() => choosePeriod(p.id)}
-                  className={`h-11 rounded-[10px] px-0.5 text-sm font-semibold whitespace-nowrap transition-colors ${on ? "bg-surface-raised text-ink" : "text-ink-muted"}`}
+                  className={`h-11 rounded-[10px] px-0.5 text-sm font-semibold whitespace-nowrap transition-colors ${on ? "bg-selected-soft text-on-selected-soft" : "text-ink-muted"}`}
                 >
                   {p.label}
                 </button>

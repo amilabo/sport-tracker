@@ -11,6 +11,10 @@
   --surface-raised: #FFFFFF;
   --surface-done: #E8E1D3;
   --surface-inverse: #17140F;
+  --selected: #17140F;
+  --on-selected: #F2EDE4;
+  --selected-soft: #FFFFFF;
+  --on-selected-soft: #17140F;
   --ink: #17140F;
   --ink-muted: #5F584D;
   --ink-faint: #6E665A;
@@ -42,6 +46,10 @@
   --surface-raised: #26221C;
   --surface-done: #2A251E;
   --surface-inverse: #2B2620;
+  --selected: #F2EDE4;
+  --on-selected: #12100D;
+  --selected-soft: #F2EDE4;
+  --on-selected-soft: #12100D;
   --ink: #F2EDE4;
   --ink-muted: #B5AC9C;
   --ink-faint: #9C9384;

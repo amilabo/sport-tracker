@@ -89,7 +89,7 @@ function SetEditorForm({ logType, value, canDelete, weightOnly, onSave, onDelete
               role="radio"
               aria-checked={o.on}
               onClick={() => setAssist(o.set)}
-              className={`min-h-11 rounded-xl text-sm font-semibold ${o.on ? "bg-surface-inverse text-on-inverse" : ""}`}
+              className={`min-h-11 rounded-xl text-sm font-semibold ${o.on ? "bg-selected text-on-selected" : ""}`}
             >
               {o.label}
             </button>

@@ -98,7 +98,7 @@ export default function HistoryPage() {
                 aria-checked={on}
                 onClick={() => setFilter(o.id)}
                 className={`h-10 shrink-0 rounded-full border-[1.5px] border-ink px-3.5 text-[13px] font-semibold whitespace-nowrap ${
-                  on ? "bg-surface-inverse text-on-inverse" : ""
+                  on ? "bg-selected text-on-selected" : ""
                 }`}
               >
                 {o.label}

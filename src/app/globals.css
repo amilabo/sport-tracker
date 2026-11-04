@@ -20,6 +20,10 @@
   --color-surface-raised: var(--surface-raised);
   --color-surface-done: var(--surface-done);
   --color-surface-inverse: var(--surface-inverse);
+  --color-selected: var(--selected);
+  --color-on-selected: var(--on-selected);
+  --color-selected-soft: var(--selected-soft);
+  --color-on-selected-soft: var(--on-selected-soft);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-ink-faint: var(--ink-faint);

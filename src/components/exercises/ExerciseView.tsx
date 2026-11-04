@@ -122,7 +122,7 @@ export function ExerciseView() {
               role="tab"
               aria-selected={tab === key}
               onClick={() => setTab(key)}
-              className={`h-11 rounded-[10px] text-sm font-semibold ${tab === key ? "bg-surface-inverse text-on-inverse" : ""}`}
+              className={`h-11 rounded-[10px] text-sm font-semibold ${tab === key ? "bg-selected text-on-selected" : ""}`}
             >
               {label}
             </button>

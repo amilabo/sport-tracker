@@ -102,7 +102,7 @@ export function AutoBackupSection() {
           aria-labelledby="auto-label"
           onClick={toggle}
           disabled={busy}
-          className={`flex h-8 w-14 shrink-0 rounded-full p-[3px] transition-colors disabled:opacity-50 ${on ? "justify-end bg-surface-inverse" : "justify-start bg-ink-muted"}`}
+          className={`flex h-8 w-14 shrink-0 rounded-full p-[3px] transition-colors disabled:opacity-50 ${on ? "justify-end bg-selected" : "justify-start bg-ink-muted"}`}
         >
           <span className="block h-[26px] w-[26px] rounded-full bg-surface" />
         </button>

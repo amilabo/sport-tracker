@@ -434,7 +434,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
                 aria-checked={rest.format === f}
                 onClick={() => pickFormat(f)}
                 className={`h-11 rounded-[10px] text-sm font-semibold transition-colors ${
-                  rest.format === f ? "bg-surface-raised text-ink" : "text-ink-muted"
+                  rest.format === f ? "bg-selected-soft text-on-selected-soft" : "text-ink-muted"
                 }`}
               >
                 {FORMAT_LABELS[f]}
@@ -758,7 +758,7 @@ function CircuitSection({ circuit, timed, workSec, exercises, onRounds, onMode, 
             role="radio"
             aria-checked={timed === (m === "timed")}
             onClick={() => onMode(m)}
-            className={`h-11 rounded-[10px] text-sm font-semibold transition-colors ${timed === (m === "timed") ? "bg-surface-raised text-ink" : "text-ink-muted"}`}
+            className={`h-11 rounded-[10px] text-sm font-semibold transition-colors ${timed === (m === "timed") ? "bg-selected-soft text-on-selected-soft" : "text-ink-muted"}`}
           >
             {label}
           </button>

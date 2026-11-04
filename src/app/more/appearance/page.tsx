@@ -98,7 +98,7 @@ export default function AppearancePage() {
                 aria-checked={on}
                 onClick={() => setModePref(m.id)}
                 className={`min-h-11 rounded-xl px-2 text-sm font-semibold whitespace-nowrap transition-colors ${
-                  on ? "bg-surface-inverse text-on-inverse" : "text-ink"
+                  on ? "bg-selected text-on-selected" : "text-ink"
                 }`}
               >
                 {m.label}

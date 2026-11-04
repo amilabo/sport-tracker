@@ -98,7 +98,7 @@ export function ProgressionPanel({ chain, current }: { chain: Chain; current: Ex
             <li
               key={l.exercise.id}
               className={`flex items-center gap-3 rounded-2xl border-[1.5px] px-3.5 py-3 ${
-                isCurrent ? "border-ink bg-surface-inverse text-on-inverse" : l.state === "goal" || l.state === "none" ? "border-line-strong" : "border-line bg-surface"
+                isCurrent ? "border-ink bg-selected text-on-selected" : l.state === "goal" || l.state === "none" ? "border-line-strong" : "border-line bg-surface"
               }`}
             >
               <span

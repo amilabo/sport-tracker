@@ -23,7 +23,7 @@ export function Scale5({ label, value, onChange }: Scale5Props) {
               aria-label={`${label}: ${n} из 5`}
               onClick={() => onChange(n)}
               className={`h-12 rounded-[10px] border-[1.5px] border-ink font-mono text-[15px] font-bold transition-[transform,background-color] active:scale-95 ${
-                on ? "bg-surface-inverse text-on-inverse" : ""
+                on ? "bg-selected text-on-selected" : ""
               }`}
             >
               {n}

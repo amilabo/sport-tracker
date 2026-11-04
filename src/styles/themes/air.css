@@ -10,6 +10,11 @@
   --surface-raised: #FFFFFF;
   --surface-done: #EBEFF5;
   --surface-inverse: #EEF3FA;
+  /* The light «inverse» panels of this theme are too close to the page for a chosen chip: ink instead. */
+  --selected: #121821;
+  --on-selected: #FFFFFF;
+  --selected-soft: #FFFFFF;
+  --on-selected-soft: #121821;
   --ink: #121821;
   --ink-muted: #4F5968;
   --ink-faint: #68707D;
@@ -39,6 +44,10 @@
   --surface-raised: #313743;
   --surface-done: #2F353F;
   --surface-inverse: #30363F;
+  --selected: #F2F5F9;
+  --on-selected: #1E2229;
+  --selected-soft: #F2F5F9;
+  --on-selected-soft: #1E2229;
   --ink: #F2F5F9;
   --ink-muted: #B6BFCC;
   --ink-faint: #8D95A0;

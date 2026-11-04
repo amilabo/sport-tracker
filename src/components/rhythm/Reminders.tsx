@@ -23,7 +23,7 @@ const SAMPLES: Record<ReminderKind, { title: string; text: string }> = {
 };
 
 const chip = (on: boolean) =>
-  `h-11 rounded-xl text-[15px] font-bold transition-colors ${on ? "bg-surface-inverse text-on-inverse" : "border-[1.5px] border-line"}`;
+  `h-11 rounded-xl text-[15px] font-bold transition-colors ${on ? "bg-selected text-on-selected" : "border-[1.5px] border-line"}`;
 
 type Data = Omit<ReminderInput, "settings" | "now"> & { habit: { top: boolean }[] };
 

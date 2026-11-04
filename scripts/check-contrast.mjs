@@ -11,6 +11,7 @@ const accentsFile = join(root, "src", "styles", "accents.css");
 
 export const REQUIRED_TOKENS = [
   "bg", "surface", "surface-raised", "surface-done", "surface-inverse",
+  "selected", "on-selected", "selected-soft", "on-selected-soft",
   "ink", "ink-muted", "ink-faint", "on-inverse", "on-inverse-muted",
   "line", "line-strong", "line-inverse",
   "accent", "on-accent", "accent-text", "accent-line", "accent-on-inverse",
@@ -43,6 +44,11 @@ export const PAIRS = [
   ["danger", "surface", 4.5],
   ["danger-on-inverse", "surface-inverse", 4.5],
   ["on-inverse", "surface-inverse", 4.5],
+  // A chosen chip, day or segment (04.11.2026): readable, and told apart from the surface it sits on.
+  ["on-selected", "selected", 4.5],
+  ["on-selected-soft", "selected-soft", 4.5],
+  ["selected", "surface", 3],
+  ["selected", "bg", 3],
   ["on-inverse-muted", "surface-inverse", 4.5],
   ["positive-on-inverse", "surface-inverse", 4.5],
   ["on-accent", "accent", 4.5],
