@@ -1,5 +1,5 @@
 import { touch } from "@/domain/entity";
-import type { PreviousItem } from "@/domain/analytics/double-progression";
+import type { PastLine } from "@/domain/analytics/progression-options";
 import type { AnalyticsItem } from "@/domain/analytics/month-summary";
 import type { ExerciseSession } from "@/domain/chart-series";
 import type { HistoryEntry } from "@/domain/history";
@@ -32,6 +32,8 @@ export type StartResult = { status: "started"; id: Id } | { status: "conflict"; 
 
 const WORKOUT_STORES = ["workouts", "workout_exercises", "workout_sets"] as const;
 const COMPLETED = new Set<Workout["status"]>(["finished", "auto_finished"]);
+/** Past workouts read for «Как прибавить»: enough for the stall (4 workouts) and its count. */
+const PAST_LINES = 12;
 const PLAN_STORES = ["plans", "plan_exercises", "plan_sets", "exercises"] as const;
 
 type PlanReadTx = IDBPTransaction<TrackerDB, (typeof PLAN_STORES)[number][], "readonly" | "readwrite">;
@@ -387,22 +389,30 @@ export const workoutsRepo = {
   },
 
   /**
-   * «Пора добавить вес» (stage 41): the plan lines of the latest completed workout by the same plan, started before
-   * this one — keyed by `plan_exercise_id`. Empty without a plan or before the first such workout.
+   * «Как прибавить» (stages 41, 52): the plan lines of up to `limit` latest completed workouts by the same plan, started
+   * before this one — keyed by `plan_exercise_id`, newest first. A workout without the line breaks its run.
+   * Empty without a plan or before the first such workout.
    */
-  async previousPlanItems(workout: Workout): Promise<Map<Id, PreviousItem>> {
-    const out = new Map<Id, PreviousItem>();
+  async pastPlanLines(workout: Workout, limit = PAST_LINES): Promise<Map<Id, PastLine[]>> {
+    const out = new Map<Id, PastLine[]>();
     if (!workout.plan_id) return out;
     return withTx([...WORKOUT_STORES], "readonly", async (tx) => {
       const byPlan = await tx.objectStore("workouts").index("plan_id").getAll(workout.plan_id!);
-      const prev = byPlan
+      const past = byPlan
         .filter((w) => w.id !== workout.id && COMPLETED.has(w.status) && w.started_at < workout.started_at)
-        .sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
-      if (!prev) return out;
-      for (const we of await tx.objectStore("workout_exercises").index("workout_id").getAll(prev.id)) {
-        if (!we.plan_exercise_id) continue;
-        const sets = (await tx.objectStore("workout_sets").index("workout_exercise_id").getAll(we.id)).sort((a, b) => a.position - b.position);
-        out.set(we.plan_exercise_id, { we, sets });
+        .sort((a, b) => b.started_at.localeCompare(a.started_at))
+        .slice(0, limit);
+      const broken = new Set<Id>();
+      for (const w of past) {
+        const seen = new Set<Id>();
+        for (const we of await tx.objectStore("workout_exercises").index("workout_id").getAll(w.id)) {
+          if (!we.plan_exercise_id || broken.has(we.plan_exercise_id) || seen.has(we.plan_exercise_id)) continue;
+          seen.add(we.plan_exercise_id);
+          const sets = (await tx.objectStore("workout_sets").index("workout_exercise_id").getAll(we.id)).sort((a, b) => a.position - b.position);
+          out.set(we.plan_exercise_id, [...(out.get(we.plan_exercise_id) ?? []), { started_at: w.started_at, we, sets }]);
+        }
+        // Lines missing from this workout: their run ends here.
+        for (const id of out.keys()) if (!seen.has(id)) broken.add(id);
       }
       return out;
     });

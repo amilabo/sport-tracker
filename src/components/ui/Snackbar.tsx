@@ -27,7 +27,7 @@ export function Snackbar({ message, actions, onClose, ms = 8000, token, aboveNav
   if (message === null) return null;
   return (
     <div
-      className={`pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-[480px] px-3 ${aboveNav ? "pb-[calc(84px+env(safe-area-inset-bottom))]" : "pb-[max(1rem,env(safe-area-inset-bottom))]"}`}
+      className={`pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-[480px] px-3 ${aboveNav ? "pb-[calc(84px+var(--safe-bottom))]" : "pb-[max(1rem,var(--safe-bottom))]"}`}
     >
       <div
         role="status"

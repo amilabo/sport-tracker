@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ExercisePicker } from "@/components/exercises/ExercisePicker";
 import { Button } from "@/components/ui/Button";
 import { Field, FormError, inputClass } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/Sheet";
+import { Snackbar } from "@/components/ui/Snackbar";
+import { exercisesRepo } from "@/db/repos/exercises";
 import { useBackGuard } from "@/platform/use-back-guard";
 import { plansRepo, type PlanFull } from "@/db/repos/plans";
 import {
@@ -28,7 +30,8 @@ import { EDITOR_FORMATS, FORMAT_LABELS, formatRest, hasRestSettings, ownRest, re
 import { emptySet, MAX_SETS, toQuickInput } from "@/domain/sets";
 import { timedEstimate } from "@/domain/timed-circuit";
 import { DomainError, type Exercise, type Id, type PlanCircuit, type SetValues } from "@/domain/types";
-import { PlanItemCard, type EditorRow } from "./PlanItemCard";
+import { clearDraft, markQuietReturn, readDraft, takeQuietReturn, writeDraft, type EditorDraft } from "./editor-draft";
+import { ChartIcon, PlanItemCard, type EditorRow } from "./PlanItemCard";
 import { RestSheet } from "./RestSheet";
 import { SetEditorSheet } from "./SetEditorSheet";
 import { moveItem, useDragSort } from "./useDragSort";
@@ -79,25 +82,43 @@ function snapshot(name: string, rows: EditorRow[], rest: RestSettings, circuits:
   return JSON.stringify([name.trim(), rest, circuits, rows.map((r) => [r.exercise.id, r.note, r.sets, r.text, r.rest, r.circuit_id])]);
 }
 
+const baseOf = (l: Pick<Loaded, "name" | "rows" | "rest" | "circuits">) => snapshot(l.name, l.rows, l.rest, l.circuits);
+
+/** Unsaved edits left on this plan (stage 50а), with the exercises read anew — one may have been edited meanwhile. */
+async function draftFor(id: string | null, loaded: Loaded): Promise<EditorDraft | null> {
+  const draft = readDraft(id, baseOf(loaded));
+  if (!draft) return null;
+  const fresh = await Promise.all(draft.rows.map((r) => exercisesRepo.get(r.exercise.id)));
+  return { ...draft, rows: draft.rows.map((r, i) => ({ ...r, exercise: fresh[i] ?? r.exercise })) };
+}
+
+async function loadPlan(id: string | null): Promise<Loaded | null> {
+  if (!id) return NEW_PLAN;
+  const full = await plansRepo.getFull(id);
+  if (!full) return null;
+  return {
+    name: full.plan.name,
+    rows: rowsFromPlan(full),
+    archived: !!full.plan.archived_at,
+    rest: restSettings(full.plan),
+    hadRest: hasRestSettings(full.plan),
+    circuits: cleanCircuits(full.plan.circuits),
+  };
+}
+
 function PlanEditorInner({ id }: { id: string | null }) {
-  const [loaded, setLoaded] = useState<Loaded | null | "missing">(id ? null : NEW_PLAN);
+  const [loaded, setLoaded] = useState<{ plan: Loaded; draft: EditorDraft | null } | null | "missing">(null);
 
   useEffect(() => {
-    if (!id) return;
-    plansRepo.getFull(id).then((full) =>
-      setLoaded(
-        full
-          ? {
-              name: full.plan.name,
-              rows: rowsFromPlan(full),
-              archived: !!full.plan.archived_at,
-              rest: restSettings(full.plan),
-              hadRest: hasRestSettings(full.plan),
-              circuits: cleanCircuits(full.plan.circuits),
-            }
-          : "missing",
-      ),
-    );
+    let alive = true;
+    (async () => {
+      const plan = await loadPlan(id);
+      const next = plan ? { plan, draft: await draftFor(id, plan) } : ("missing" as const);
+      if (alive) setLoaded(next);
+    })();
+    return () => {
+      alive = false;
+    };
   }, [id]);
 
   if (loaded === "missing") {
@@ -111,7 +132,7 @@ function PlanEditorInner({ id }: { id: string | null }) {
     );
   }
   if (!loaded) return null;
-  return <EditorForm id={id} initial={loaded} />;
+  return <EditorForm id={id} initial={loaded.plan} draft={loaded.draft} />;
 }
 
 type Picker = { kind: "add" } | { kind: "replace"; index: number } | null;
@@ -124,14 +145,19 @@ type RestEdit =
   | { kind: "work" }
   | null;
 
-function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
+function EditorForm({ id, initial, draft }: { id: string | null; initial: Loaded; draft: EditorDraft | null }) {
   const router = useRouter();
-  const [name, setName] = useState(initial.name);
-  const [rows, setRows] = useState<EditorRow[]>(initial.rows);
-  const [rest, setRest] = useState<RestSettings>(initial.rest);
-  const [circuits, setCircuits] = useState<PlanCircuit[]>(initial.circuits);
+  const start = draft ?? initial;
+  const [name, setName] = useState(start.name);
+  const [rows, setRows] = useState<EditorRow[]>(start.rows);
+  const [rest, setRest] = useState<RestSettings>(start.rest);
+  const [circuits, setCircuits] = useState<PlanCircuit[]>(start.circuits);
   const [restEdit, setRestEdit] = useState<RestEdit>(null);
-  const [saved, setSaved] = useState(() => snapshot(initial.name, initial.rows, initial.rest, initial.circuits));
+  const [saved, setSaved] = useState(() => baseOf(initial));
+  // «Вернули несохранённые правки» with «Отменить» (stage 50а).
+  // Back from «История и график» (stage 50): the edits are expected — no message.
+  const [restored, setRestored] = useState(() => draft !== null && !takeQuietReturn(id));
+  const discarded = useRef(false);
   const [picker, setPicker] = useState<Picker>(null);
   const [menu, setMenu] = useState<number | null>(null);
   const [setEdit, setSetEdit] = useState<{ row: number; set: number } | null>(null);
@@ -222,6 +248,31 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
     setRows((list) => tidyGroups(list.map((r, i) => (i === index ? { ...r, circuit_id: null } : r))));
   }
   const drag = useDragSort(onMove);
+
+  // Unsaved edits survive stepping away (stage 50а); saved or undone — nothing to keep.
+  const current = snapshot(name, rows, rest, circuits);
+  useEffect(() => {
+    if (discarded.current) return;
+    if (current !== saved) writeDraft(id, saved, { name, rows, rest, circuits });
+    else clearDraft(id);
+    // `current` stands for name, rows, rest and circuits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, current, saved]);
+
+  /** «Выйти» without saving, archive: the edits are dropped on purpose. */
+  const dropDraft = () => {
+    discarded.current = true;
+    clearDraft(id);
+  };
+
+  /** «Отменить» on «Вернули несохранённые правки»: back to the saved plan. */
+  function undoRestore() {
+    setRestored(false);
+    setName(initial.name);
+    setRows(initial.rows);
+    setRest(initial.rest);
+    setCircuits(initial.circuits);
+  }
 
   // Warn before closing the tab with unsaved changes.
   useEffect(() => {
@@ -316,6 +367,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
 
   async function archive() {
     if (!id) return;
+    dropDraft();
     await plansRepo.archive(id);
     router.push("/");
   }
@@ -323,6 +375,12 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
   function back() {
     if (dirty) setConfirm("leave");
     else router.back();
+  }
+
+  /** «История и график» (stage 50, mockup И1): the exercise screen; «назад» returns here, the edits wait in the draft. */
+  function openHistory(exerciseId: Id) {
+    markQuietReturn(id);
+    router.push(`/exercises/view/?id=${exerciseId}`);
   }
   // The Android back button asks the same question as «Назад» on the screen.
   const askLeave = useCallback(() => setConfirm("leave"), []);
@@ -359,6 +417,7 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
           if (!last) setSetEdit({ row: i, set: 0 });
         }}
         onMenu={() => setMenu(i)}
+        onHistory={() => openHistory(row.exercise.id)}
         rest={withRest && !groupOf(row) && row.sets.length > 1 ? { value: setRestFor(rest, row.rest), own: row.rest !== null } : undefined}
         onRest={() => setRestEdit({ kind: "row", index: i })}
         timed={timed ? { workSec } : undefined}
@@ -616,6 +675,10 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
               setMenu(null);
               setPicker({ kind: "replace", index: menu });
             }}
+            onHistory={() => {
+              setMenu(null);
+              openHistory(menuRow.exercise.id);
+            }}
             onRemove={() => {
               setRows((list) => tidyGroups(list.filter((_, i) => i !== menu)));
               setMenu(null);
@@ -640,7 +703,10 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
                 const what = confirm;
                 setConfirm(null);
                 if (what === "archive") archive();
-                else router.back();
+                else {
+                  dropDraft();
+                  router.back();
+                }
               }}
             >
               {confirm === "archive" ? "В архив" : "Выйти"}
@@ -654,6 +720,16 @@ function EditorForm({ id, initial }: { id: string | null; initial: Loaded }) {
             : "Изменения в плане не сохранятся."}
         </p>
       </Sheet>
+
+      <Snackbar
+        message={restored ? "Вернули несохранённые правки плана." : null}
+        onClose={() => setRestored(false)}
+        actions={
+          <button type="button" onClick={undoRestore} className="min-h-11 rounded-xl border-[1.5px] border-line-inverse px-4 text-sm font-semibold">
+            Отменить
+          </button>
+        }
+      />
     </div>
   );
 }
@@ -833,14 +909,19 @@ interface ItemMenuProps {
   onNote: (note: string | null) => void;
   onMove: (dir: -1 | 1) => void;
   onReplace: () => void;
+  onHistory: () => void;
   onRemove: () => void;
   onDone: () => void;
 }
 
-function ItemMenu({ row, isFirst, isLast, inCircuit, canJoin, onJoin, onLeave, onNote, onMove, onReplace, onRemove, onDone }: ItemMenuProps) {
+function ItemMenu({ row, isFirst, isLast, inCircuit, canJoin, onJoin, onLeave, onNote, onMove, onReplace, onHistory, onRemove, onDone }: ItemMenuProps) {
   const [note, setNote] = useState(row.note ?? "");
   return (
     <div className="flex flex-col gap-3">
+      <Button variant="outline" onClick={onHistory}>
+        <ChartIcon size={18} />
+        История и график
+      </Button>
       <form
         className="flex items-end gap-2"
         onSubmit={(e) => {

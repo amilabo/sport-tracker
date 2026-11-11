@@ -14,14 +14,19 @@ import type { BackupFolder, HomeData, NotifyPermission, Platform } from "./types
 const Screen = registerPlugin<{
   keepOn(options: { on: boolean }): Promise<void>;
   setBackground(options: { color: string }): Promise<void>;
-  insets(): Promise<{ top: number; padded: boolean }>;
+  insets(): Promise<{ top: number; padded: boolean; bottom?: number; paddedBottom?: boolean }>;
 }>("Screen");
 
-/** The status bar's height from Android itself into --native-top (globals.css takes the largest of three, 1.1.2). */
+/**
+ * The status bar's height from Android itself into --native-top (globals.css takes the largest of three, 1.1.2),
+ * the navigation bar's — into --native-bottom (1.1.4).
+ */
 function measureTop() {
   Screen.insets()
-    .then(({ top, padded }) => {
-      document.documentElement.style.setProperty("--native-top", `${padded ? 0 : top}px`);
+    .then(({ top, padded, bottom = 0, paddedBottom = false }) => {
+      const root = document.documentElement.style;
+      root.setProperty("--native-top", `${padded ? 0 : top}px`);
+      root.setProperty("--native-bottom", `${paddedBottom ? 0 : bottom}px`);
     })
     .catch(() => {});
 }

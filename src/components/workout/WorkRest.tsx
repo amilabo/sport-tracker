@@ -1,22 +1,27 @@
 import { formatRest } from "@/domain/rest";
-import { overText, type RestSummary } from "@/domain/rest-summary";
+import { isBreakRest, overText, type RestSummary } from "@/domain/rest-summary";
 
 /**
- * Rest before a set, drawn between set rows (stage 35): «отдых 2:05»; «≈» — ticked without «Начать подход»;
- * over the plan by 30 s+ — accent. `before` — before the first set: rest between exercises (stage 38).
+ * Rest before a set, between the set squares (stages 35, 49, mockup О8б): a short line under the squares, the text
+ * beside it — no lines across, so the sets read as one column. «≈» — ticked without «Начать подход»; over the plan by
+ * 30 s+ — accent; a break (2:00+ over) — «· перерыв», plain: it is not counted, nothing to look into.
+ * `before` — before the first set: rest between exercises (stage 38). The rail sits under a 44 px square.
  */
 export function RestLine({ sec, target, approx, before, className = "" }: { sec: number; target: number | undefined; approx: boolean; before?: boolean; className?: string }) {
-  const long = target !== undefined && sec > target + 30;
+  const brk = isBreakRest(sec, target);
+  const long = !brk && target !== undefined && sec > target + 30;
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <span aria-hidden="true" className="h-0 flex-1 border-t-[1.5px] border-dashed border-line-strong" />
-      <span className={`font-mono text-xs ${long ? "font-bold text-accent-text" : "text-ink-muted"}`}>
+    <div className={`flex min-h-6 items-stretch gap-2 ${className}`}>
+      <span aria-hidden="true" className="flex w-11 shrink-0 justify-center">
+        <span className="border-l-2 border-line-strong" />
+      </span>
+      <span className={`self-center font-mono text-xs ${long ? "font-bold text-accent-text" : "text-ink-muted"}`}>
         {before ? "отдых перед упражнением " : "отдых "}
         {approx ? "≈" : ""}
         {formatRest(sec)}
         {long && target !== undefined ? ` · план ${formatRest(target)}` : ""}
+        {brk ? " · перерыв" : ""}
       </span>
-      <span aria-hidden="true" className="h-0 flex-1 border-t-[1.5px] border-dashed border-line-strong" />
     </div>
   );
 }
@@ -56,6 +61,9 @@ export function WorkRest({ rest, minutes }: { rest: RestSummary; minutes: number
       <p className="text-[13px] leading-snug text-ink-muted">
         {rest.avgOverSec !== null ? `${overText(rest.avgOverSec)}.` : ""}
         {rest.longCount > 0 ? ` Дольше плана больше чем на 30 с — ${rest.longCount} ${rest.longCount === 1 ? "раз" : rest.longCount < 5 ? "раза" : "раз"}.` : ""}
+        {rest.breakCount > 0
+          ? ` Перерывы — отдых дольше плана на 2 минуты и больше — в среднее не входят (${rest.breakCount} ${rest.breakCount === 1 ? "раз" : rest.breakCount < 5 ? "раза" : "раз"}).`
+          : ""}
         {rest.approxCount > 0
           ? ` «≈» — подход отметили без «Начать подход», в отдых вошёл сам подход (${rest.approxCount} ${rest.approxCount === 1 ? "раз" : rest.approxCount < 5 ? "раза" : "раз"}).`
           : ""}

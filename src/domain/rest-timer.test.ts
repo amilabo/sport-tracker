@@ -61,6 +61,9 @@ describe("counting", () => {
   it("records the rest exactly on «Начать подход», approximately on a tick", () => {
     expect(restRecord(t, at(95), false)).toEqual({ rest_sec: 95, rest_target_sec: 60 });
     expect(restRecord(t, at(130), true)).toEqual({ rest_sec: 130, rest_target_sec: 60, rest_approx: true });
+    // Stage 49а: two sets ticked one after another — no rest kept.
+    expect(restRecord(t, at(4), true)).toEqual({});
+    expect(restRecord(t, at(15), true)).toEqual({ rest_sec: 15, rest_target_sec: 60, rest_approx: true });
     const work = startWork(t, at(95));
     expect(work).toMatchObject({ phase: "work", since: at(95), set_id: "a2" });
     expect(elapsedSec(work, Date.parse(at(125)))).toBe(30);

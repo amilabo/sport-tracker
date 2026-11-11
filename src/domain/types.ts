@@ -44,7 +44,19 @@ export interface Exercise extends BaseEntity {
   secondary_groups?: MuscleGroup[];
   /** «Ваша замена»: offered first when the exercise is replaced in the gym (stage 28). Absent — none. */
   substitute_id?: Id | null;
+  // «Как прибавлять» (stage 51а): the person's own settings, catalog exercises included. Absent — the defaults of
+  // domain/analytics/progress-settings.ts. Kept on the phone and in the backup; an older app ignores them.
+  /** The top of the rep range: reached — a set or more weight is offered instead of +1 rep. Absent — 15. */
+  rep_ceiling?: number;
+  /** Own weight step, kg (a cable stack in 5 kg). Absent — by equipment. */
+  weight_step?: number;
+  /** «На каждую сторону»: plans and history keep the sum of both sides (20 = 10 + 10); the ceiling and +1 count per side. */
+  per_side?: boolean;
+  /** What «Обновить план?» offers first — the last choice for this exercise. Absent — weight. */
+  progress_prefer?: ProgressPrefer;
 }
+
+export type ProgressPrefer = "reps" | "weight";
 
 export interface Progression extends BaseEntity {
   name: string;

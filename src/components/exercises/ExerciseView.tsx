@@ -17,6 +17,7 @@ import { ExerciseForm } from "./ExerciseForm";
 import { ExerciseProgress } from "./ExerciseProgress";
 import { LinkVariant } from "./LinkVariant";
 import { ProgressionPanel } from "./ProgressionPanel";
+import { ProgressSettings, hasProgressSettings } from "./ProgressSettings";
 import { SubstitutesBlock } from "./SubstitutesBlock";
 import { TechniqueBlock } from "./Technique";
 
@@ -107,6 +108,9 @@ export function ExerciseView() {
       />
 
       {!exercise.archived_at && <SubstitutesBlock key={`subs-${exercise.id}`} exercise={exercise} />}
+
+      {/* «Как прибавлять» (stage 53, Р4): above the chart — next to what it changes. */}
+      {hasProgressSettings(exercise) && <ProgressSettings key={`prog-${exercise.id}`} exercise={exercise} />}
 
       {data.chain && (
         <div role="tablist" aria-label="Вид" className="mx-4 mt-5 grid grid-cols-2 gap-1 rounded-[14px] bg-surface-done p-1">

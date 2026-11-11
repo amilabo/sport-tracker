@@ -1,5 +1,6 @@
 // The rest timer in the gym (stage 35): which set comes next, how long to rest, what to record.
 import { setRestFor } from "./rest";
+import { isNoiseRest } from "./rest-summary";
 import type { Id, IsoDateTime, RestSnapshot, RestTimer, WorkoutExercise, WorkoutSet } from "./types";
 
 type TimerItem = {
@@ -112,10 +113,19 @@ export function adjustRest(timer: RestTimer, dir: 1 | -1): RestTimer {
   return { ...timer, target_sec: Math.max(0, timer.target_sec + dir * 15) };
 }
 
-/** What the set keeps about the rest before it. `approx` — ticked without «Начать подход». */
-export function restRecord(timer: Pick<RestTimer, "since" | "target_sec">, at: IsoDateTime, approx: boolean) {
+/**
+ * What the set keeps about the rest before it. `approx` — ticked without «Начать подход». Noise (under 15 s and under
+ * half the plan — two sets ticked one after another, stage 49а) is not a rest: nothing is kept.
+ */
+export function restRecord(
+  timer: Pick<RestTimer, "since" | "target_sec">,
+  at: IsoDateTime,
+  approx: boolean,
+): { rest_sec?: number; rest_target_sec?: number; rest_approx?: true } {
+  const sec = elapsedSec(timer, Date.parse(at));
+  if (isNoiseRest(sec, timer.target_sec)) return {};
   return {
-    rest_sec: elapsedSec(timer, Date.parse(at)),
+    rest_sec: sec,
     rest_target_sec: timer.target_sec,
     ...(approx ? { rest_approx: true } : {}),
   };

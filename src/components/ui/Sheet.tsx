@@ -76,7 +76,9 @@ export function Sheet({ open, onClose, title, children, footer }: SheetProps) {
               </svg>
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
+          {/* Without a footer the last row (e.g. «Удалить» in the plan's exercise menu) sits at the very bottom — keep it
+              above the system navigation bar (1.1.4: on the S22 it went under it). */}
+          <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 ${footer ? "pb-4" : "pb-[max(16px,var(--safe-bottom))]"}`}>{children}</div>
           {footer && <div className="pb-safe border-t border-line px-4 pt-3">{footer}</div>}
         </>
       )}

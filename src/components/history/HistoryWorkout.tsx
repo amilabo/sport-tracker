@@ -15,11 +15,11 @@ import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { touch } from "@/domain/entity";
 import { formatHeaderDate, formatShortDate, formatTime } from "@/domain/format";
 import { fieldText, formatSetDetail, parseField } from "@/domain/history";
-import { restSummary } from "@/domain/rest-summary";
+import { hasRest, restSummary } from "@/domain/rest-summary";
 import { RestLine, WorkRest } from "@/components/workout/WorkRest";
 import { durationMinutes, formatDurationLong, formatKg, summarize } from "@/domain/summary";
 import { isWorkoutDate, parseTime24, toLocalDate, workoutMoments } from "@/domain/time";
-import type { Exercise, Id, LogType, SetValues, Workout, WorkoutExercise, WorkoutSet } from "@/domain/types";
+import type { Exercise, Id, LogType, SetValues, WorkoutExercise, WorkoutSet } from "@/domain/types";
 import { addedExercise, fieldsFor, newWorkoutSet, type SetField } from "@/domain/workout";
 
 export function HistoryWorkoutRoute() {
@@ -415,15 +415,20 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
                   {item.we.skipped && <span className="text-[13px] text-accent-text">пропущено</span>}
                   {item.we.note && <span className="text-[13px] text-ink-muted">{item.we.note}</span>}
                 </div>
-                <ol className="flex flex-col">
+                {/* Sets as in the gym (mockup О8б): numbered squares, done — accent; rest between them on a short rail. */}
+                <ol className="flex flex-col gap-1.5">
                   {item.sets.map((s, i) => (
-                    <li key={s.id} className="flex flex-col border-t border-line py-1.5 first:border-t-0">
-                      {/* Rest before this set, between the rows — as in the gym (stage 38). */}
-                      {s.done_at && s.rest_sec !== undefined && (
-                        <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} before={i === 0 && !item.we.circuit_id} className="pb-1.5" />
-                      )}
-                      <div className="flex items-baseline gap-3">
-                        <span className="w-5 font-mono text-[13px] text-ink-muted">{i + 1}</span>
+                    <li key={s.id} className="flex flex-col gap-1.5">
+                      {s.done_at && hasRest(s) && <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} before={i === 0 && !item.we.circuit_id} className="-my-0.5" />}
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          aria-label={`Подход ${i + 1}${s.done_at ? "" : ", не выполнен"}`}
+                          className={`flex h-10 w-11 shrink-0 items-center justify-center rounded-[10px] border-[1.5px] font-mono text-sm font-bold ${
+                            s.done_at ? "border-ink bg-accent text-on-accent" : "border-line-strong text-ink-muted"
+                          }`}
+                        >
+                          {i + 1}
+                        </span>
                         <span className={`font-mono text-[15px] font-bold ${s.done_at ? "" : "text-ink-muted"}`}>{formatSetDetail(logType, s)}</span>
                         {!s.done_at && <span className="ml-auto text-[13px] text-ink-muted">не выполнен</span>}
                       </div>
@@ -507,7 +512,7 @@ function HistoryWorkout({ full }: { full: WorkoutFull }) {
         <FormError message={error} />
 
         {draft ? (
-          <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-2 border-t border-line bg-bg px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
+          <div className="sticky bottom-0 -mx-4 grid grid-cols-2 gap-2 border-t border-line bg-bg px-4 pt-3 pb-[calc(12px+var(--safe-bottom))]">
             <Button
               variant="outline"
               onClick={() => {

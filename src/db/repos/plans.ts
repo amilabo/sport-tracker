@@ -1,6 +1,7 @@
 import { newEntity, touch } from "@/domain/entity";
 import { cleanCircuits, usedCircuits } from "@/domain/circuit";
 import { cleanRest, hasRestSettings, ownRest, restSettings, type RestSettings } from "@/domain/rest";
+import { MAX_PLAN_SETS } from "@/domain/analytics/progression-options";
 import { cleanName } from "@/domain/text";
 import { nowIso } from "@/domain/time";
 import {
@@ -210,6 +211,27 @@ export const plansRepo = {
       }
       for (const s of byId.values()) await store.put(touch(s, {}));
       return byId.size;
+    });
+  },
+
+  /**
+   * «+1 подход» in «Обновить план?» (stage 52): one more set at the end of each plan exercise, a copy of its last set.
+   * Not above MAX_PLAN_SETS.
+   */
+  async addSetCopies(planExerciseIds: Id[]): Promise<number> {
+    if (!planExerciseIds.length) return 0;
+    return withTx(["plan_sets"], "readwrite", async (tx) => {
+      const store = tx.objectStore("plan_sets");
+      let n = 0;
+      for (const id of planExerciseIds) {
+        const sets = (await store.index("plan_exercise_id").getAll(id)).sort((a, b) => a.position - b.position);
+        const last = sets.at(-1);
+        if (!last || sets.length >= MAX_PLAN_SETS) continue;
+        const { weight, reps, duration_sec, speed_kmh } = last;
+        await store.put(newEntity({ plan_exercise_id: id, position: last.position + 1, weight, reps, duration_sec, speed_kmh }, { is_demo: last.is_demo }));
+        n++;
+      }
+      return n;
     });
   },
 

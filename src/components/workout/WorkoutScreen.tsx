@@ -649,14 +649,14 @@ function WorkoutScreen({ kind, targetId }: { kind: "workout" | "draft"; targetId
         />
       )}
       {!isDraft && workout.rest && !workout.timer && pendingTimed && (
-        <section aria-label="Круг по времени" className="sticky bottom-0 z-30 mt-3 flex flex-col gap-2 rounded-t-[22px] bg-surface-inverse px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] text-on-inverse">
+        <section aria-label="Круг по времени" className="sticky bottom-0 z-30 mt-3 flex flex-col gap-2 rounded-t-[22px] bg-surface-inverse px-4 pt-3 pb-[max(12px,var(--safe-bottom))] text-on-inverse">
           <p className="text-sm text-on-inverse-muted">
             Круг по времени: {formatRest(pendingTimed.work_sec ?? 0)} работа / {formatRest(pendingTimed.rest_inside_sec)} отдых — таймер ведёт сам.
           </p>
           <Button
             variant="accent"
             size="lg"
-            className="font-display"
+            className="hit-wide font-display"
             onClick={() => {
               primeSignal();
               actions.startTimed();

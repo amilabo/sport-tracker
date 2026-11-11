@@ -87,13 +87,32 @@
    two still left the top under the bar (1.1.1). An old WebView is padded by Capacitor itself — all three are 0 then. */
 :root {
   --safe-top: 0px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 :root[data-target="android"] {
   --safe-top: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px), var(--native-top, 0px));
 }
+/* Bottom inset (1.1.4): the same three for the navigation bar — on the S22 env() alone left sheets under it.
+   On the site (iPhone home indicator) it stays env(). */
+:root[data-target="android"] {
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px), var(--native-bottom, 0px));
+}
+/* The main button of the gym panel also takes taps around it (stages 49а, 52): with long nails the finger lands below
+   or above the aim (14 px each way, 11.11.2026). Invisible; not to the left — «+15 с» / «Пауза» are there. */
+.hit-wide {
+  position: relative;
+}
+.hit-wide::after {
+  content: "";
+  position: absolute;
+  top: -14px;
+  right: -8px;
+  bottom: -14px;
+  left: 0;
+}
 
 .pb-safe {
-  padding-bottom: max(22px, env(safe-area-inset-bottom));
+  padding-bottom: max(22px, var(--safe-bottom));
 }
 
 @media (prefers-reduced-motion: reduce) {

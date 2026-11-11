@@ -4,7 +4,7 @@ import { formatClock } from "../sets";
 import type { Exercise, IsoDateTime, LogType, WorkoutSet } from "../types";
 import { bestE1rm, isTimedSet } from "./e1rm";
 import { STALL_DAYS, STALL_REPS_DROP, STALL_SESSIONS, STALL_TIME_STEP_SEC } from "./thresholds";
-import { weightStep } from "./weight-step";
+import { stepOf } from "./progress-settings";
 
 // «4 тренировки на одном уровне» (stage 41, mockup А1): the best result has not been beaten for a while.
 
@@ -64,7 +64,7 @@ function levelSet(logType: LogType, sessions: ExerciseSession[]): WorkoutSet | n
  * What to try next time (А1): «+1 повтор», «+2,5 кг, меньше повторов» (two reps fewer, as in the mockup: 22,5 × 10 →
  * 25 × 8), «Сложнее вариант» — the next level of the progression, if the exercise is in one.
  */
-export function stallOptions(exercise: Pick<Exercise, "log_type" | "equipment">, sessionsOnLevel: ExerciseSession[], harder: string | null): StallOption[] {
+export function stallOptions(exercise: Pick<Exercise, "log_type" | "equipment" | "weight_step">, sessionsOnLevel: ExerciseSession[], harder: string | null): StallOption[] {
   const set = levelSet(exercise.log_type, sessionsOnLevel);
   const out: StallOption[] = [];
   if (set) {
@@ -72,7 +72,7 @@ export function stallOptions(exercise: Pick<Exercise, "log_type" | "equipment">,
     switch (exercise.log_type) {
       case "weight_reps": {
         if (set.weight === null || set.weight <= 0) break;
-        const step = weightStep(exercise.equipment);
+        const step = stepOf(exercise);
         out.push({ label: "+1 повтор", value: `${kg(set.weight)} кг × ${reps + 1}` });
         out.push({ label: `+${kg(step)} кг, меньше повторов`, value: `${kg(set.weight + step)} кг × ${Math.max(1, reps - STALL_REPS_DROP)}` });
         break;

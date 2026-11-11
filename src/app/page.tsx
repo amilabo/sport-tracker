@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AutoBackupCard } from "@/components/home/AutoBackupCard";
 import { BackupReminder } from "@/components/home/BackupReminder";
 import { InstallHint } from "@/components/home/InstallHint";
+import { PerSideAsk } from "@/components/home/PerSideAsk";
 import { SavedWorkout } from "@/components/home/SavedWorkout";
 import { GoalCard, WeekStrip } from "@/components/rhythm/Rhythm";
 import { TodayLabel } from "@/components/TodayLabel";
@@ -19,7 +20,8 @@ import { workoutsRepo } from "@/db/repos/workouts";
 import { EXERCISE_FORMS, formatHeaderDate, formatShortDate, formatTime, plural } from "@/domain/format";
 import { pickNextPlan } from "@/domain/next-plan";
 import { daysSinceLast, isComeback } from "@/domain/analytics/comeback";
-import { planChanges } from "@/domain/plan-diff";
+import { planChanges, type PlanChange } from "@/domain/plan-diff";
+import { applyPlanDecision } from "@/db/plan-decision";
 import { PlanUpdateList } from "@/components/workout/PlanUpdateList";
 import type { Plan, Workout } from "@/domain/types";
 import { progress } from "@/domain/workout";
@@ -178,8 +180,8 @@ export default function HomePage() {
       const full = w.plan_id ? await workoutsRepo.getFull(w.id) : undefined;
       // After a break (stage 44) the lowered weights are not offered to the plan, as on the finish screen.
       const comeback = full?.plan ? isComeback(daysSinceLast(await workoutsRepo.listCompleted(), new Date(w.started_at), w.id)) : false;
-      const previous = full?.plan ? await workoutsRepo.previousPlanItems(w) : undefined;
-      const changes = full?.plan && !full.plan.archived_at ? planChanges(full.items, { comeback, previous, timedCircuits: new Set((w.rest?.circuits ?? []).filter((c) => c.mode === "timed").map((c) => c.id)) }) : [];
+      const past = full?.plan ? await workoutsRepo.pastPlanLines(w) : undefined;
+      const changes = full?.plan && !full.plan.archived_at ? planChanges(full.items, { comeback, past, startedAt: w.started_at, timedCircuits: new Set((w.rest?.circuits ?? []).filter((c) => c.mode === "timed").map((c) => c.id)) }) : [];
       if (!full?.plan || changes.length === 0) {
         // Nothing to ask: settle it silently (the query re-runs and checks the next one).
         await workoutsRepo.markPlanPrompted(w.id);
@@ -188,15 +190,16 @@ export default function HomePage() {
       return { workout: w, plan: full.plan, changes };
     },
     [],
-    ["workouts", "plans"],
+    // exercises: a step or ceiling changed under the choices (stage 52) reads the lines anew.
+    ["workouts", "plans", "exercises"],
   );
   const [planBusy, setPlanBusy] = useState(false);
 
-  async function decidePending(checked: Parameters<typeof plansRepo.applySetUpdates>[0]) {
+  async function decidePending(checked: PlanChange[]) {
     if (!pending) return;
     setPlanBusy(true);
     try {
-      await plansRepo.applySetUpdates(checked);
+      await applyPlanDecision(checked);
       await workoutsRepo.markPlanPrompted(pending.workout.id);
     } finally {
       setPlanBusy(false);
@@ -272,10 +275,12 @@ export default function HomePage() {
         Данные хранятся только на этом телефоне
       </p>
 
+      {data && <PerSideAsk blocked={!!pending || !!data.active} />}
+
       <Sheet
         open={!!pending && !data?.active}
         onClose={() => decidePending([])}
-        title="Обновить веса в плане?"
+        title={pending?.changes.some((c) => c.progress) ? "Обновить план?" : "Обновить веса в плане?"}
       >
         {pending && (
           <div className="flex flex-col gap-2">
@@ -288,7 +293,7 @@ export default function HomePage() {
               planName={pending.plan.name}
               changes={pending.changes}
               busy={planBusy}
-              onDecide={(checked) => decidePending(checked.flatMap((c) => c.updates))}
+              onDecide={decidePending}
             />
           </div>
         )}

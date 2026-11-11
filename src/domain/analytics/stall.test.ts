@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { chartSeries, type ExerciseSession } from "../chart-series";
 import { newEntity } from "../entity";
-import { planChanges } from "../plan-diff";
+import { choose, planChanges } from "../plan-diff";
 import type { Equipment, Exercise, LogType, PlanSet, SetValues, WorkoutSet } from "../types";
 import { newWorkoutExercise, newWorkoutSet } from "../workout";
-import { doubleProgression, doubleProgressionWhere } from "./double-progression";
 import { stall, stallOptions, stallTitle } from "./stall";
 
 const v = (weight: number | null, reps: number | null, duration_sec: number | null = null): SetValues => ({ weight, reps, duration_sec, speed_kmh: null });
@@ -59,44 +58,67 @@ describe("stall", () => {
   });
 });
 
-describe("double progression", () => {
+describe("«Как прибавить» in «Обновить план?» (stages 41, 52)", () => {
   const ps = (values: SetValues, i: number): PlanSet => newEntity({ plan_exercise_id: "pe", position: i, ...values });
+  const AT = "2026-10-30T08:00:00.000Z";
   /** Plan `plan` × n, done with `done` (null — not done). */
-  const item = (plan: SetValues, done: (SetValues | null)[], opts: { skipped?: boolean; replaced?: boolean; equipment?: Equipment } = {}) => {
+  const item = (plan: SetValues, done: (SetValues | null)[], opts: { skipped?: boolean; replaced?: boolean; exercise?: Partial<Exercise> } = {}) => {
     const we = { ...newWorkoutExercise("w", "e", 0), plan_exercise_id: "pe", skipped: !!opts.skipped, replaced_exercise_id: opts.replaced ? "other" : null };
     const sets = done.map((d, i) => {
       const s = newWorkoutSet(we.id, i, plan, ps(plan, i));
-      return d ? { ...s, ...d, done_at: "2026-10-30T08:00:00.000Z" } : s;
+      return d ? { ...s, ...d, done_at: AT } : s;
     });
-    return { we, exercise: ex("weight_reps", opts.equipment ?? "barbell"), replaced: null, sets };
+    return { we, exercise: { ...ex("weight_reps", "barbell"), ...opts.exercise }, replaced: null, sets };
   };
   const all = (w: number, r: number) => [v(w, r), v(w, r), v(w, r), v(w, r)];
+  const pastOf = (...items: ReturnType<typeof item>[]) => new Map([["pe", items.map((i, n) => ({ started_at: `2026-10-${String(23 - n * 7).padStart(2, "0")}T08:00:00.000Z`, we: i.we, sets: i.sets }))]]);
+  const brief = (lines: ReturnType<typeof planChanges>) =>
+    lines.map((c) => `${c.where}: ${c.progress ? c.progress.choices.map((x) => `${x.label} (${x.detail})`).join(" | ") : `${c.from} → ${c.to}`}`);
 
-  it("two workouts in a row at the plan → one weight step up", () => {
-    expect(doubleProgression(item(v(40, 15), all(40, 15)), item(v(40, 15), all(40, 15)))).toEqual({ from: 40, to: 42.5, reps: 15 });
-    expect(doubleProgression(item(v(10, 12), all(10, 12), { equipment: "dumbbells" }), item(v(10, 12), all(10, 12)))).toMatchObject({ to: 11 });
-    expect(doubleProgressionWhere(15)).toBe("все подходы · 2 тренировки подряд по 15 раз — пора добавить вес");
-  });
-
-  it("not when a set is missed or short, the exercise is replaced or skipped, or there is no previous", () => {
-    const prev = item(v(40, 15), all(40, 15));
-    expect(doubleProgression(item(v(40, 15), [...all(40, 15).slice(0, 3), null]), prev)).toBeNull();
-    expect(doubleProgression(item(v(40, 15), [...all(40, 15).slice(0, 3), v(40, 13)]), prev)).toBeNull();
-    expect(doubleProgression(item(v(40, 15), all(40, 15), { replaced: true }), prev)).toBeNull();
-    expect(doubleProgression(item(v(40, 15), all(40, 15)), item(v(40, 15), all(40, 15), { skipped: true }))).toBeNull();
-    expect(doubleProgression(item(v(40, 15), all(40, 15)), item(v(40, 15), all(40, 15), { replaced: true }))).toBeNull();
-    expect(doubleProgression(item(v(40, 15), all(40, 15)), item(v(40, 15), [...all(40, 15).slice(0, 3), v(40, 12)]))).toBeNull();
-    expect(doubleProgression(item(v(40, 15), all(40, 15)), null)).toBeNull();
-    expect(doubleProgression(item(v(40, 15), [v(40, 15, 40)]), prev)).toBeNull();
-  });
-
-  it("becomes one line in «Обновить веса в плане?», the heavier weight wins", () => {
-    const prev = new Map([["pe", item(v(40, 15), all(40, 15))]]);
-    const lines = planChanges([item(v(40, 15), all(40, 15))], { previous: prev });
-    expect(lines.map((c) => `${c.where}: ${c.from} → ${c.to}`)).toEqual(["все подходы · 2 тренировки подряд по 15 раз — пора добавить вес: 40 кг → 42,5 кг"]);
+  it("two workouts in a row at the plan → one line, weight first, +1 rep second", () => {
+    const past = pastOf(item(v(40, 12), all(40, 12)));
+    const lines = planChanges([item(v(40, 12), all(40, 12))], { past, startedAt: AT });
+    expect(brief(lines)).toEqual(["все подходы · 2 тренировки подряд по 12 раз: +2,5 кг (40 → 42,5 кг) | +1 повтор (4 × 12 → 4 × 13)"]);
     expect(lines[0].updates).toHaveLength(4);
-    const heavier = planChanges([item(v(40, 15), all(45, 15))], { previous: prev });
-    expect(heavier.map((c) => `${c.from} → ${c.to}`)).toEqual(["40 кг → 45 кг"]);
+    expect(lines[0].prefer).toEqual({ exerciseId: lines[0].progress!.exerciseId, value: "weight" });
+    expect(lines[0].progress!.setting).toMatchObject({ kind: "step", text: "шаг веса 2,5 кг", value: 2.5 });
+  });
+
+  it("done heavier or more already — that goes into the choices; no separate weight or reps lines", () => {
+    const past = pastOf(item(v(40, 12), all(40, 12)));
+    expect(brief(planChanges([item(v(40, 12), all(45, 14))], { past, startedAt: AT }))).toEqual([
+      "все подходы · 2 тренировки подряд по 12 раз: +5 кг (40 → 45 кг) | +2 повтора (4 × 12 → 4 × 14)",
+    ]);
+  });
+
+  it("at the ceiling: +1 set or heavier with 3 reps fewer; the choice is applied by `choose`", () => {
+    const past = pastOf(item(v(50, 15), all(50, 15)));
+    const [line] = planChanges([item(v(50, 15), all(50, 15), { exercise: { progress_prefer: "reps", weight_step: 5 } })], { past, startedAt: AT });
+    expect(brief([line])).toEqual(["дошли до потолка: 15 раз, 2 тренировки подряд: +1 подход (4 → 5 × 15) | +5 кг, 12 раз (50 → 55 кг × 12)"]);
+    expect(line.addSet).toEqual({ planExerciseId: "pe" });
+    expect(line.progress!.setting).toMatchObject({ kind: "ceiling", text: "потолок 15", value: 15 });
+    const heavier = choose(line, 1);
+    expect(heavier.addSet).toBeUndefined();
+    expect(heavier.updates.map((u) => `${u.field}=${u.value}`)).toEqual([...Array(4).fill("weight=55"), ...Array(4).fill("reps=12")]);
+    expect(heavier.prefer?.value).toBe("weight");
+  });
+
+  it("«на каждую сторону»: +1 per side", () => {
+    const opts = { exercise: { per_side: true, progress_prefer: "reps" as const, equipment: "dumbbells" as const } };
+    const past = pastOf(item(v(8, 20), all(8, 20), opts));
+    expect(brief(planChanges([item(v(8, 20), all(8, 20), opts)], { past, startedAt: AT }))).toEqual([
+      "на каждую сторону · 2 тренировки подряд по 10 на сторону: +1 на сторону (20 → 22 (по 11)) | +1 кг (8 → 9 кг)",
+    ]);
+  });
+
+  it("not when a set is missed or short, replaced, skipped, or there is no past", () => {
+    const past = pastOf(item(v(40, 15), all(40, 15)));
+    const progress = (i: ReturnType<typeof item>, p = past) => planChanges([i], { past: p, startedAt: AT }).filter((c) => c.progress);
+    expect(progress(item(v(40, 15), [...all(40, 15).slice(0, 3), null]))).toEqual([]);
+    expect(progress(item(v(40, 15), [...all(40, 15).slice(0, 3), v(40, 13)]))).toEqual([]);
+    expect(progress(item(v(40, 15), all(40, 15), { replaced: true }))).toEqual([]);
+    expect(progress(item(v(40, 15), all(40, 15)), pastOf(item(v(40, 15), all(40, 15), { skipped: true })))).toEqual([]);
+    expect(progress(item(v(40, 15), all(40, 15)), pastOf(item(v(40, 15), [...all(40, 15).slice(0, 3), v(40, 12)])))).toEqual([]);
     expect(planChanges([item(v(40, 15), all(40, 15))])).toEqual([]);
   });
 });

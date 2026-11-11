@@ -7,10 +7,11 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field, FormError } from "@/components/ui/Field";
 import { Scale5 } from "@/components/ui/Scale5";
 import { DateField, TimeField } from "@/components/ui/TimeField";
+import { applyPlanDecision } from "@/db/plan-decision";
 import { plansRepo } from "@/db/repos/plans";
 import { workoutsRepo, type WorkoutFull } from "@/db/repos/workouts";
 import { daysSinceLast, isComeback } from "@/domain/analytics/comeback";
-import type { PreviousItem } from "@/domain/analytics/double-progression";
+import type { PastLine } from "@/domain/analytics/progression-options";
 import { recordsWord, workoutRecords, type WorkoutRecord } from "@/domain/analytics/records";
 import { FINISH_RECORDS_SHOWN } from "@/domain/analytics/thresholds";
 import type { ExerciseSession } from "@/domain/chart-series";
@@ -45,7 +46,7 @@ function FinishLoader({ id }: { id: Id }) {
   const [full, setFull] = useState<WorkoutFull | null | "missing">(null);
   const [comeback, setComeback] = useState(false);
   const [records, setRecords] = useState<WorkoutRecord[]>([]);
-  const [previous, setPrevious] = useState<Map<Id, PreviousItem>>(new Map());
+  const [past, setPast] = useState<Map<Id, PastLine[]>>(new Map());
   useEffect(() => {
     let alive = true;
     Promise.all([workoutsRepo.getFull(id), workoutsRepo.listCompleted()]).then(async ([f, completed]) => {
@@ -60,8 +61,8 @@ function FinishLoader({ id }: { id: Id }) {
           if (s.workoutId === f.workout.id || s.startedAt >= f.workout.started_at) continue;
           history.set(s.exerciseId, [...(history.get(s.exerciseId) ?? []), s]);
         }
-        // «Пора добавить вес» (stage 41): the same plan lines last time.
-        setPrevious(await workoutsRepo.previousPlanItems(f.workout));
+        // «Как прибавить» (stages 41, 52): the same plan lines in earlier workouts.
+        setPast(await workoutsRepo.pastPlanLines(f.workout));
         setRecords(workoutRecords(items.map((i) => ({ exerciseId: i.exercise.id, name: i.exercise.name, logType: i.exercise.log_type, sets: i.sets })), history));
       }
       if (alive) setFull(f ?? "missing");
@@ -83,17 +84,20 @@ function FinishLoader({ id }: { id: Id }) {
       </div>
     );
   }
-  return <FinishForm full={full} comeback={comeback} records={records} previous={previous} />;
+  // A step or ceiling changed under «Обновить план?» (stage 52): the exercises are read anew.
+  const reload = () => workoutsRepo.getFull(id).then((f) => f && setFull(f));
+  return <FinishForm full={full} comeback={comeback} records={records} past={past} onReload={reload} />;
 }
 
 interface FinishFormProps {
   full: WorkoutFull;
   comeback: boolean;
   records: WorkoutRecord[];
-  previous: Map<Id, PreviousItem>;
+  past: Map<Id, PastLine[]>;
+  onReload: () => void;
 }
 
-function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
+function FinishForm({ full, comeback, records, past, onReload }: FinishFormProps) {
   const router = useRouter();
   const { workout, plan, items } = full;
   const [energy, setEnergy] = useState<number | null>(null);
@@ -123,8 +127,8 @@ function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
       rest: { planExerciseId: u.planExerciseId, sec: u.toSec },
     }));
     const timedCircuits = new Set((workout.rest?.circuits ?? []).filter((c) => c.mode === "timed").map((c) => c.id));
-    return [...planChanges(items, { comeback, previous, timedCircuits }), ...rest];
-  }, [plan, items, workout.rest, comeback, previous]);
+    return [...planChanges(items, { comeback, past, startedAt: workout.started_at, timedCircuits }), ...rest];
+  }, [plan, items, workout.rest, workout.started_at, comeback, past]);
   const rest = useMemo(() => restSummary(items), [items]);
 
   // Date and times: an entry made later can move the workout to the day it happened.
@@ -139,10 +143,7 @@ function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
     if (minutes > 12 * 60) return setError("Тренировка дольше 12 часов? Проверьте время начала и конца");
     setBusy(true);
     try {
-      if (decision?.length) {
-        await plansRepo.applySetUpdates(decision.flatMap((c) => c.updates));
-        await plansRepo.applyRestUpdates(decision.flatMap((c) => (c.rest ? [c.rest] : [])));
-      }
+      if (decision?.length) await applyPlanDecision(decision);
       await workoutsRepo.complete(workout.id, {
         started_at: startDate.toISOString(),
         finished_at: endDate.toISOString(),
@@ -215,10 +216,10 @@ function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
         {changes.length > 0 && plan && (
           <section className={`flex flex-col gap-3 rounded-[18px] border-2 bg-surface p-3.5 ${decision === null ? "border-accent-line" : "border-line"}`}>
             <h2 className="font-display text-[17px] leading-tight font-bold">
-              {changes.some((c) => c.rest) ? "Обновить план?" : "Обновить веса в плане?"}
+              {changes.some((c) => c.rest || c.progress) ? "Обновить план?" : "Обновить веса в плане?"}
             </h2>
             {decision === null ? (
-              <PlanUpdateList planName={plan.name} changes={changes} onDecide={setDecision} />
+              <PlanUpdateList planName={plan.name} changes={changes} onDecide={setDecision} onSettingSaved={onReload} />
             ) : (
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[15px]">
@@ -307,7 +308,7 @@ function FinishForm({ full, comeback, records, previous }: FinishFormProps) {
         <FormError message={error} />
       </div>
       {/* Pinned (А2): a long summary with records does not push the button off the screen. */}
-      <div className="sticky bottom-0 z-10 mt-auto border-t-[1.5px] border-line bg-bg px-4 pt-3 pb-[max(16px,env(safe-area-inset-bottom))]">
+      <div className="sticky bottom-0 z-10 mt-auto border-t-[1.5px] border-line bg-bg px-4 pt-3 pb-[max(16px,var(--safe-bottom))]">
         <Button variant="accent" size="xl" className="w-full" onClick={save} disabled={busy}>
           Сохранить в историю
         </Button>

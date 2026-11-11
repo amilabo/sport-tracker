@@ -1,8 +1,9 @@
 import { cleanSecondary } from "@/content/exercise-muscles";
+import { cleanCeiling, cleanStep } from "@/domain/analytics/progress-settings";
 import { newEntity, touch } from "@/domain/entity";
 import { cleanDescription, cleanName, compareRu, searchKey } from "@/domain/text";
 import { nowIso } from "@/domain/time";
-import { DomainError, type Equipment, type Exercise, type Id, type LogType, type MuscleGroup, type Plan } from "@/domain/types";
+import { DomainError, type Equipment, type Exercise, type Id, type LogType, type MuscleGroup, type Plan, type ProgressPrefer } from "@/domain/types";
 import { getDb, withTx } from "../client";
 
 export interface ExerciseInput {
@@ -14,6 +15,14 @@ export interface ExerciseInput {
   description?: string | null;
   /** «Ещё работают» of an own exercise (stage 42б); ignored for catalog ones. */
   secondary_groups?: MuscleGroup[] | null;
+}
+
+/** «Как прибавлять» (stage 51а): null — back to the default (the field is removed). */
+export interface ProgressSettingsPatch {
+  rep_ceiling?: number | null;
+  weight_step?: number | null;
+  per_side?: boolean | null;
+  progress_prefer?: ProgressPrefer | null;
 }
 
 function assertName(name: string) {
@@ -110,6 +119,43 @@ export const exercisesRepo = {
       if (substituteId && !(await store.get(substituteId))) throw new DomainError("Упражнение для замены не найдено");
       if ((current.substitute_id ?? null) === substituteId) return current;
       const updated = touch(current, { substitute_id: substituteId });
+      await store.put(updated);
+      return updated;
+    });
+  },
+
+  /**
+   * «Как прибавлять» of any exercise, catalog ones included (stage 51а). Values out of range throw; null removes the
+   * field, so the default applies again. Plans and history are not touched: «на каждую сторону» only changes how the
+   * sum of reps is read.
+   */
+  async setProgress(id: Id, patch: ProgressSettingsPatch): Promise<Exercise> {
+    return withTx(["exercises"], "readwrite", async (tx) => {
+      const store = tx.objectStore("exercises");
+      const current = await store.get(id);
+      if (!current) throw new DomainError("Упражнение не найдено");
+      const updated: Exercise = touch(current, {});
+      const put = <K extends keyof ProgressSettingsPatch>(key: K, value: Exercise[K] | null | undefined) => {
+        if (value === undefined) return;
+        if (value === null) delete updated[key];
+        else updated[key] = value;
+      };
+      if (patch.rep_ceiling !== undefined) {
+        const v = patch.rep_ceiling === null ? null : cleanCeiling(patch.rep_ceiling);
+        if (patch.rep_ceiling !== null && v === null) throw new DomainError("Потолок — от 5 до 50 повторов");
+        put("rep_ceiling", v);
+      }
+      if (patch.weight_step !== undefined) {
+        const v = patch.weight_step === null ? null : cleanStep(patch.weight_step);
+        if (patch.weight_step !== null && v === null) throw new DomainError("Шаг веса — от 0,25 до 50 кг");
+        put("weight_step", v);
+      }
+      // «На каждую сторону» off is the default: the field is simply absent.
+      if (patch.per_side !== undefined) put("per_side", patch.per_side ? true : null);
+      if (patch.progress_prefer !== undefined) {
+        const v = patch.progress_prefer === "reps" || patch.progress_prefer === "weight" ? patch.progress_prefer : null;
+        put("progress_prefer", v);
+      }
       await store.put(updated);
       return updated;
     });

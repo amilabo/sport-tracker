@@ -1,5 +1,6 @@
 import type { Exercise, IsoDateTime, Workout, WorkoutSet } from "../types";
 import { COMEBACK_DAYS } from "./thresholds";
+import { stepOf } from "./progress-settings";
 import { roundDownToStep, weightStep } from "./weight-step";
 
 // Back after a break (stage 44, mockup А5): after 14+ days without workouts the draft offers lower weights
@@ -29,10 +30,10 @@ export function isComeback(days: number | null): days is number {
   return days !== null && days >= COMEBACK_DAYS;
 }
 
-/** The plan's weight lowered by `pct` %, rounded down to the equipment step. */
-export function lowerWeight(weight: number, pct: number, equipment: Exercise["equipment"]): number {
+/** The plan's weight lowered by `pct` %, rounded down to the exercise's step (its own one, stage 51а, else the equipment's). */
+export function lowerWeight(weight: number, pct: number, exercise: Exercise["equipment"] | Pick<Exercise, "equipment" | "weight_step">): number {
   if (pct <= 0 || weight <= 0) return weight;
-  return roundDownToStep(weight * (1 - pct / 100), weightStep(equipment));
+  return roundDownToStep(weight * (1 - pct / 100), typeof exercise === "string" ? weightStep(exercise) : stepOf(exercise));
 }
 
 /** Whether lowering applies: «вес × раз» only; own weight, assistance and cardio stay as planned. */
@@ -44,11 +45,11 @@ export function lowersWeight(exercise: Pick<Exercise, "log_type">): boolean {
  * The draft's sets with weights `pct` % below the plan (0 — as in the plan). Only sets from the plan with a weight;
  * the rest come back unchanged (same objects), so callers can tell what changed.
  */
-export function comebackSets(exercise: Pick<Exercise, "log_type" | "equipment">, sets: WorkoutSet[], pct: number): WorkoutSet[] {
+export function comebackSets(exercise: Pick<Exercise, "log_type" | "equipment" | "weight_step">, sets: WorkoutSet[], pct: number): WorkoutSet[] {
   if (!lowersWeight(exercise)) return sets;
   return sets.map((s) => {
     if (!s.plan_set_id || s.target_weight === null || s.target_weight <= 0) return s;
-    const weight = lowerWeight(s.target_weight, pct, exercise.equipment);
+    const weight = lowerWeight(s.target_weight, pct, exercise);
     return weight === s.weight ? s : { ...s, weight };
   });
 }

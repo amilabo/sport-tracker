@@ -115,7 +115,7 @@ export function RestPanel(props: RestPanelProps) {
   return (
     <section
       aria-label="Таймер отдыха"
-      className={`sticky bottom-0 z-30 mt-3 flex flex-col gap-2 rounded-t-[22px] px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] transition-colors duration-300 ${
+      className={`sticky bottom-0 z-30 mt-3 flex flex-col gap-2 rounded-t-[22px] px-4 pt-3 pb-[max(12px,var(--safe-bottom))] transition-colors duration-300 ${
         bright ? "bg-accent text-on-accent" : "bg-surface-inverse text-on-inverse"
       }`}
     >
@@ -157,7 +157,7 @@ export function RestPanel(props: RestPanelProps) {
           <button
             type="button"
             onClick={tap(onStartSet)}
-            className={`col-span-2 min-h-12 rounded-[14px] font-display text-[15px] font-bold active:scale-[0.98] ${
+            className={`hit-wide col-span-2 min-h-12 rounded-[14px] font-display text-[15px] font-bold active:scale-[0.98] ${
               due ? "bg-surface-inverse text-on-inverse" : "bg-accent text-on-accent"
             }`}
           >
@@ -165,7 +165,7 @@ export function RestPanel(props: RestPanelProps) {
           </button>
         </div>
       ) : (
-        <button type="button" onClick={tap(onFinishSet)} className="min-h-12 rounded-[14px] bg-surface-inverse font-display text-[15px] font-bold text-on-inverse active:scale-[0.98]">
+        <button type="button" onClick={tap(onFinishSet)} className="hit-wide min-h-12 rounded-[14px] bg-surface-inverse font-display text-[15px] font-bold text-on-inverse active:scale-[0.98]">
           Готово — подход сделан
         </button>
       )}
@@ -233,7 +233,7 @@ function TimedPanel({ workoutId, timer, items, snapshot, screenOn, onStop, onPau
   return (
     <section
       aria-label={rest ? "Отдых" : "Работа"}
-      className={`sticky bottom-0 z-30 mt-3 flex flex-col gap-2.5 rounded-t-[24px] px-4 pt-4 pb-[max(16px,env(safe-area-inset-bottom))] transition-colors duration-300 ${
+      className={`sticky bottom-0 z-30 mt-3 flex flex-col gap-2.5 rounded-t-[24px] px-4 pt-4 pb-[max(16px,var(--safe-bottom))] transition-colors duration-300 ${
         rest ? "bg-surface-inverse text-on-inverse" : "bg-accent text-on-accent"
       }`}
     >
@@ -302,7 +302,7 @@ function TimedPanel({ workoutId, timer, items, snapshot, screenOn, onStop, onPau
         <button
           type="button"
           onClick={tap(onSkip)}
-          className={`min-h-13 rounded-[14px] text-[15px] font-bold active:scale-[0.98] ${rest ? "bg-accent text-on-accent" : "bg-surface-inverse text-on-inverse"}`}
+          className={`hit-wide min-h-13 rounded-[14px] text-[15px] font-bold active:scale-[0.98] ${rest ? "bg-accent text-on-accent" : "bg-surface-inverse text-on-inverse"}`}
         >
           {rest ? "Начать сейчас" : "Закончить раньше"}
         </button>

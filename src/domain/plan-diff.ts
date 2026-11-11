@@ -1,13 +1,33 @@
-import { doubleProgression, doubleProgressionWhere, type PreviousItem } from "./analytics/double-progression";
-import { formatNumber } from "./format";
+import { progressSuggestion, type LineValues, type OptionKind, type PastLine, type ProgressReason, type ProgressSuggestion } from "./analytics/progression-options";
+import { perSide, repCeiling, sideFactor, stepOf } from "./analytics/progress-settings";
+import { formatNumber, plural } from "./format";
 import { formatCardioDuration, formatClock } from "./sets";
-import type { Exercise, Id, LogType, WorkoutExercise, WorkoutSet } from "./types";
+import type { Exercise, Id, IsoDateTime, LogType, ProgressPrefer, WorkoutExercise, WorkoutSet } from "./types";
 import type { SetField } from "./workout";
 
 export interface PlanSetUpdate {
   planSetId: Id;
   field: SetField;
   value: number | null;
+}
+
+/** One way to progress a plan line (stage 52, mockup Р1): «+1 повтор · 3 × 14 → 3 × 15». */
+export interface ProgressChoice {
+  kind: OptionKind;
+  label: string;
+  detail: string;
+  updates: PlanSetUpdate[];
+  /** «+1 подход»: a copy of the last plan set. */
+  addSet?: { planExerciseId: Id };
+}
+
+export interface PlanProgress {
+  exerciseId: Id;
+  reason: ProgressReason;
+  /** First — the one chosen by default. */
+  choices: ProgressChoice[];
+  /** What can be set right under the choices: «шаг веса 5 кг · изменить», «потолок 15 · изменить». */
+  setting: { kind: "step" | "ceiling"; text: string; value: number } | null;
 }
 
 /** One line in «Обновить веса в плане?»: a field change of consecutive sets of one exercise. */
@@ -21,6 +41,12 @@ export interface PlanChange {
   updates: PlanSetUpdate[];
   /** «Отдых между подходами» of a plan exercise (stage 37); no set updates then. */
   rest?: { planExerciseId: Id; sec: number };
+  /** «Как прибавить» (stage 52): the line offers several ways; `updates` are the first one's until one is chosen. */
+  progress?: PlanProgress;
+  /** Set by the choice: one more plan set (copy of the last). */
+  addSet?: { planExerciseId: Id };
+  /** Set by the choice: what to offer first next time for this exercise. */
+  prefer?: { exerciseId: Id; value: ProgressPrefer };
 }
 
 export interface DiffItem {
@@ -67,10 +93,11 @@ export interface PlanChangesOptions {
    */
   comeback?: boolean;
   /**
-   * «Пора добавить вес» (stage 41): the same plan lines (by `plan_exercise_id`) in the previous workout by this plan.
-   * Absent — no double progression lines.
+   * «Как прибавить» (stages 41, 52): the same plan lines (by `plan_exercise_id`) in earlier completed workouts by this
+   * plan, newest first, and when this one started. Absent — no progress lines.
    */
-  previous?: Map<Id, PreviousItem>;
+  past?: Map<Id, PastLine[]>;
+  startedAt?: IsoDateTime;
   /**
    * Circuits «По времени» of the workout (stage 39): their time is the circuit's, and reps are written in the gym, not
    * planned — neither is offered to the plan. Weights are.
@@ -90,25 +117,15 @@ export function planChanges(items: DiffItem[], options: PlanChangesOptions = {})
     const planSets = item.sets.filter((s) => s.plan_set_id);
     const fields: SetField[] = ["weight", "reps", "duration_sec", "speed_kmh"];
 
-    // Double progression replaces the item's weight lines: one line for all sets, the reason in the grey line.
-    // Done heavier than the step already — the heavier weight stays.
-    const prev = options.previous && item.we.plan_exercise_id ? (options.previous.get(item.we.plan_exercise_id) ?? null) : undefined;
-    const dp = prev !== undefined ? doubleProgression(item, prev) : null;
-    if (dp) {
-      const to = Math.max(dp.to, ...planSets.map((s) => s.weight ?? 0));
-      changes.push({
-        key: `${item.we.id}:weight:dp`,
-        exerciseName: item.exercise.name,
-        where: doubleProgressionWhere(dp.reps),
-        from: valueText(logType, "weight", dp.from),
-        to: valueText(logType, "weight", to),
-        updates: planSets.map((s) => ({ planSetId: s.plan_set_id!, field: "weight" as const, value: to })),
-      });
-    }
-
+    // «Как прибавить» replaces the item's weight and reps lines: one line for all sets, the ways to choose from,
+    // the reason in the grey line. Done heavier or more already — that is in the choices.
     const timed = !!item.we.circuit_id && !!options.timedCircuits?.has(item.we.circuit_id);
+    const past = options.past && options.startedAt && item.we.plan_exercise_id && !timed ? options.past.get(item.we.plan_exercise_id) : undefined;
+    const suggestion = past ? progressSuggestion(item, options.startedAt!, past) : null;
+    if (suggestion) changes.push(progressChange(item, suggestion, planSets));
+
     for (const field of fields) {
-      if (dp && field === "weight") continue;
+      if (suggestion && (field === "weight" || field === "reps")) continue;
       if (timed && (field === "reps" || field === "duration_sec")) continue;
       let group: { from: number | null; to: number | null; positions: number[]; updates: PlanSetUpdate[] } | null = null;
       const flush = () => {
@@ -144,4 +161,98 @@ export function planChanges(items: DiffItem[], options: PlanChangesOptions = {})
     }
   }
   return changes;
+}
+
+const kg = (n: number) => `${formatNumber(n, 2)} кг`;
+const times = (n: number) => `${n} ${plural(n, ["разу", "раза", "раз"])}`;
+
+/** «3 × 14 × 40 кг», «3 × 20». */
+function lineText(l: LineValues): string {
+  return `${l.sets} × ${l.reps}${l.weight !== null ? ` × ${kg(l.weight)}` : ""}`;
+}
+
+/** The grey line: why it is offered. */
+function progressWhere(s: ProgressSuggestion, side: boolean): string {
+  const per = (reps: number) => (side ? `${formatNumber(reps / 2)} на сторону` : times(reps));
+  switch (s.reason) {
+    case "double":
+      return `${side ? "на каждую сторону" : "все подходы"} · 2 тренировки подряд по ${per(s.from.reps)}`;
+    case "ceiling":
+      return `дошли до потолка: ${per(s.from.reps)}, 2 тренировки подряд`;
+    case "stall": {
+      const d = new Date(s.since);
+      const date = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return `без изменений с ${date} · ${s.runs} ${plural(s.runs, ["тренировка", "тренировки", "тренировок"])}, всё по плану`;
+    }
+  }
+}
+
+function progressChange(item: DiffItem, s: ProgressSuggestion, planSets: WorkoutSet[]): PlanChange {
+  const ex = item.exercise;
+  const side = perSide(ex);
+  const all = (field: SetField, value: number): PlanSetUpdate[] => planSets.map((p) => ({ planSetId: p.plan_set_id!, field, value }));
+  const from = s.from;
+  const choices: ProgressChoice[] = s.options.map(({ kind, to }) => {
+    const dw = to.weight !== null && from.weight !== null ? Math.round((to.weight - from.weight) * 100) / 100 : 0;
+    switch (kind) {
+      case "reps": {
+        const n = to.reps - from.reps;
+        return {
+          kind,
+          label: side ? `+${formatNumber(n / 2)} на сторону` : `+${n} ${plural(n, ["повтор", "повтора", "повторов"])}`,
+          detail: side ? `${from.reps} → ${to.reps} (по ${formatNumber(to.reps / 2)})` : `${from.sets} × ${from.reps} → ${to.sets} × ${to.reps}`,
+          updates: all("reps", to.reps),
+        };
+      }
+      case "weight":
+        return { kind, label: `+${kg(dw)}`, detail: `${formatNumber(from.weight!, 2)} → ${kg(to.weight!)}`, updates: all("weight", to.weight!) };
+      case "weight_reset":
+        return {
+          kind,
+          label: `+${kg(dw)}, ${times(to.reps)}`,
+          detail: `${formatNumber(from.weight!, 2)} → ${kg(to.weight!)} × ${to.reps}`,
+          updates: [...all("weight", to.weight!), ...all("reps", to.reps)],
+        };
+      case "set":
+        return {
+          kind,
+          label: "+1 подход",
+          detail: `${from.sets} → ${to.sets} × ${to.reps}`,
+          updates: [],
+          addSet: { planExerciseId: item.we.plan_exercise_id! },
+        };
+    }
+  });
+  const hasWeight = choices.some((c) => c.kind === "weight" || c.kind === "weight_reset");
+  const ceiling = repCeiling(ex) / sideFactor(ex);
+  const setting: PlanProgress["setting"] =
+    s.reason === "ceiling" || !hasWeight
+      ? { kind: "ceiling", text: `потолок ${ceiling}${side ? " на сторону" : ""}`, value: ceiling }
+      : { kind: "step", text: `шаг веса ${kg(stepOf(ex))}`, value: stepOf(ex) };
+  return choose(
+    {
+      key: `${item.we.id}:progress`,
+      exerciseName: ex.name,
+      where: progressWhere(s, side),
+      from: lineText(from),
+      to: "",
+      updates: [],
+      progress: { exerciseId: ex.id, reason: s.reason, choices, setting },
+    },
+    0,
+  );
+}
+
+/** The line with the chosen way applied (stage 52): what is written to the plan, and the choice remembered. */
+export function choose(change: PlanChange, index: number): PlanChange {
+  const p = change.progress;
+  const c = p?.choices[index];
+  if (!p || !c) return change;
+  return {
+    ...change,
+    to: c.detail,
+    updates: c.updates,
+    addSet: c.addSet,
+    prefer: { exerciseId: p.exerciseId, value: c.kind === "weight" || c.kind === "weight_reset" ? "weight" : "reps" },
+  };
 }

@@ -9,6 +9,7 @@ import type { LogType, SetValues } from "@/domain/types";
 import { fieldsFor, isExerciseDone, isFieldChanged, lastTimeDiffers, parseSignedWeight, stepValue, type SetField } from "@/domain/workout";
 import { ValueStepper } from "./ValueStepper";
 import { RestLine } from "./WorkRest";
+import { hasRest } from "@/domain/rest-summary";
 
 interface ExerciseCardProps {
   item: WorkoutItem;
@@ -185,7 +186,7 @@ export function ExerciseCard(props: ExerciseCardProps) {
           {showLast && <p className="text-[13px] text-ink-muted">В прошлый раз: {formatSetsSummary(logType, last!)}</p>}
           {sets.map((s, si) => (
             <div key={s.id} className="flex flex-col gap-2">
-            {!planning && s.rest_sec !== undefined && <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} before={si === 0 && !we.circuit_id} className="pl-[52px]" />}
+            {!planning && hasRest(s) && <RestLine sec={s.rest_sec} target={s.rest_target_sec} approx={!!s.rest_approx} before={si === 0 && !we.circuit_id} className="-my-1" />}
             <div className="flex items-center gap-2">
               {planning ? (
                 <span className="flex h-12 w-11 shrink-0 items-center justify-center font-mono text-sm font-bold text-ink-muted">{si + 1}</span>

@@ -19,7 +19,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * setBackground: the theme's page color behind the system bars. A WebView older than 140 is not drawn under the
  * bars (Capacitor pads it), and without this the strips there stay white in a dark theme.
  * insets: the status bar's height as Android has it, for --native-top in globals.css (1.1.2). On the S22 the page's
- * own insets (env() and Capacitor's --safe-area-inset-top) still left the top under the status bar.
+ * own insets (env() and Capacitor's --safe-area-inset-top) still left the top under the status bar. The same for the
+ * navigation bar at the bottom, for --native-bottom (1.1.4): sheets without a footer went under it on the S22.
  */
 @CapacitorPlugin(name = "Screen")
 public class ScreenPlugin extends Plugin {
@@ -34,22 +35,29 @@ public class ScreenPlugin extends Plugin {
         });
     }
 
-    /** { top: dp rounded up, padded: Capacitor already moved the WebView below the bar (old WebView) }. */
+    /**
+     * { top, bottom: dp rounded up; padded / paddedBottom: Capacitor already moved the WebView off the bar (old WebView) }.
+     */
     @PluginMethod
     public void insets(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             View decor = getActivity().getWindow().getDecorView();
             WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decor);
             int px = 0;
+            int bottomPx = 0;
             if (insets != null) {
                 Insets bars = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars());
                 Insets cut = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
                 px = Math.max(bars.top, cut.top);
+                Insets nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars());
+                bottomPx = Math.max(nav.bottom, cut.bottom);
             }
             float density = getActivity().getResources().getDisplayMetrics().density;
             JSObject res = new JSObject();
             res.put("top", (int) Math.ceil(px / density));
             res.put("padded", decor.getPaddingTop() > 0);
+            res.put("bottom", (int) Math.ceil(bottomPx / density));
+            res.put("paddedBottom", decor.getPaddingBottom() > 0);
             call.resolve(res);
         });
     }

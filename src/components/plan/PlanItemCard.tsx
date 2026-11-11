@@ -31,6 +31,8 @@ interface PlanItemCardProps {
   onEditSet: (setIndex: number) => void;
   onAddSet: () => void;
   onMenu: () => void;
+  /** «История и график» (stage 50, mockup И1): the exercise screen — its sets and chart. */
+  onHistory: () => void;
   autoFocus?: boolean;
   /** Rest between sets, shown on plans with rest; `own` — set on this exercise. */
   rest?: { value: number; own: boolean };
@@ -50,7 +52,7 @@ function timedCaption(logType: LogType): string {
 const roundChip = "flex min-h-11 items-center rounded-[9px] border-[1.5px] border-line bg-surface-raised px-2.5 font-mono text-[13px] font-bold";
 
 export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(function PlanItemCard(
-  { row, index, compact, lifted, handleProps, style, onText, onEditSet, onAddSet, onMenu, autoFocus, rest, onRest, timed },
+  { row, index, compact, lifted, handleProps, style, onText, onEditSet, onAddSet, onMenu, onHistory, autoFocus, rest, onRest, timed },
   ref,
 ) {
   const logType = row.exercise.log_type;
@@ -92,9 +94,25 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
         </button>
         <span className="font-mono text-[13px] font-bold text-ink-muted">{num}</span>
         <span className="min-w-0 flex-1 text-[15px] leading-snug font-semibold">
-          {row.exercise.name}
+          {compact ? (
+            row.exercise.name
+          ) : (
+            <button type="button" onClick={onHistory} className="text-left">
+              {row.exercise.name}
+            </button>
+          )}
           {compact && !timed && <span className="block font-mono text-[13px] font-normal text-ink-muted">{formatSetsSummary(logType, row.sets)}</span>}
         </span>
+        {!compact && (
+          <button
+            type="button"
+            onClick={onHistory}
+            aria-label={`История и график: ${row.exercise.name}`}
+            className="-mr-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-ink-muted"
+          >
+            <ChartIcon />
+          </button>
+        )}
         {!compact && (
           <button
             type="button"
@@ -208,3 +226,13 @@ export const PlanItemCard = forwardRef<HTMLDivElement, PlanItemCardProps>(functi
     </div>
   );
 });
+
+/** «История и график» (mockup И1): a line chart over a baseline. */
+export function ChartIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 19h16" />
+      <path d="M5 15l4-5 4 3 6-7" />
+    </svg>
+  );
+}
